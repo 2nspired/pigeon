@@ -119,7 +119,7 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 
 	return (
 		<Sheet open={!!cardId} onOpenChange={() => onClose()}>
-			<SheetContent className="w-full overflow-y-auto sm:max-w-lg">
+			<SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
 				<SheetHeader>
 					<SheetTitle className="pr-6">
 						<div className="flex items-center gap-2">

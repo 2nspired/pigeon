@@ -12,7 +12,6 @@ import {
 	pointerWithin,
 	rectIntersection,
 } from "@dnd-kit/core";
-import { Lightbulb } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -26,7 +25,6 @@ import { AddColumnButton } from "./column-header";
 import type { RouterOutputs } from "@/trpc/react";
 import { api } from "@/trpc/react";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { useDroppable } from "@dnd-kit/core";
 
 type FullBoard = RouterOutputs["board"]["getFull"];
 type BoardCardType = FullBoard["columns"][number]["cards"][number];
@@ -107,8 +105,12 @@ export function BoardView({ board }: { board: FullBoard }) {
 	const totalCards = allCards.length;
 	const visibleCards = filteredColumns.reduce((sum, col) => sum + col.cards.length, 0);
 
-	const regularColumns = filteredColumns.filter((col) => !col.isParking);
-	const parkingLot = filteredColumns.find((col) => col.isParking);
+	// Sort: parking lot columns first, then regular columns by position
+	const sortedColumns = useMemo(() => {
+		const parking = filteredColumns.filter((col) => col.isParking);
+		const regular = filteredColumns.filter((col) => !col.isParking);
+		return [...parking, ...regular];
+	}, [filteredColumns]);
 
 	const findColumnForCard = useCallback(
 		(cardId: string) => {
@@ -187,9 +189,9 @@ export function BoardView({ board }: { board: FullBoard }) {
 					visibleCards={visibleCards}
 				/>
 
-				{/* Main columns */}
+				{/* Columns */}
 				<div className="flex flex-1 gap-4 overflow-x-auto p-4">
-					{regularColumns.map((column) => (
+					{sortedColumns.map((column) => (
 						<BoardColumn
 							key={column.id}
 							column={column}
@@ -201,15 +203,6 @@ export function BoardView({ board }: { board: FullBoard }) {
 						<AddColumnButton boardId={board.id} />
 					</div>
 				</div>
-
-				{/* Parking Lot */}
-				{parkingLot && (
-					<ParkingLot
-						parkingLot={parkingLot}
-						boardId={board.id}
-						onCardClick={setSelectedCardId}
-					/>
-				)}
 
 				<CardDetailSheet
 					cardId={selectedCardId}
@@ -229,52 +222,3 @@ export function BoardView({ board }: { board: FullBoard }) {
 	);
 }
 
-function ParkingLot({
-	parkingLot,
-	boardId,
-	onCardClick,
-}: {
-	parkingLot: FullBoard["columns"][number];
-	boardId: string;
-	onCardClick: (id: string) => void;
-}) {
-	const { setNodeRef, isOver } = useDroppable({
-		id: parkingLot.id,
-		data: { type: "column", column: parkingLot },
-	});
-
-	const cardIds = parkingLot.cards.map((c) => c.id);
-
-	return (
-		<div
-			className={`border-t border-dashed px-4 py-3 transition-colors ${
-				isOver ? "border-yellow-500/40 bg-yellow-500/5" : "bg-muted/20"
-			}`}
-		>
-			<div className="mb-2 flex items-center gap-2">
-				<Lightbulb className="h-4 w-4 text-yellow-500" />
-				<h3 className="text-sm font-semibold text-muted-foreground">
-					Parking Lot
-				</h3>
-				<span className="rounded-full bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-					{parkingLot.cards.length}
-				</span>
-			</div>
-			<div ref={setNodeRef} className="flex min-h-[40px] gap-3 overflow-x-auto pb-1">
-				<SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
-					{parkingLot.cards.map((card) => (
-						<div key={card.id} className="w-64 shrink-0">
-							<SortableCard
-								card={card}
-								onClick={() => onCardClick(card.id)}
-							/>
-						</div>
-					))}
-				</SortableContext>
-				<div className="w-64 shrink-0">
-					<CardCreateInline columnId={parkingLot.id} boardId={boardId} />
-				</div>
-			</div>
-		</div>
-	);
-}

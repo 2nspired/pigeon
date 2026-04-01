@@ -19,6 +19,7 @@ model Project {
   boards Board[]
   labels Label[]
   cards  Card[]
+  notes  Note[]
 
   @@map("project")
 }
@@ -157,10 +158,14 @@ model CardLabel {
 
 model Note {
   id        String   @id @default(uuid())
+  projectId String?  @map("project_id")
   title     String
   content   String   @default("")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
   @@map("note")
 }

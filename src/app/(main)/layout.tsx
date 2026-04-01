@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Kanban } from "lucide-react";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
 	return (
@@ -10,7 +11,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 						<Kanban className="h-5 w-5 text-primary" />
 						Project Tracker
 					</Link>
-					<nav className="flex items-center gap-4 text-sm">
+					<nav className="flex flex-1 items-center gap-4 text-sm">
 						<Link href="/projects" className="text-muted-foreground transition-colors hover:text-foreground">
 							Projects
 						</Link>
@@ -21,6 +22,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 							Notes
 						</Link>
 					</nav>
+					<ThemeToggle />
 				</div>
 			</header>
 			<main className="flex-1">{children}</main>

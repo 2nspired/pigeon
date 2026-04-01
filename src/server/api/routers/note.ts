@@ -5,13 +5,15 @@ import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
 import { noteService } from "@/server/services/note-service";
 
 export const noteRouter = createTRPCRouter({
-	list: publicProcedure.query(async () => {
-		const result = await noteService.list();
-		if (!result.success) {
-			throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
-		}
-		return result.data;
-	}),
+	list: publicProcedure
+		.input(z.object({ projectId: z.string().uuid().nullable().optional() }).optional())
+		.query(async ({ input }) => {
+			const result = await noteService.list(input?.projectId);
+			if (!result.success) {
+				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
+			}
+			return result.data;
+		}),
 
 	create: publicProcedure.input(createNoteSchema).mutation(async ({ input }) => {
 		const result = await noteService.create(input);

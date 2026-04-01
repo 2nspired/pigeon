@@ -12,11 +12,33 @@ const DEFAULT_COLUMNS = [
 	{ name: "Parking Lot", description: "Ideas and items to revisit later", position: 5, isParking: true },
 ];
 
-async function list(projectId: string): Promise<ServiceResult<Board[]>> {
+type BoardListItem = Board & {
+	columns: Array<{
+		id: string;
+		name: string;
+		isParking: boolean;
+		_count: { cards: number };
+	}>;
+	_count: { columns: number };
+};
+
+async function list(projectId: string): Promise<ServiceResult<BoardListItem[]>> {
 	try {
 		const boards = await db.board.findMany({
 			where: { projectId },
 			orderBy: { createdAt: "desc" },
+			include: {
+				columns: {
+					orderBy: { position: "asc" },
+					select: {
+						id: true,
+						name: true,
+						isParking: true,
+						_count: { select: { cards: true } },
+					},
+				},
+				_count: { select: { columns: true } },
+			},
 		});
 		return { success: true, data: boards };
 	} catch (error) {

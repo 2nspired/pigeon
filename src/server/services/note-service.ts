@@ -3,10 +3,20 @@ import type { CreateNoteInput, UpdateNoteInput } from "@/lib/schemas/note-schema
 import { db } from "@/server/db";
 import type { ServiceResult } from "@/server/services/types/service-result";
 
-async function list(): Promise<ServiceResult<Note[]>> {
+type NoteWithProject = Note & { project: { id: string; name: string } | null };
+
+async function list(projectId?: string | null): Promise<ServiceResult<NoteWithProject[]>> {
 	try {
+		const where = projectId === undefined
+			? {}
+			: projectId === null
+				? { projectId: null }
+				: { projectId };
+
 		const notes = await db.note.findMany({
+			where,
 			orderBy: { updatedAt: "desc" },
+			include: { project: { select: { id: true, name: true } } },
 		});
 		return { success: true, data: notes };
 	} catch (error) {
@@ -15,9 +25,12 @@ async function list(): Promise<ServiceResult<Note[]>> {
 	}
 }
 
-async function create(data: CreateNoteInput): Promise<ServiceResult<Note>> {
+async function create(data: CreateNoteInput): Promise<ServiceResult<NoteWithProject>> {
 	try {
-		const note = await db.note.create({ data });
+		const note = await db.note.create({
+			data,
+			include: { project: { select: { id: true, name: true } } },
+		});
 		return { success: true, data: note };
 	} catch (error) {
 		console.error("[NOTE_SERVICE] create error:", error);
@@ -25,13 +38,17 @@ async function create(data: CreateNoteInput): Promise<ServiceResult<Note>> {
 	}
 }
 
-async function update(noteId: string, data: UpdateNoteInput): Promise<ServiceResult<Note>> {
+async function update(noteId: string, data: UpdateNoteInput): Promise<ServiceResult<NoteWithProject>> {
 	try {
 		const existing = await db.note.findUnique({ where: { id: noteId } });
 		if (!existing) {
 			return { success: false, error: { code: "NOT_FOUND", message: "Note not found." } };
 		}
-		const note = await db.note.update({ where: { id: noteId }, data });
+		const note = await db.note.update({
+			where: { id: noteId },
+			data,
+			include: { project: { select: { id: true, name: true } } },
+		});
 		return { success: true, data: note };
 	} catch (error) {
 		console.error("[NOTE_SERVICE] update error:", error);
