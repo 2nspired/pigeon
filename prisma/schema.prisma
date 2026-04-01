@@ -1,0 +1,166 @@
+generator client {
+  provider = "prisma-client"
+  output   = "./generated"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Project {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  slug            String   @unique
+  nextCardNumber  Int      @default(1) @map("next_card_number")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  boards Board[]
+  labels Label[]
+  cards  Card[]
+
+  @@map("project")
+}
+
+model Label {
+  id        String @id @default(uuid())
+  projectId String @map("project_id")
+  name      String
+  color     String @default("#6b7280")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project    Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  cardLabels CardLabel[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@map("label")
+}
+
+model Board {
+  id          String   @id @default(uuid())
+  projectId   String   @map("project_id")
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  project Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  columns Column[]
+
+  @@index([projectId])
+  @@map("board")
+}
+
+model Column {
+  id          String   @id @default(uuid())
+  boardId     String   @map("board_id")
+  name        String
+  description String?
+  position    Int
+  isParking   Boolean  @default(false) @map("is_parking")
+  color       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards Card[]
+
+  @@index([boardId])
+  @@map("column")
+}
+
+model Card {
+  id          String   @id @default(uuid())
+  columnId    String   @map("column_id")
+  projectId   String   @map("project_id")
+  number      Int
+  title       String
+  description String?
+  position    Int
+  priority    String   @default("NONE")
+  tags        String   @default("[]")
+  assignee    String?
+  createdBy   String   @default("HUMAN") @map("created_by")
+  dueDate     DateTime? @map("due_date")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  column     Column          @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  project    Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  checklists ChecklistItem[]
+  comments   Comment[]
+  activities Activity[]
+  cardLabels CardLabel[]
+
+  @@unique([projectId, number])
+  @@index([columnId])
+  @@index([projectId])
+  @@map("card")
+}
+
+model ChecklistItem {
+  id        String   @id @default(uuid())
+  cardId    String   @map("card_id")
+  text      String
+  completed Boolean  @default(false)
+  position  Int
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId])
+  @@map("checklist_item")
+}
+
+model Comment {
+  id         String   @id @default(uuid())
+  cardId     String   @map("card_id")
+  content    String
+  authorType String   @default("HUMAN") @map("author_type")
+  authorName String?  @map("author_name")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId])
+  @@map("comment")
+}
+
+model Activity {
+  id        String   @id @default(uuid())
+  cardId    String   @map("card_id")
+  action    String
+  details   String?
+  actorType String   @default("HUMAN") @map("actor_type")
+  actorName String?  @map("actor_name")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId])
+  @@map("activity")
+}
+
+model CardLabel {
+  cardId  String @map("card_id")
+  labelId String @map("label_id")
+
+  card  Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, labelId])
+  @@map("card_label")
+}
+
+model Note {
+  id        String   @id @default(uuid())
+  title     String
+  content   String   @default("")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("note")
+}
