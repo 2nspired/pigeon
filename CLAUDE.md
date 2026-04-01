@@ -72,18 +72,10 @@ When this MCP is connected to a project, use the board as your shared workspace 
 
 ## Connecting Other Projects
 
-To use the tracker from another project (e.g. Retry Labs), add this to that project's `.mcp.json`:
+To use the tracker from another project, run the connect script from that project's directory:
 
-```json
-{
-  "mcpServers": {
-    "project-tracker": {
-      "command": "npx",
-      "args": ["tsx", "src/mcp/server.ts"],
-      "cwd": "/Users/thomastrudzinski/Projects/2nspired/project-tracker"
-    }
-  }
-}
+```bash
+/path/to/project-tracker/scripts/connect.sh
 ```
 
 Then in that project's `CLAUDE.md`, add:

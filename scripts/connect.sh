@@ -42,9 +42,8 @@ if [ -f "$MCP_FILE" ]; then
   echo "Add this to the \"mcpServers\" object in $MCP_FILE:"
   echo ""
   echo "  \"project-tracker\": {"
-  echo "    \"command\": \"npx\","
-  echo "    \"args\": [\"tsx\", \"src/mcp/server.ts\"],"
-  echo "    \"cwd\": \"$TRACKER_ROOT\""
+  echo "    \"command\": \"$TRACKER_ROOT/scripts/mcp-start.sh\","
+  echo "    \"args\": []"
   echo "  }"
   exit 0
 fi
@@ -54,9 +53,8 @@ cat > "$MCP_FILE" <<EOF
 {
   "mcpServers": {
     "project-tracker": {
-      "command": "npx",
-      "args": ["tsx", "src/mcp/server.ts"],
-      "cwd": "$TRACKER_ROOT"
+      "command": "$TRACKER_ROOT/scripts/mcp-start.sh",
+      "args": []
     }
   }
 }
