@@ -240,6 +240,45 @@ prisma/schema.prisma               # Data model
 data/tracker.db                    # SQLite database (gitignored)
 ```
 
+## Troubleshooting
+
+### MCP server shows "failed" in Claude Code
+
+Run `/mcp` in Claude Code to see server status. If project-tracker shows as failed:
+
+1. **Test the server manually** from your project directory:
+   ```bash
+   /path/to/project-tracker/scripts/mcp-start.sh
+   ```
+   It should print "Project Tracker MCP server running on stdio" and wait. Ctrl+C to exit.
+
+2. **Check dependencies are installed** in project-tracker:
+   ```bash
+   cd /path/to/project-tracker && npm install && npx prisma generate
+   ```
+
+3. **Restart Claude Code** — MCP servers are loaded at session start, not hot-reloaded.
+
+### Using a custom Claude Code config directory
+
+If you use an alternate config directory (e.g. `~/.claude-alt/`), the project-level `.mcp.json` should still work. If it doesn't, add the server to your global config at `~/.claude-alt/.claude.json`:
+
+```json
+{
+  "mcpServers": {
+    "project-tracker": {
+      "type": "stdio",
+      "command": "/path/to/project-tracker/scripts/mcp-start.sh",
+      "args": []
+    }
+  }
+}
+```
+
+### Database is empty after cloning
+
+The SQLite database (`data/tracker.db`) is gitignored — each install starts fresh. Run `npx prisma db push` to create the tables, then create your first project through the web UI or MCP tools.
+
 ## License
 
 MIT
