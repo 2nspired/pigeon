@@ -17,12 +17,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { COLOR_CLASSES } from "@/lib/project-colors";
+import { PROJECT_COLORS, type ProjectColor } from "@/lib/schemas/project-schemas";
 import { api } from "@/trpc/react";
 
 export function CreateProjectDialog() {
 	const [open, setOpen] = useState(false);
 	const [name, setName] = useState("");
 	const [description, setDescription] = useState("");
+	const [color, setColor] = useState<ProjectColor>("slate");
 
 	const utils = api.useUtils();
 
@@ -32,6 +35,7 @@ export function CreateProjectDialog() {
 			setOpen(false);
 			setName("");
 			setDescription("");
+			setColor("slate");
 			toast.success("Project created");
 		},
 		onError: (error) => {
@@ -45,6 +49,7 @@ export function CreateProjectDialog() {
 		createProject.mutate({
 			name: name.trim(),
 			description: description.trim() || undefined,
+			color,
 		});
 	};
 
@@ -84,6 +89,24 @@ export function CreateProjectDialog() {
 								placeholder="What is this project about?"
 								rows={3}
 							/>
+						</div>
+						<div className="space-y-2">
+							<Label>Color</Label>
+							<div className="flex flex-wrap gap-1.5">
+								{PROJECT_COLORS.map((c) => (
+									<button
+										key={c}
+										type="button"
+										onClick={() => setColor(c)}
+										className={`h-6 w-6 rounded-full ${COLOR_CLASSES[c].bg} transition-all ${
+											color === c
+												? "ring-2 ring-ring ring-offset-2 ring-offset-background"
+												: "hover:scale-110"
+										}`}
+										title={c}
+									/>
+								))}
+							</div>
 						</div>
 					</div>
 					<DialogFooter className="mt-6">

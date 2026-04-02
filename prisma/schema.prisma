@@ -11,6 +11,7 @@ model Project {
   id              String   @id @default(uuid())
   name            String
   description     String?
+  color           String   @default("slate")
   slug            String   @unique
   nextCardNumber  Int      @default(1) @map("next_card_number")
   createdAt       DateTime @default(now()) @map("created_at")

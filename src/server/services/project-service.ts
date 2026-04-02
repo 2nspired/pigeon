@@ -10,12 +10,37 @@ function slugify(name: string): string {
 		.replace(/^-|-$/g, "");
 }
 
-async function list(): Promise<ServiceResult<Project[]>> {
+type ProjectListItem = Project & {
+	_count: { boards: number; cards: number };
+	hasAgentCards: boolean;
+};
+
+async function list(): Promise<ServiceResult<ProjectListItem[]>> {
 	try {
 		const projects = await db.project.findMany({
 			orderBy: { createdAt: "desc" },
+			include: {
+				_count: { select: { boards: true, cards: true } },
+			},
 		});
-		return { success: true, data: projects };
+
+		// Check which projects have agent-created cards
+		const projectIds = projects.map((p) => p.id);
+		const agentCards = await db.card.groupBy({
+			by: ["projectId"],
+			where: {
+				projectId: { in: projectIds },
+				createdBy: "AGENT",
+			},
+		});
+		const agentProjectIds = new Set(agentCards.map((c) => c.projectId));
+
+		const enriched = projects.map((p) => ({
+			...p,
+			hasAgentCards: agentProjectIds.has(p.id),
+		}));
+
+		return { success: true, data: enriched };
 	} catch (error) {
 		console.error("[PROJECT_SERVICE] list error:", error);
 		return { success: false, error: { code: "LIST_FAILED", message: "Failed to fetch projects." } };
@@ -60,6 +85,7 @@ async function create(data: CreateProjectInput): Promise<ServiceResult<Project>>
 			data: {
 				name: data.name,
 				description: data.description,
+				color: data.color,
 				slug,
 			},
 		});

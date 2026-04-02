@@ -168,7 +168,7 @@ function NoteEditor({
 						value={content}
 						onChange={(e) => setContent(e.target.value)}
 						placeholder="Details, context, links..."
-						rows={rows ?? 36}
+						rows={rows ?? 20}
 						className="rounded-t-none font-mono text-sm"
 					/>
 				</>
@@ -181,6 +181,7 @@ function NoteEditor({
 
 export default function NotesPage() {
 	const [createOpen, setCreateOpen] = useState(false);
+	const [viewingId, setViewingId] = useState<string | null>(null);
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [promoteId, setPromoteId] = useState<string | null>(null);
 	const [title, setTitle] = useState("");
@@ -300,7 +301,7 @@ export default function NotesPage() {
 	};
 
 	return (
-		<div className="mx-auto sm:max-w-4xl px-4 py-6">
+		<div className="mx-auto max-w-5xl px-4 py-6">
 			<div className="mb-6 flex items-center justify-between">
 				<div>
 					<h1 className="text-2xl font-bold">Notes</h1>
@@ -346,9 +347,13 @@ export default function NotesPage() {
 					{notes.map((note) => (
 						<div
 							key={note.id}
-							className="group flex flex-col rounded-lg border bg-card p-4 transition-colors hover:bg-muted/30"
+							role="button"
+							tabIndex={0}
+							onClick={() => setViewingId(note.id)}
+							onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setViewingId(note.id); }}
+							className="group flex cursor-pointer flex-col rounded-lg border bg-card p-4 text-left transition-colors hover:bg-muted/30"
 						>
-							<div className="mb-2 flex items-start justify-between">
+							<div className="mb-2 flex w-full items-start justify-between">
 								<div className="min-w-0 flex-1">
 									<h3 className="font-medium">{note.title}</h3>
 									{note.project && (
@@ -361,7 +366,7 @@ export default function NotesPage() {
 										size="icon"
 										className="h-7 w-7"
 										title="Promote to card"
-										onClick={() => setPromoteId(note.id)}
+										onClick={(e) => { e.stopPropagation(); setPromoteId(note.id); }}
 									>
 										<ArrowUpRight className="h-3.5 w-3.5" />
 									</Button>
@@ -369,7 +374,7 @@ export default function NotesPage() {
 										variant="ghost"
 										size="icon"
 										className="h-7 w-7"
-										onClick={() => startEdit(note)}
+										onClick={(e) => { e.stopPropagation(); startEdit(note); }}
 									>
 										<Pencil className="h-3.5 w-3.5" />
 									</Button>
@@ -377,7 +382,8 @@ export default function NotesPage() {
 										variant="ghost"
 										size="icon"
 										className="h-7 w-7 text-destructive"
-										onClick={() => {
+										onClick={(e) => {
+											e.stopPropagation();
 											if (confirm("Delete this note?")) {
 												deleteNote.mutate({ id: note.id });
 											}
@@ -407,9 +413,71 @@ export default function NotesPage() {
 				</div>
 			)}
 
+			{/* View dialog */}
+			{(() => {
+				const viewNote = notes?.find((n) => n.id === viewingId);
+				if (!viewNote) return null;
+				return (
+					<Dialog open={!!viewingId} onOpenChange={() => setViewingId(null)}>
+						<DialogContent className="sm:max-w-4xl max-h-[90dvh] overflow-y-auto">
+							<DialogHeader>
+								<div className="flex items-start justify-between pr-8">
+									<div>
+										<DialogTitle className="text-xl">{viewNote.title}</DialogTitle>
+										<div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+											{viewNote.project && <span>{viewNote.project.name}</span>}
+											<span>
+												{new Date(viewNote.updatedAt).toLocaleDateString("en-US", {
+													month: "short",
+													day: "numeric",
+													year: "numeric",
+													hour: "2-digit",
+													minute: "2-digit",
+												})}
+											</span>
+										</div>
+									</div>
+								</div>
+							</DialogHeader>
+							<div className="mt-4 min-h-[200px] text-sm">
+								{viewNote.content ? (
+									<Markdown>{viewNote.content}</Markdown>
+								) : (
+									<p className="text-muted-foreground italic">No content</p>
+								)}
+							</div>
+							<DialogFooter>
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => {
+										setViewingId(null);
+										setPromoteId(viewNote.id);
+									}}
+								>
+									<ArrowUpRight className="mr-2 h-3.5 w-3.5" />
+									Promote to Card
+								</Button>
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => {
+										setViewingId(null);
+										startEdit(viewNote);
+									}}
+								>
+									<Pencil className="mr-2 h-3.5 w-3.5" />
+									Edit
+								</Button>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
+				);
+			})()}
+
 			{/* Create dialog */}
 			<Dialog open={createOpen} onOpenChange={setCreateOpen}>
-				<DialogContent className="sm:max-w-4xl">
+				<DialogContent className="sm:max-w-4xl max-h-[90dvh] overflow-y-auto">
 					<form onSubmit={handleCreate}>
 						<DialogHeader>
 							<DialogTitle>New Note</DialogTitle>
@@ -463,7 +531,7 @@ export default function NotesPage() {
 
 			{/* Edit dialog */}
 			<Dialog open={!!editingId} onOpenChange={() => setEditingId(null)}>
-				<DialogContent className="sm:max-w-4xl">
+				<DialogContent className="sm:max-w-4xl max-h-[90dvh] overflow-y-auto">
 					<form onSubmit={handleUpdate}>
 						<DialogHeader>
 							<DialogTitle>Edit Note</DialogTitle>

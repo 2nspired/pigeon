@@ -12,6 +12,7 @@ import {
 	Link as LinkIcon,
 	List,
 	ListOrdered,
+	MoreHorizontal,
 	NotebookPen,
 	Pencil,
 	Plus,
@@ -24,6 +25,16 @@ import { use, useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { CreateBoardDialog } from "@/components/project/create-board-dialog";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -39,6 +50,12 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -51,6 +68,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Markdown } from "@/components/ui/markdown";
+import { COLOR_CLASSES } from "@/lib/project-colors";
+import type { ProjectColor } from "@/lib/schemas/project-schemas";
 import { api } from "@/trpc/react";
 
 // ─── Markdown toolbar (shared logic) ──────────────────────────────
@@ -176,7 +195,7 @@ function NoteEditor({
 						value={content}
 						onChange={(e) => setContent(e.target.value)}
 						placeholder="Details, context, links..."
-						rows={rows ?? 36}
+						rows={rows ?? 20}
 						className="rounded-t-none font-mono text-sm"
 					/>
 				</>
@@ -197,9 +216,12 @@ export default function ProjectPage({
 	const initialTab = searchParams.get("tab") === "notes" ? "notes" : "boards";
 	const fromBoardId = searchParams.get("from");
 	const [tab, setTab] = useState<"boards" | "notes">(initialTab);
+	const [noteCreateOpen, setNoteCreateOpen] = useState(false);
 
 	const { data: project } = api.project.getById.useQuery({ id: projectId });
 	const { data: boards, isLoading: boardsLoading } = api.board.list.useQuery({ projectId });
+
+	const projectColor = (project?.color as ProjectColor) || "slate";
 
 	return (
 		<div className="container mx-auto px-4 py-6">
@@ -220,15 +242,24 @@ export default function ProjectPage({
 					</Link>
 				)}
 				<div className="flex items-center justify-between">
-					<div>
-						<h1 className="text-3xl font-bold tracking-tight">
-							{project?.name ?? "..."}
-						</h1>
-						{project?.description && (
-							<p className="text-muted-foreground">{project.description}</p>
-						)}
+					<div className={`flex items-center gap-3 border-l-[4px] pl-3 ${COLOR_CLASSES[projectColor].border}`}>
+						<div>
+							<h1 className="text-3xl font-bold tracking-tight">
+								{project?.name ?? "..."}
+							</h1>
+							{project?.description && (
+								<p className="text-muted-foreground">{project.description}</p>
+							)}
+						</div>
 					</div>
-					{tab === "boards" && <CreateBoardDialog projectId={projectId} />}
+					{tab === "boards" ? (
+						<CreateBoardDialog projectId={projectId} />
+					) : (
+						<Button onClick={() => setNoteCreateOpen(true)}>
+							<Plus className="mr-2 h-4 w-4" />
+							New Note
+						</Button>
+					)}
 				</div>
 			</div>
 
@@ -271,7 +302,7 @@ export default function ProjectPage({
 					isLoading={boardsLoading}
 				/>
 			) : (
-				<ProjectNotesTab projectId={projectId} />
+				<ProjectNotesTab projectId={projectId} createOpen={noteCreateOpen} setCreateOpen={setNoteCreateOpen} />
 			)}
 		</div>
 	);
@@ -301,98 +332,212 @@ function BoardsTab({
 	boards: BoardListItem[] | undefined;
 	isLoading: boolean;
 }) {
-	return (
-		<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-			{isLoading ? (
-				Array.from({ length: 2 }).map((_, i) => (
-					<Card key={i}>
-						<CardHeader>
-							<Skeleton className="h-5 w-32" />
-							<Skeleton className="h-4 w-48" />
-						</CardHeader>
-					</Card>
-				))
-			) : boards?.length === 0 ? (
-				<div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
-					<LayoutGrid className="mb-4 h-12 w-12 text-muted-foreground" />
-					<h2 className="text-lg font-semibold">No boards yet</h2>
-					<p className="text-sm text-muted-foreground">
-						Create a board to start tracking work.
-					</p>
-				</div>
-			) : (
-				boards?.map((board) => {
-					const totalCards = board.columns.reduce((sum, col) => sum + col._count.cards, 0);
-					const doneCol = board.columns.find((c) => c.name === "Done");
-					const doneCards = doneCol?._count.cards ?? 0;
-					const inProgressCol = board.columns.find((c) => c.name === "In Progress");
-					const inProgressCards = inProgressCol?._count.cards ?? 0;
-					const todoCol = board.columns.find((c) => c.name === "To Do");
-					const todoCards = todoCol?._count.cards ?? 0;
-					const pct = totalCards > 0 ? Math.round((doneCards / totalCards) * 100) : 0;
+	const [deleteId, setDeleteId] = useState<string | null>(null);
+	const [renameId, setRenameId] = useState<string | null>(null);
+	const [renameName, setRenameName] = useState("");
 
-					return (
-						<Link
-							key={board.id}
-							href={`/projects/${projectId}/boards/${board.id}`}
-						>
-							<Card className="transition-colors hover:bg-muted/50">
-								<CardHeader className="pb-3">
-									<CardTitle className="text-lg">{board.name}</CardTitle>
-									{board.description && (
-										<CardDescription>{board.description}</CardDescription>
-									)}
-								</CardHeader>
-								<div className="px-6 pb-4">
-									{totalCards > 0 ? (
-										<>
-											<div className="mb-2 flex items-center gap-3 text-xs text-muted-foreground">
-												{inProgressCards > 0 && (
-													<span className="flex items-center gap-1">
-														<span className="h-2 w-2 rounded-full bg-blue-500" />
-														{inProgressCards} in progress
-													</span>
-												)}
-												{todoCards > 0 && (
-													<span className="flex items-center gap-1">
-														<span className="h-2 w-2 rounded-full bg-amber-500" />
-														{todoCards} to do
-													</span>
-												)}
-												{doneCards > 0 && (
-													<span className="flex items-center gap-1">
-														<span className="h-2 w-2 rounded-full bg-emerald-500" />
-														{doneCards} done
-													</span>
-												)}
-											</div>
-											<div className="flex items-center gap-2">
-												<div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-													<div
-														className="h-full rounded-full bg-emerald-500 transition-all"
-														style={{ width: `${pct}%` }}
-													/>
-												</div>
-												<span className="text-[10px] text-muted-foreground">{totalCards} cards</span>
-											</div>
-										</>
-									) : (
-										<p className="text-xs text-muted-foreground">No cards yet</p>
-									)}
+	const utils = api.useUtils();
+
+	const deleteBoard = api.board.delete.useMutation({
+		onSuccess: () => {
+			utils.board.list.invalidate();
+			setDeleteId(null);
+			toast.success("Board deleted");
+		},
+		onError: (e) => toast.error(e.message),
+	});
+
+	const updateBoard = api.board.update.useMutation({
+		onSuccess: () => {
+			utils.board.list.invalidate();
+			setRenameId(null);
+			toast.success("Board renamed");
+		},
+		onError: (e) => toast.error(e.message),
+	});
+
+	const boardToDelete = boards?.find((b) => b.id === deleteId);
+
+	const handleRename = (e: React.FormEvent) => {
+		e.preventDefault();
+		if (!renameId || !renameName.trim()) return;
+		updateBoard.mutate({ id: renameId, data: { name: renameName.trim() } });
+	};
+
+	return (
+		<>
+			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				{isLoading ? (
+					Array.from({ length: 2 }).map((_, i) => (
+						<Card key={i}>
+							<CardHeader>
+								<Skeleton className="h-5 w-32" />
+								<Skeleton className="h-4 w-48" />
+							</CardHeader>
+						</Card>
+					))
+				) : boards?.length === 0 ? (
+					<div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
+						<LayoutGrid className="mb-4 h-12 w-12 text-muted-foreground" />
+						<h2 className="text-lg font-semibold">No boards yet</h2>
+						<p className="text-sm text-muted-foreground">
+							Create a board to start tracking work.
+						</p>
+					</div>
+				) : (
+					boards?.map((board) => {
+						const totalCards = board.columns.reduce((sum, col) => sum + col._count.cards, 0);
+						const doneCol = board.columns.find((c) => c.name === "Done");
+						const doneCards = doneCol?._count.cards ?? 0;
+						const inProgressCol = board.columns.find((c) => c.name === "In Progress");
+						const inProgressCards = inProgressCol?._count.cards ?? 0;
+						const todoCol = board.columns.find((c) => c.name === "To Do");
+						const todoCards = todoCol?._count.cards ?? 0;
+						const pct = totalCards > 0 ? Math.round((doneCards / totalCards) * 100) : 0;
+
+						return (
+							<div key={board.id} className="group relative">
+								<Link href={`/projects/${projectId}/boards/${board.id}`}>
+									<Card className="transition-colors hover:bg-muted/50">
+										<CardHeader className="pb-3">
+											<CardTitle className="text-lg">{board.name}</CardTitle>
+											{board.description && (
+												<CardDescription>{board.description}</CardDescription>
+											)}
+										</CardHeader>
+										<div className="px-6 pb-4">
+											{totalCards > 0 ? (
+												<>
+													<div className="mb-2 flex items-center gap-3 text-xs text-muted-foreground">
+														{inProgressCards > 0 && (
+															<span className="flex items-center gap-1">
+																<span className="h-2 w-2 rounded-full bg-blue-500" />
+																{inProgressCards} in progress
+															</span>
+														)}
+														{todoCards > 0 && (
+															<span className="flex items-center gap-1">
+																<span className="h-2 w-2 rounded-full bg-amber-500" />
+																{todoCards} to do
+															</span>
+														)}
+														{doneCards > 0 && (
+															<span className="flex items-center gap-1">
+																<span className="h-2 w-2 rounded-full bg-emerald-500" />
+																{doneCards} done
+															</span>
+														)}
+													</div>
+													<div className="flex items-center gap-2">
+														<div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+															<div
+																className="h-full rounded-full bg-emerald-500 transition-all"
+																style={{ width: `${pct}%` }}
+															/>
+														</div>
+														<span className="text-[10px] text-muted-foreground">{totalCards} cards</span>
+													</div>
+												</>
+											) : (
+												<p className="text-xs text-muted-foreground">No cards yet</p>
+											)}
+										</div>
+									</Card>
+								</Link>
+								<div className="absolute top-3 right-3 opacity-0 transition-opacity group-hover:opacity-100">
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												variant="ghost"
+												size="icon"
+												className="h-7 w-7"
+												onClick={(e) => e.preventDefault()}
+											>
+												<MoreHorizontal className="h-4 w-4" />
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent align="end">
+											<DropdownMenuItem
+												onClick={() => {
+													setRenameId(board.id);
+													setRenameName(board.name);
+												}}
+											>
+												<Pencil className="mr-2 h-3.5 w-3.5" />
+												Rename
+											</DropdownMenuItem>
+											<DropdownMenuItem
+												className="text-destructive"
+												onClick={() => setDeleteId(board.id)}
+											>
+												<Trash2 className="mr-2 h-3.5 w-3.5" />
+												Delete
+											</DropdownMenuItem>
+										</DropdownMenuContent>
+									</DropdownMenu>
 								</div>
-							</Card>
-						</Link>
-					);
-				})
-			)}
-		</div>
+							</div>
+						);
+					})
+				)}
+			</div>
+
+			{/* Delete board confirmation */}
+			<AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete board?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This will permanently delete <strong>{boardToDelete?.name}</strong> and
+							all its columns and cards. This action cannot be undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							variant="destructive"
+							onClick={() => {
+								if (deleteId) deleteBoard.mutate({ id: deleteId });
+							}}
+						>
+							Delete
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+
+			{/* Rename board dialog */}
+			<Dialog open={!!renameId} onOpenChange={() => setRenameId(null)}>
+				<DialogContent>
+					<form onSubmit={handleRename}>
+						<DialogHeader>
+							<DialogTitle>Rename Board</DialogTitle>
+						</DialogHeader>
+						<div className="mt-4 space-y-2">
+							<Label htmlFor="board-rename">Name</Label>
+							<Input
+								id="board-rename"
+								value={renameName}
+								onChange={(e) => setRenameName(e.target.value)}
+								autoFocus
+							/>
+						</div>
+						<DialogFooter className="mt-6">
+							<Button type="submit" disabled={updateBoard.isPending || !renameName.trim()}>
+								Save
+							</Button>
+						</DialogFooter>
+					</form>
+				</DialogContent>
+			</Dialog>
+		</>
 	);
 }
 
 // ─── Project Notes Tab ─────────────────────────────────────────────
 
-function ProjectNotesTab({ projectId }: { projectId: string }) {
-	const [createOpen, setCreateOpen] = useState(false);
+function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: string; createOpen: boolean; setCreateOpen: (v: boolean) => void }) {
+	const [viewingId, setViewingId] = useState<string | null>(null);
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [promoteId, setPromoteId] = useState<string | null>(null);
 	const [title, setTitle] = useState("");
@@ -500,16 +645,6 @@ function ProjectNotesTab({ projectId }: { projectId: string }) {
 
 	return (
 		<>
-			<div className="mb-4 flex items-center justify-between">
-				<p className="text-sm text-muted-foreground">
-					Notes for this project. Promote to cards when ready.
-				</p>
-				<Button onClick={() => { resetForm(); setCreateOpen(true); }}>
-					<Plus className="mr-2 h-4 w-4" />
-					New Note
-				</Button>
-			</div>
-
 			{isLoading ? (
 				<p className="text-sm text-muted-foreground">Loading...</p>
 			) : !notes || notes.length === 0 ? (
@@ -522,18 +657,22 @@ function ProjectNotesTab({ projectId }: { projectId: string }) {
 					{notes.map((note) => (
 						<div
 							key={note.id}
-							className="group flex flex-col rounded-lg border bg-card p-4 transition-colors hover:bg-muted/30"
+							role="button"
+							tabIndex={0}
+							onClick={() => setViewingId(note.id)}
+							onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setViewingId(note.id); }}
+							className="group flex cursor-pointer flex-col rounded-lg border bg-card p-4 text-left transition-colors hover:bg-muted/30"
 						>
-							<div className="mb-2 flex items-start justify-between">
+							<div className="mb-2 flex w-full items-start justify-between">
 								<h3 className="font-medium">{note.title}</h3>
 								<div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-									<Button variant="ghost" size="icon" className="h-7 w-7" title="Promote to card" onClick={() => setPromoteId(note.id)}>
+									<Button variant="ghost" size="icon" className="h-7 w-7" title="Promote to card" onClick={(e) => { e.stopPropagation(); setPromoteId(note.id); }}>
 										<ArrowUpRight className="h-3.5 w-3.5" />
 									</Button>
-									<Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEdit(note)}>
+									<Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); startEdit(note); }}>
 										<Pencil className="h-3.5 w-3.5" />
 									</Button>
-									<Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { if (confirm("Delete this note?")) deleteNote.mutate({ id: note.id }); }}>
+									<Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={(e) => { e.stopPropagation(); if (confirm("Delete this note?")) deleteNote.mutate({ id: note.id }); }}>
 										<Trash2 className="h-3.5 w-3.5" />
 									</Button>
 								</div>
@@ -553,9 +692,64 @@ function ProjectNotesTab({ projectId }: { projectId: string }) {
 				</div>
 			)}
 
+			{/* View dialog */}
+			{(() => {
+				const viewNote = notes?.find((n) => n.id === viewingId);
+				if (!viewNote) return null;
+				return (
+					<Dialog open={!!viewingId} onOpenChange={() => setViewingId(null)}>
+						<DialogContent className="sm:max-w-4xl max-h-[90dvh] overflow-y-auto">
+							<DialogHeader>
+								<DialogTitle className="text-xl">{viewNote.title}</DialogTitle>
+								<p className="text-xs text-muted-foreground">
+									{new Date(viewNote.updatedAt).toLocaleDateString("en-US", {
+										month: "short",
+										day: "numeric",
+										year: "numeric",
+										hour: "2-digit",
+										minute: "2-digit",
+									})}
+								</p>
+							</DialogHeader>
+							<div className="mt-4 min-h-[200px] text-sm">
+								{viewNote.content ? (
+									<Markdown>{viewNote.content}</Markdown>
+								) : (
+									<p className="text-muted-foreground italic">No content</p>
+								)}
+							</div>
+							<DialogFooter>
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => {
+										setViewingId(null);
+										setPromoteId(viewNote.id);
+									}}
+								>
+									<ArrowUpRight className="mr-2 h-3.5 w-3.5" />
+									Promote to Card
+								</Button>
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => {
+										setViewingId(null);
+										startEdit(viewNote);
+									}}
+								>
+									<Pencil className="mr-2 h-3.5 w-3.5" />
+									Edit
+								</Button>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
+				);
+			})()}
+
 			{/* Create dialog */}
-			<Dialog open={createOpen} onOpenChange={setCreateOpen}>
-				<DialogContent className="sm:max-w-4xl">
+			<Dialog open={createOpen} onOpenChange={(open) => { if (!open) resetForm(); setCreateOpen(open); }}>
+				<DialogContent className="sm:max-w-4xl max-h-[90dvh] overflow-y-auto">
 					<form onSubmit={handleCreate}>
 						<DialogHeader>
 							<DialogTitle>New Note</DialogTitle>
@@ -577,7 +771,7 @@ function ProjectNotesTab({ projectId }: { projectId: string }) {
 
 			{/* Edit dialog */}
 			<Dialog open={!!editingId} onOpenChange={() => setEditingId(null)}>
-				<DialogContent className="sm:max-w-4xl">
+				<DialogContent className="sm:max-w-4xl max-h-[90dvh] overflow-y-auto">
 					<form onSubmit={handleUpdate}>
 						<DialogHeader>
 							<DialogTitle>Edit Note</DialogTitle>
