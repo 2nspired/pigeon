@@ -4,6 +4,10 @@ import { z } from "zod";
 
 import { db } from "./db.js";
 
+// Agent identity — set via AGENT_NAME env var in MCP config
+// e.g. { "env": { "AGENT_NAME": "Codex" } }
+const AGENT_NAME = process.env.AGENT_NAME || "Agent";
+
 const server = new McpServer({
 	name: "project-tracker",
 	version: "1.0.0",
@@ -281,7 +285,7 @@ server.tool(
 				action: "created",
 				details: `Card #${cardNumber} "${title}" created in ${columnName}`,
 				actorType: "AGENT",
-				actorName: "Claude",
+				actorName: AGENT_NAME,
 			},
 		});
 
@@ -393,7 +397,7 @@ server.tool(
 					action: "moved",
 					details: `Moved from "${fromCol}" to "${columnName}"`,
 					actorType: "AGENT",
-					actorName: "Claude",
+					actorName: AGENT_NAME,
 				},
 			});
 		}
@@ -492,7 +496,7 @@ server.tool(
 					action: "checklist_completed",
 					details: `Completed: ${item.text}`,
 					actorType: "AGENT",
-					actorName: "Claude",
+					actorName: AGENT_NAME,
 				},
 			});
 		}
@@ -530,7 +534,7 @@ server.tool(
 				cardId,
 				content,
 				authorType: "AGENT",
-				authorName: "Claude",
+				authorName: AGENT_NAME,
 			},
 		});
 
@@ -737,7 +741,7 @@ server.tool(
 					action: "created",
 					details: `Card #${cardNumber} "${cardInput.title}" created in ${col.name}`,
 					actorType: "AGENT",
-					actorName: "Claude",
+					actorName: AGENT_NAME,
 				},
 			});
 
@@ -835,7 +839,7 @@ server.tool(
 				action: "created",
 				details: `Card #${cardNumber} "${fullTitle}" created from ${template} template`,
 				actorType: "AGENT",
-				actorName: "Claude",
+				actorName: AGENT_NAME,
 			},
 		});
 

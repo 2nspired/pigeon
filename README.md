@@ -179,6 +179,38 @@ Project Tracker
 
 The cross-project **Dashboard** at `/dashboard` shows cards across all projects in one view.
 
+## Multi-Agent Support
+
+The tracker works with any MCP-compatible agent (Claude, Codex, etc.). Each agent identifies itself via the `AGENT_NAME` environment variable so you can tell who did what in the activity log.
+
+**Using the connect script:**
+
+```bash
+# Default — agent name is "Claude"
+/path/to/project-tracker/scripts/connect.sh
+
+# Custom agent name
+AGENT_NAME=Codex /path/to/project-tracker/scripts/connect.sh
+```
+
+**Manual `.mcp.json` config:**
+
+```json
+{
+  "mcpServers": {
+    "project-tracker": {
+      "command": "/path/to/project-tracker/scripts/mcp-start.sh",
+      "args": [],
+      "env": {
+        "AGENT_NAME": "Codex"
+      }
+    }
+  }
+}
+```
+
+Multiple agents can connect to the same tracker simultaneously — they all share the same SQLite database. Comments, card moves, and activity entries are attributed to whichever agent made them.
+
 ## Tags
 
 Tags are freeform strings on each card. Use them to organize across projects:

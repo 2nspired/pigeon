@@ -48,13 +48,19 @@ if [ -f "$MCP_FILE" ]; then
   exit 0
 fi
 
+# Detect agent name — default to "Claude", override with AGENT_NAME env var or flag
+AGENT_NAME="${AGENT_NAME:-Claude}"
+
 # Create .mcp.json
 cat > "$MCP_FILE" <<EOF
 {
   "mcpServers": {
     "project-tracker": {
       "command": "$TRACKER_ROOT/scripts/mcp-start.sh",
-      "args": []
+      "args": [],
+      "env": {
+        "AGENT_NAME": "$AGENT_NAME"
+      }
     }
   }
 }
@@ -62,6 +68,7 @@ EOF
 
 echo "Created $MCP_FILE"
 echo "Project Tracker MCP is now available in this project."
+echo "Agent name: $AGENT_NAME (set AGENT_NAME env var to change)"
 echo ""
 echo "Tip: Add this to your project's CLAUDE.md:"
 echo ""
