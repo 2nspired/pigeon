@@ -104,6 +104,7 @@ registerExtendedTool("getCard", {
 			board: card.column.board.name,
 			boardId: card.column.board.id,
 			dueDate: card.dueDate,
+			...(card.metadata && card.metadata !== "{}" && { metadata: JSON.parse(card.metadata) }),
 			createdAt: card.createdAt,
 			updatedAt: card.updatedAt,
 			relations: { blocks, blockedBy, relatedTo },
@@ -206,6 +207,7 @@ registerExtendedTool("bulkCreateCards", {
 			priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).default("NONE"),
 			tags: z.array(z.string()).default([]),
 			milestoneName: z.string().optional().describe("Auto-creates if new"),
+			metadata: z.record(z.string(), z.unknown()).optional().describe("Agent-writable JSON metadata"),
 		})),
 	}),
 	handler: ({ boardId, cards }) => safeExecute(async () => {
@@ -250,6 +252,7 @@ registerExtendedTool("bulkCreateCards", {
 					priority: (input.priority as string) ?? "NONE",
 					tags: JSON.stringify(input.tags ?? []),
 					milestoneId,
+					metadata: input.metadata ? JSON.stringify(input.metadata) : undefined,
 					createdBy: "AGENT",
 					position: (maxPos._max.position ?? -1) + 1,
 				},
@@ -395,10 +398,11 @@ registerExtendedTool("bulkUpdateCards", {
 			tags: z.array(z.string()).optional().describe("Replaces all tags"),
 			assignee: z.enum(["HUMAN", "AGENT"]).nullable().optional().describe("null to unassign"),
 			milestoneName: z.string().nullable().optional().describe("null to unassign; auto-creates if new"),
-		})),
+			metadata: z.record(z.string(), z.unknown()).optional().describe("Agent-writable JSON metadata (merged with existing; set key to null to delete)"),
+		}).strict()),
 	}),
 	handler: ({ cards }) => safeExecute(async () => {
-		const updated: Array<{ ref: string; title: string }> = [];
+		const updated: Array<Record<string, unknown>> = [];
 		const errors: string[] = [];
 
 		for (const input of cards as Array<Record<string, unknown>>) {
@@ -415,17 +419,38 @@ registerExtendedTool("bulkUpdateCards", {
 					: null;
 			}
 
-			await db.card.update({
+			// Merge metadata if provided
+			let mergedMetadata: string | undefined;
+			if (input.metadata) {
+				const existingMeta = JSON.parse(existing.metadata || "{}");
+				const merged = { ...existingMeta, ...(input.metadata as Record<string, unknown>) };
+				for (const [key, value] of Object.entries(merged)) {
+					if (value === null) delete merged[key];
+				}
+				mergedMetadata = JSON.stringify(merged);
+			}
+
+			const card = await db.card.update({
 				where: { id },
 				data: {
 					priority: input.priority as string | undefined,
 					tags: input.tags ? JSON.stringify(input.tags) : undefined,
 					assignee: input.assignee as string | null | undefined,
 					milestoneId: milestoneId !== undefined ? milestoneId : undefined,
+					metadata: mergedMetadata,
 				},
+				include: { milestone: { select: { name: true } } },
 			});
 
-			updated.push({ ref: `#${existing.number}`, title: existing.title });
+			updated.push({
+				ref: `#${card.number}`,
+				title: card.title,
+				priority: card.priority,
+				tags: JSON.parse(card.tags),
+				assignee: card.assignee,
+				milestone: card.milestone?.name ?? null,
+				...(card.metadata && card.metadata !== "{}" && { metadata: JSON.parse(card.metadata) }),
+			});
 		}
 
 		return ok({ updated, errors: errors.length > 0 ? errors : undefined });

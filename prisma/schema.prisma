@@ -112,6 +112,7 @@ model Card {
   createdBy   String   @default("HUMAN") @map("created_by")
   milestoneId String?   @map("milestone_id")
   dueDate     DateTime? @map("due_date")
+  metadata    String   @default("{}") // JSON object for agent context (not rendered in UI)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 

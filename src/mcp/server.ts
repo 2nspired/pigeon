@@ -161,6 +161,7 @@ server.registerTool(
 								})),
 							},
 							commentCount: card._count.comments,
+							...(card.metadata && card.metadata !== "{}" && { metadata: JSON.parse(card.metadata) }),
 						};
 					}),
 				})),
@@ -185,9 +186,10 @@ server.registerTool(
 			tags: z.array(z.string()).default([]).describe("e.g. ['bug', 'feature:auth']"),
 			assignee: z.enum(["HUMAN", "AGENT"]).optional(),
 			milestoneName: z.string().optional().describe("Auto-creates if new"),
+			metadata: z.record(z.string(), z.unknown()).optional().describe("Agent-writable JSON metadata (not rendered in UI)"),
 		},
 	},
-	async ({ boardId, columnName, title, description, priority, tags, assignee, milestoneName }) => {
+	async ({ boardId, columnName, title, description, priority, tags, assignee, milestoneName, metadata }) => {
 		return safeExecute(async () => {
 			const column = await db.column.findFirst({
 				where: { boardId, name: { equals: columnName } },
@@ -232,6 +234,7 @@ server.registerTool(
 					tags: JSON.stringify(tags),
 					assignee,
 					milestoneId,
+					metadata: metadata ? JSON.stringify(metadata) : undefined,
 					createdBy: "AGENT",
 					position: (maxPosition._max.position ?? -1) + 1,
 				},
@@ -275,10 +278,11 @@ server.registerTool(
 				.nullable()
 				.optional()
 				.describe("null to unassign; auto-creates if new"),
+			metadata: z.record(z.string(), z.unknown()).optional().describe("Agent-writable JSON metadata (merged with existing; set key to null to delete)"),
 		},
 		annotations: { idempotentHint: true },
 	},
-	async ({ cardId: cardRef, title, description, priority, tags, assignee, milestoneName }) => {
+	async ({ cardId: cardRef, title, description, priority, tags, assignee, milestoneName, metadata }) => {
 		return safeExecute(async () => {
 			const cardId = await resolveCardId(cardRef);
 			if (!cardId)
@@ -294,6 +298,17 @@ server.registerTool(
 					: null;
 			}
 
+			// Merge metadata: combine with existing, remove keys set to null
+			let mergedMetadata: string | undefined;
+			if (metadata) {
+				const existingMeta = JSON.parse(existing.metadata || "{}");
+				const merged = { ...existingMeta, ...(metadata as Record<string, unknown>) };
+				for (const [key, value] of Object.entries(merged)) {
+					if (value === null) delete merged[key];
+				}
+				mergedMetadata = JSON.stringify(merged);
+			}
+
 			const card = await db.card.update({
 				where: { id: cardId },
 				data: {
@@ -303,10 +318,24 @@ server.registerTool(
 					tags: tags ? JSON.stringify(tags) : undefined,
 					assignee,
 					milestoneId: milestoneId !== undefined ? milestoneId : undefined,
+					metadata: mergedMetadata,
 				},
+				include: { milestone: { select: { name: true } } },
 			});
 
-			return ok({ id: card.id, ref: `#${card.number}`, title: card.title, updated: true });
+			return ok({
+				id: card.id,
+				ref: `#${card.number}`,
+				title: card.title,
+				updated: true,
+				fields: {
+					priority: card.priority,
+					tags: JSON.parse(card.tags),
+					assignee: card.assignee,
+					milestone: card.milestone?.name ?? null,
+					metadata: JSON.parse(card.metadata),
+				},
+			});
 		});
 	}
 );

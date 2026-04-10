@@ -78,6 +78,67 @@ registerExtendedTool("loadHandoff", {
 				createdAt: handoff.createdAt,
 			},
 			diff,
+			capabilities: {
+				_hint: "These agent-workflow tools are available via runTool(). Use getTools({ tool: 'name' }) for full schema.",
+				memory: [
+					"saveHandoff / loadHandoff — session continuity",
+					"listHandoffs — view handoff history across sessions",
+					"getBoardDiff — what changed since a given time",
+				],
+				notes: [
+					"createNote / updateNote / deleteNote / listNotes — persistent project-level notes (survives across sessions)",
+				],
+				scratch: [
+					"setScratch / getScratch / listScratch / clearScratch — temporary key-value storage with optional expiry",
+				],
+				analysis: [
+					"getFocusContext — scoped context bundle (by card, milestone, or tag)",
+					"getBlockers — list blocked cards and what blocks them",
+					"auditBoard — board health check (missing priority/tags/milestones)",
+					"getWorkNextSuggestion — AI-scored card priority suggestions",
+				],
+				decisions: [
+					"recordDecision / getDecisions — track architectural decisions tied to cards",
+				],
+			},
+		});
+	}),
+});
+
+registerExtendedTool("listHandoffs", {
+	category: "session",
+	description: "List recent handoff summaries for a board. Shows the trajectory of work across sessions.",
+	parameters: z.object({
+		boardId: z.string().describe("Board UUID"),
+		limit: z.number().int().min(1).max(20).default(5).describe("Number of recent handoffs to return"),
+	}),
+	annotations: { readOnlyHint: true },
+	handler: ({ boardId, limit }) => safeExecute(async () => {
+		const board = await db.board.findUnique({ where: { id: boardId as string } });
+		if (!board) return err("Board not found.", "Use listProjects → listBoards to find a valid boardId.");
+
+		const handoffs = await db.sessionHandoff.findMany({
+			where: { boardId: boardId as string },
+			orderBy: { createdAt: "desc" },
+			take: (limit as number) ?? 5,
+		});
+
+		if (handoffs.length === 0) {
+			return ok({ handoffs: [], message: "No handoffs found for this board." });
+		}
+
+		return ok({
+			handoffs: handoffs.map(h => ({
+				id: h.id,
+				agentName: h.agentName,
+				summary: h.summary,
+				workingOn: JSON.parse(h.workingOn),
+				findings: JSON.parse(h.findings),
+				nextSteps: JSON.parse(h.nextSteps),
+				blockers: JSON.parse(h.blockers),
+				createdAt: h.createdAt,
+			})),
+			total: handoffs.length,
 		});
 	}),
 });
