@@ -130,6 +130,10 @@ model Card {
   @@index([columnId])
   @@index([projectId])
   @@index([milestoneId])
+  @@index([priority])
+  @@index([assignee])
+  @@index([updatedAt])
+  @@index([createdBy, projectId])
   @@map("card")
 }
 
@@ -174,6 +178,7 @@ model Activity {
   card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@index([cardId])
+  @@index([cardId, createdAt])
   @@map("activity")
 }
 
@@ -185,6 +190,7 @@ model CardLabel {
   label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
 
   @@id([cardId, labelId])
+  @@index([labelId])
   @@map("card_label")
 }
 
@@ -200,6 +206,7 @@ model Note {
   project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
+  @@index([updatedAt])
   @@map("note")
 }
 

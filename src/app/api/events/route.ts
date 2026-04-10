@@ -4,6 +4,7 @@
  *
  * MCP change detector runs as a background interval (~2s) to detect
  * writes from the MCP server process (separate from Next.js).
+ * Automatically stops when no clients are connected.
  */
 
 import { type BoardEvent, emitBoardEvent, eventBus } from "@/lib/events";
@@ -14,12 +15,14 @@ export const runtime = "nodejs";
 
 // ── MCP Change Detector ─────────────────────────────────────────────
 
-let detectorStarted = false;
+let detectorInterval: ReturnType<typeof setInterval> | null = null;
 let lastActivityTime = 0;
+let clientCount = 0;
 
-function ensureChangeDetector() {
-	if (detectorStarted) return;
-	detectorStarted = true;
+const POLL_INTERVAL = parseInt(process.env.MCP_POLL_INTERVAL_MS ?? "2000", 10);
+
+function startDetector() {
+	if (detectorInterval) return;
 
 	// Initialize with current latest activity timestamp
 	db.activity
@@ -34,7 +37,7 @@ function ensureChangeDetector() {
 			lastActivityTime = Date.now();
 		});
 
-	setInterval(async () => {
+	detectorInterval = setInterval(async () => {
 		try {
 			const latest = await db.activity.findFirst({
 				orderBy: { createdAt: "desc" },
@@ -51,7 +54,26 @@ function ensureChangeDetector() {
 		} catch {
 			// Best-effort — detector errors are non-fatal
 		}
-	}, 2000);
+	}, POLL_INTERVAL);
+}
+
+function stopDetector() {
+	if (detectorInterval) {
+		clearInterval(detectorInterval);
+		detectorInterval = null;
+	}
+}
+
+function addClient() {
+	clientCount++;
+	startDetector();
+}
+
+function removeClient() {
+	clientCount = Math.max(0, clientCount - 1);
+	if (clientCount === 0) {
+		stopDetector();
+	}
 }
 
 // ── SSE Route Handler ───────────────────────────────────────────────
@@ -62,7 +84,7 @@ export async function GET(request: Request) {
 		return new Response("Missing boardId parameter", { status: 400 });
 	}
 
-	ensureChangeDetector();
+	addClient();
 
 	const encoder = new TextEncoder();
 
@@ -100,6 +122,7 @@ export async function GET(request: Request) {
 			request.signal.addEventListener("abort", () => {
 				eventBus.off("board-event", handler);
 				clearInterval(ping);
+				removeClient();
 				try {
 					controller.close();
 				} catch {

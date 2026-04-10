@@ -97,44 +97,48 @@ async function create(data: CreateCardInput): Promise<ServiceResult<Card>> {
 		}
 		const projectId = column.board.projectId;
 
-		const maxPosition = await db.card.aggregate({
-			where: { columnId: data.columnId },
-			_max: { position: true },
-		});
-		const position = (maxPosition._max.position ?? -1) + 1;
+		// Wrap position + number + create in a transaction to prevent race conditions
+		const card = await db.$transaction(async (tx) => {
+			const maxPosition = await tx.card.aggregate({
+				where: { columnId: data.columnId },
+				_max: { position: true },
+			});
+			const position = (maxPosition._max.position ?? -1) + 1;
 
-		// Atomically assign the next card number for this project
-		const project = await db.project.update({
-			where: { id: projectId },
-			data: { nextCardNumber: { increment: 1 } },
-		});
-		const cardNumber = project.nextCardNumber - 1;
+			const project = await tx.project.update({
+				where: { id: projectId },
+				data: { nextCardNumber: { increment: 1 } },
+			});
+			const cardNumber = project.nextCardNumber - 1;
 
-		const card = await db.card.create({
-			data: {
-				columnId: data.columnId,
-				projectId,
-				number: cardNumber,
-				title: data.title,
-				description: data.description,
-				priority: data.priority,
-				tags: JSON.stringify(data.tags),
-				assignee: data.assignee,
-				createdBy: data.createdBy,
-				dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
-				milestoneId: data.milestoneId ?? undefined,
-				position,
-			},
-		});
+			const created = await tx.card.create({
+				data: {
+					columnId: data.columnId,
+					projectId,
+					number: cardNumber,
+					title: data.title,
+					description: data.description,
+					priority: data.priority,
+					tags: JSON.stringify(data.tags),
+					assignee: data.assignee,
+					createdBy: data.createdBy,
+					dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+					milestoneId: data.milestoneId ?? undefined,
+					position,
+				},
+			});
 
-		await db.activity.create({
-			data: {
-				cardId: card.id,
-				action: "created",
-				details: `Card #${cardNumber} "${card.title}" created`,
-				actorType: data.createdBy,
-				actorName: data.createdBy === "AGENT" ? "Claude" : undefined,
-			},
+			await tx.activity.create({
+				data: {
+					cardId: created.id,
+					action: "created",
+					details: `Card #${cardNumber} "${created.title}" created`,
+					actorType: data.createdBy,
+					actorName: data.createdBy === "AGENT" ? "Claude" : undefined,
+				},
+			});
+
+			return created;
 		});
 
 		return { success: true, data: card };
@@ -202,21 +206,23 @@ async function move(cardId: string, data: MoveCardInput): Promise<ServiceResult<
 
 		await db.$transaction(updates);
 
-		const movedColumn = await db.column.findUnique({ where: { id: data.columnId } });
-
-		if (existing.columnId !== data.columnId && movedColumn) {
-			await db.activity.create({
-				data: {
-					cardId,
-					action: "moved",
-					details: `Moved from "${existing.column.name}" to "${movedColumn.name}"`,
-					actorType: "HUMAN",
-				},
-			});
+		if (existing.columnId !== data.columnId) {
+			const movedColumn = await db.column.findUnique({ where: { id: data.columnId } });
+			if (movedColumn) {
+				await db.activity.create({
+					data: {
+						cardId,
+						action: "moved",
+						details: `Moved from "${existing.column.name}" to "${movedColumn.name}"`,
+						actorType: "HUMAN",
+					},
+				});
+			}
 		}
 
-		const card = await db.card.findUnique({ where: { id: cardId } });
-		return { success: true, data: card! };
+		// Return the card with updated position/column without an extra query
+		const finalPosition = filtered.findIndex((c) => c.id === cardId);
+		return { success: true, data: { ...existing, columnId: data.columnId, position: finalPosition >= 0 ? finalPosition : data.position } };
 	} catch (error) {
 		console.error("[CARD_SERVICE] move error:", error);
 		return { success: false, error: { code: "MOVE_FAILED", message: "Failed to move card." } };
@@ -263,6 +269,11 @@ async function listAll(filters?: {
 				{ description: { contains: filters.search } },
 			];
 		}
+		// Filter tags in the DB using JSON string contains with quoted value
+		// e.g. tag "bug" matches `"bug"` in the JSON array string `["bug","ui"]`
+		if (filters?.tag && filters.tag !== "ALL") {
+			where.tags = { contains: `"${filters.tag}"` };
+		}
 
 		const cards = await db.card.findMany({
 			where,
@@ -279,16 +290,7 @@ async function listAll(filters?: {
 			take: 200,
 		});
 
-		// Client-side tag filter (tags are JSON strings)
-		let result = cards;
-		if (filters?.tag && filters.tag !== "ALL") {
-			result = cards.filter((c) => {
-				const tags: string[] = JSON.parse(c.tags);
-				return tags.includes(filters.tag!);
-			});
-		}
-
-		return { success: true, data: result };
+		return { success: true, data: cards };
 	} catch (error) {
 		console.error("[CARD_SERVICE] listAll error:", error);
 		return { success: false, error: { code: "LIST_FAILED", message: "Failed to fetch cards." } };
