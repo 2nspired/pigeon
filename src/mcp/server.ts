@@ -496,7 +496,7 @@ server.registerTool(
 	{
 		title: "Get Roadmap",
 		description:
-			"Roadmap view: cards grouped by milestone and horizon. Horizons: In Progress/Review=Now, To Do=Next, Backlog=Later, Done=Done.",
+			"Roadmap view: cards grouped by milestone and horizon. Includes blockedBy refs, assignee breakdown, and progress per milestone. Horizons: In Progress/Review=Now, To Do=Next, Backlog=Later, Done=Done.",
 		inputSchema: {
 			boardId: z.string().describe("Board UUID"),
 			format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
