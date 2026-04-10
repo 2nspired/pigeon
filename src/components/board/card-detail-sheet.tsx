@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Markdown } from "@/components/ui/markdown";
+import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import {
 	Select,
 	SelectContent,
@@ -36,7 +37,6 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
-import { Textarea } from "@/components/ui/textarea";
 import { priorityValues, type Priority } from "@/lib/schemas/card-schemas";
 import { api } from "@/trpc/react";
 
@@ -134,8 +134,7 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 	// Description: preview/edit with local buffer
 	const [isEditingDescription, setIsEditingDescription] = useState(false);
 	const [localDescription, setLocalDescription] = useState("");
-	const descriptionRef = useRef<HTMLTextAreaElement>(null);
-
+	const [descriptionPreview, setDescriptionPreview] = useState(false);
 	// Sync local state when card data changes (don't overwrite mid-edit)
 	const isEditingTitleRef = useRef(false);
 	const isEditingDescriptionRef = useRef(false);
@@ -153,6 +152,7 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 	useEffect(() => {
 		setIsEditingTitle(false);
 		setIsEditingDescription(false);
+		setDescriptionPreview(false);
 	}, [cardId]);
 
 	// ─── Handlers ─────────────────────────────────────────────────
@@ -333,19 +333,20 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 						</div>
 						{isEditingDescription ? (
 							<div className="space-y-2">
-								<Textarea
-									ref={descriptionRef}
-									value={localDescription}
-									onChange={(e) => setLocalDescription(e.target.value)}
+								<MarkdownEditor
+									content={localDescription}
+									setContent={setLocalDescription}
+									preview={descriptionPreview}
+									setPreview={setDescriptionPreview}
+									rows={6}
+									placeholder="Add a description..."
+									previewMinHeight="min-h-[150px]"
 									onKeyDown={handleDescriptionKeyDown}
 									onBlur={handleDescriptionSave}
-									placeholder="Add a description... (Markdown supported)"
-									rows={6}
 									autoFocus
-									className="text-sm"
 								/>
 								<div className="flex items-center justify-between text-xs text-muted-foreground">
-									<span>Markdown supported. Cmd+Enter to save, Esc to cancel.</span>
+									<span>Cmd+Enter to save, Esc to cancel.</span>
 									<div className="flex gap-1">
 										<Button
 											variant="ghost"
@@ -354,6 +355,7 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 											onClick={() => {
 												setLocalDescription(card.description ?? "");
 												setIsEditingDescription(false);
+												setDescriptionPreview(false);
 											}}
 										>
 											Cancel
