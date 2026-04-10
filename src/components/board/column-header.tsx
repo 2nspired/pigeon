@@ -4,6 +4,16 @@ import { Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +49,7 @@ type ColumnHeaderProps = {
 
 export function ColumnHeader({ column, boardId }: ColumnHeaderProps) {
 	const [editOpen, setEditOpen] = useState(false);
+	const [deleteOpen, setDeleteOpen] = useState(false);
 	const [name, setName] = useState(column.name);
 	const [description, setDescription] = useState(column.description ?? "");
 
@@ -112,9 +123,7 @@ export function ColumnHeader({ column, boardId }: ColumnHeaderProps) {
 											toast.error("Move or delete all cards first");
 											return;
 										}
-										if (confirm(`Delete "${column.name}"?`)) {
-											deleteColumn.mutate({ id: column.id });
-										}
+										setDeleteOpen(true);
 									}}
 								>
 									<Trash2 className="mr-2 h-4 w-4" />
@@ -165,6 +174,23 @@ export function ColumnHeader({ column, boardId }: ColumnHeaderProps) {
 					</form>
 				</DialogContent>
 			</Dialog>
+
+		<AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+			<AlertDialogContent>
+				<AlertDialogHeader>
+					<AlertDialogTitle>Delete column?</AlertDialogTitle>
+					<AlertDialogDescription>
+						This will permanently delete the &ldquo;{column.name}&rdquo; column. This action cannot be undone.
+					</AlertDialogDescription>
+				</AlertDialogHeader>
+				<AlertDialogFooter>
+					<AlertDialogCancel>Cancel</AlertDialogCancel>
+					<AlertDialogAction onClick={() => deleteColumn.mutate({ id: column.id })}>
+						Delete
+					</AlertDialogAction>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
 		</>
 	);
 }

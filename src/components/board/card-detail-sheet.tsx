@@ -81,11 +81,33 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 	);
 
 	const updateCard = api.card.update.useMutation({
-		onSuccess: () => {
+		onMutate: async ({ id, data }) => {
+			await utils.card.getById.cancel({ id: cardId! });
+			const previous = utils.card.getById.getData({ id: cardId! });
+
+			utils.card.getById.setData({ id: cardId! }, (old) => {
+				if (!old) return old;
+				// Build a cache-compatible patch: tags are stored as JSON string in cache
+				const { tags, ...rest } = data;
+				const patch: Record<string, unknown> = { ...rest };
+				if (tags !== undefined) {
+					patch.tags = JSON.stringify(tags);
+				}
+				return { ...old, ...patch } as typeof old;
+			});
+
+			return { previous };
+		},
+		onError: (error, _vars, context) => {
+			if (context?.previous) {
+				utils.card.getById.setData({ id: cardId! }, context.previous);
+			}
+			toast.error(error.message);
+		},
+		onSettled: () => {
 			utils.card.getById.invalidate({ id: cardId! });
 			utils.board.getFull.invalidate({ id: boardId });
 		},
-		onError: (error) => toast.error(error.message),
 	});
 
 	const deleteCard = api.card.delete.useMutation({
@@ -106,7 +128,30 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 	});
 
 	const updateChecklist = api.checklist.update.useMutation({
-		onSuccess: () => {
+		onMutate: async ({ id: checklistId, data }) => {
+			await utils.card.getById.cancel({ id: cardId! });
+			const previous = utils.card.getById.getData({ id: cardId! });
+
+			utils.card.getById.setData({ id: cardId! }, (old) => {
+				if (!old) return old;
+				return {
+					...old,
+					checklists: old.checklists.map((item) =>
+						item.id === checklistId
+							? { ...item, ...data }
+							: item
+					),
+				};
+			});
+
+			return { previous };
+		},
+		onError: (_err, _vars, context) => {
+			if (context?.previous) {
+				utils.card.getById.setData({ id: cardId! }, context.previous);
+			}
+		},
+		onSettled: () => {
 			utils.card.getById.invalidate({ id: cardId! });
 			utils.board.getFull.invalidate({ id: boardId });
 		},
@@ -477,6 +522,9 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 								</Badge>
 							)}
 						</div>
+						{card.checklists.length === 0 && (
+							<p className="text-xs text-muted-foreground/60">No items yet. Add one below.</p>
+						)}
 						<div className="space-y-1">
 							{card.checklists.map((item) => (
 								<div key={item.id} className="flex items-center gap-2 py-0.5">
@@ -545,6 +593,9 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 								</Badge>
 							)}
 						</div>
+						{card.comments.length === 0 && (
+							<p className="text-xs text-muted-foreground/60">No comments yet.</p>
+						)}
 						<div className="space-y-3">
 							{card.comments.map((comment) => (
 								<div

@@ -1,10 +1,11 @@
 "use client";
 
+import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 
-export function Markdown({ children }: { children: string }) {
+export const Markdown = memo(function Markdown({ children }: { children: string }) {
 	return (
 		<ReactMarkdown
 			remarkPlugins={[remarkGfm, remarkBreaks]}
@@ -57,4 +58,4 @@ export function Markdown({ children }: { children: string }) {
 			{children}
 		</ReactMarkdown>
 	);
-}
+});

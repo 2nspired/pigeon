@@ -3,6 +3,10 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
 	typedRoutes: true,
 
+	experimental: {
+		optimizePackageImports: ["lucide-react", "@dnd-kit/core", "@dnd-kit/sortable", "@dnd-kit/utilities"],
+	},
+
 	compiler: {
 		removeConsole: process.env.NODE_ENV === "production",
 	},

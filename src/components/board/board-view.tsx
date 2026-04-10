@@ -74,10 +74,51 @@ export function BoardView({ board }: { board: FullBoard }) {
 
 	const utils = api.useUtils();
 	const moveCard = api.card.move.useMutation({
-		onSuccess: () => {
+		onMutate: async ({ id, data }) => {
+			// Cancel outgoing refetches
+			await utils.board.getFull.cancel({ id: board.id });
+
+			// Snapshot current state
+			const previous = utils.board.getFull.getData({ id: board.id });
+
+			// Optimistically update the cache
+			utils.board.getFull.setData({ id: board.id }, (old) => {
+				if (!old) return old;
+				const columns = old.columns.map((col) => ({
+					...col,
+					cards: col.cards.filter((c) => c.id !== id),
+				}));
+				// Find target column and insert card
+				const targetCol = columns.find((c) => c.id === data.columnId);
+				if (targetCol && previous) {
+					const card = previous.columns
+						.flatMap((c) => c.cards)
+						.find((c) => c.id === id);
+					if (card) {
+						const updatedCard = { ...card, columnId: data.columnId, updatedAt: new Date() };
+						targetCol.cards.splice(data.position, 0, updatedCard);
+						// Reindex positions
+						targetCol.cards.forEach((c, i) => {
+							(c as Record<string, unknown>).position = i;
+						});
+					}
+				}
+				return { ...old, columns };
+			});
+
+			return { previous };
+		},
+		onError: (error, _vars, context) => {
+			// Roll back on error
+			if (context?.previous) {
+				utils.board.getFull.setData({ id: board.id }, context.previous);
+			}
+			toast.error(error.message);
+		},
+		onSettled: () => {
+			// Always refetch to sync with server
 			utils.board.getFull.invalidate({ id: board.id });
 		},
-		onError: (error) => toast.error(error.message),
 	});
 
 	const sensors = useSensors(
