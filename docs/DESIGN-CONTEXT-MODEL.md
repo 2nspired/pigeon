@@ -24,7 +24,7 @@ These terms are reserved for future implementation. They describe where persiste
 
 The `surface` field is not implemented in Phase 1. The vocabulary is reserved so future phases can use it without naming collisions.
 
-## Phase 1: Shared-Surface Context Foundation (Current)
+## Phase 1: Shared-Surface Context Foundation
 
 The smallest intervention that proves the shared-surface principle on one high-value case: project status.
 
@@ -45,17 +45,26 @@ The smallest intervention that proves the shared-surface principle on one high-v
 
 Deferred to a future release. The `renderStatus` output is MCP-only for now. A dashboard widget or dedicated page rendering the same markdown is a natural v2 addition but is not abandoned.
 
-## Phase 2: Memory Absorption + Staleness Registry
+## Phase 2: Memory Absorption + Staleness Registry (Current)
 
-Move the 13-memory-file pattern into structured, queryable entries with staleness tracking.
+Move persistent context from scattered files into structured, queryable entries with staleness tracking.
 
-- **`PersistentContextEntry` model** — `{ claim, rationale, application, details[], author, audience, citedFiles[], recordedAtSha, surface }`
-- **Staleness registry** split into two classes:
-  - File-cited facts: Bazel-style `recordedAtSha` comparison (did the cited file change?)
-  - Narrative facts: `age x no-human-touch` heuristic (human-edited content stays trustworthy longer than agent-only content)
-- **Staleness warnings** injected at top of `loadHandoff` / `checkOnboarding` responses
-- **End-of-session review tool** — candidate facts from this session, confirm/edit/drop each. Creates the missing ritual for negative findings, successful recipes, and self-calibration notes
-- **`surface` field** implemented with the `ambient` / `indexed` / `surfaced` gradient
+### What Shipped
+
+**`PersistentContextEntry` model** — Structured knowledge claims: `{ claim, rationale, application, details[], author, audience, citedFiles[], recordedAtSha, surface }`. CRUD via `saveContextEntry`, `listContextEntries`, `getContextEntry`, `deleteContextEntry` MCP tools.
+
+**Staleness registry** with two detection classes:
+- File-cited facts: Bazel-style `recordedAtSha` comparison — if a cited file's latest commit differs from the recorded SHA, the fact is flagged stale
+- Narrative facts: `age × no-human-touch` heuristic — agent-authored entries decay faster (14d possibly-stale, 30d stale) than human-authored entries (30d possibly-stale, 60d stale)
+
+**Staleness warnings** injected at the top of `loadHandoff` and `checkOnboarding` responses as a markdown block, visible to both human and agent.
+
+**`reviewSessionFacts(projectId, boardId)`** — End-of-session review ritual. Discovers candidate facts from handoff findings, recent card comments, and entries created during the session. The agent presents each candidate for human confirm/edit/drop, then calls `saveContextEntry` for accepted facts.
+
+**`surface` field** implemented with the `ambient` / `indexed` / `surfaced` gradient:
+- `ambient` — auto-loaded into agent context at session start
+- `indexed` — queryable but not surfaced in UI main flow (default)
+- `surfaced` — appears in the board UI main flow
 
 ## Phase 3: Code Facts + FTS5 Cross-Source Search
 
