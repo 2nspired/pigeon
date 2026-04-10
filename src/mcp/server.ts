@@ -519,6 +519,7 @@ server.registerTool(
 								include: {
 									milestone: { select: { id: true, name: true } },
 									checklists: { select: { completed: true } },
+									relationsTo: { where: { type: "blocks" }, select: { fromCard: { select: { number: true } } } },
 								},
 							},
 						},
@@ -536,11 +537,15 @@ server.registerTool(
 					ref: `#${card.number}`,
 					title: card.title,
 					priority: card.priority,
+					assignee: (card as { assignee?: string | null }).assignee ?? null,
 					column: col.name,
 					horizon: getHorizon(col),
 					milestone: card.milestone?.name ?? null,
 					checklistDone: card.checklists.filter((c) => c.completed).length,
 					checklistTotal: card.checklists.length,
+					blockedBy: (card.relationsTo as { fromCard: { number: number } }[]).map(
+						(r) => `#${r.fromCard.number}`,
+					),
 				}))
 			);
 
@@ -562,11 +567,17 @@ server.registerTool(
 				})),
 				groups: Array.from(milestoneMap.entries()).map(([name, cards]) => {
 					const done = cards.filter((c) => c.horizon === "done").length;
+					const blocked = cards.filter((c) => c.blockedBy.length > 0 && c.horizon !== "done").length;
 					return {
 						milestone: name,
 						total: cards.length,
 						done,
+						blocked,
 						progress: cards.length > 0 ? `${Math.round((done / cards.length) * 100)}%` : "0%",
+						assignees: {
+							human: cards.filter((c) => c.assignee === "HUMAN").length,
+							agent: cards.filter((c) => c.assignee === "AGENT").length,
+						},
 						now: cards.filter((c) => c.horizon === "now"),
 						next: cards.filter((c) => c.horizon === "next"),
 						later: cards.filter((c) => c.horizon === "later"),
