@@ -18,6 +18,7 @@ export type Horizon = "now" | "next" | "later" | "done";
 export type RoadmapCard = BoardCard & {
 	columnName: string;
 	horizon: Horizon;
+	isBlocked: boolean;
 };
 
 export type MilestoneGroup = {
@@ -79,6 +80,7 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 			...card,
 			columnName: col.name,
 			horizon: getHorizon(col.name, col.isParking),
+			isBlocked: (card.relationsTo?.length ?? 0) > 0,
 		})),
 	);
 

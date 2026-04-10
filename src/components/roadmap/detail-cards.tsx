@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Ban } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { CardDetailSheet } from "@/components/board/card-detail-sheet";
 import type { MilestoneGroup, RoadmapCard } from "./roadmap-view";
@@ -25,16 +26,18 @@ function CardChip({ card, onClick }: { card: RoadmapCard; onClick: () => void })
 	const checkDone = card.checklists.filter((c) => c.completed).length;
 	const checkTotal = card.checklists.length;
 	const isDone = card.horizon === "done";
+	const isBlocked = card.isBlocked && !isDone;
 
 	return (
 		<button
 			type="button"
 			onClick={onClick}
 			className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-left transition-colors hover:bg-muted/50 ${
-				isDone ? "border-emerald-500/20 bg-emerald-500/5" : "bg-card"
+				isBlocked ? "border-red-500/30 bg-red-500/5" : isDone ? "border-emerald-500/20 bg-emerald-500/5" : "bg-card"
 			}`}
 		>
-			<div className={`h-1.5 w-1.5 shrink-0 rounded-full ${PRIORITY_DOT[card.priority] ?? PRIORITY_DOT.NONE}`} />
+			<div className={`h-1.5 w-1.5 shrink-0 rounded-full ${isBlocked ? "bg-red-500" : (PRIORITY_DOT[card.priority] ?? PRIORITY_DOT.NONE)}`} />
+			{isBlocked && <Ban className="h-2.5 w-2.5 shrink-0 text-red-500" />}
 			<span className={`text-[10px] ${isDone ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
 				{HORIZON_ICON[card.horizon]}
 			</span>

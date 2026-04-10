@@ -13,15 +13,21 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 const DONE_COLOR = "bg-emerald-500";
 
+const BLOCKED_COLOR = "bg-red-500";
+
 function DotNode({ card, isDone }: { card: RoadmapCard; isDone: boolean }) {
-	const color = isDone ? DONE_COLOR : (PRIORITY_COLORS[card.priority] ?? PRIORITY_COLORS.NONE);
+	const color = card.isBlocked && !isDone
+		? BLOCKED_COLOR
+		: isDone
+			? DONE_COLOR
+			: (PRIORITY_COLORS[card.priority] ?? PRIORITY_COLORS.NONE);
 
 	return (
 		<TooltipProvider delayDuration={200}>
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<div
-						className={`h-2.5 w-2.5 shrink-0 rounded-full ${color} ring-2 ring-background transition-transform hover:scale-150`}
+						className={`h-2.5 w-2.5 shrink-0 rounded-full ${color} ${card.isBlocked && !isDone ? "ring-2 ring-red-500/30" : "ring-2 ring-background"} transition-transform hover:scale-150`}
 					/>
 				</TooltipTrigger>
 				<TooltipContent side="top" className="max-w-48">
@@ -30,7 +36,7 @@ function DotNode({ card, isDone }: { card: RoadmapCard; isDone: boolean }) {
 						{card.title}
 					</p>
 					<p className="text-[10px] text-muted-foreground">
-						{card.columnName} {card.priority !== "NONE" ? `/ ${card.priority}` : ""}
+						{card.isBlocked && !isDone ? "Blocked · " : ""}{card.columnName} {card.priority !== "NONE" ? `/ ${card.priority}` : ""}
 					</p>
 				</TooltipContent>
 			</Tooltip>

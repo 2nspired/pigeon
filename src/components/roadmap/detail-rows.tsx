@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, User } from "lucide-react";
+import { Ban, Bot, User } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { CardDetailSheet } from "@/components/board/card-detail-sheet";
@@ -97,20 +97,24 @@ export function DetailRows({
 											const checkDone = card.checklists.filter((c) => c.completed).length;
 											const checkTotal = card.checklists.length;
 											const isDone = card.horizon === "done";
+											const isBlocked = card.isBlocked && !isDone;
 
 											return (
 												<tr
 													key={card.id}
 													onClick={() => setSelectedCardId(card.id)}
 													className={`cursor-pointer border-b last:border-0 transition-colors hover:bg-muted/50 ${
-														isDone ? "bg-emerald-500/5" : ""
+														isBlocked ? "bg-red-500/5" : isDone ? "bg-emerald-500/5" : ""
 													}`}
 												>
 													<td className="px-4 py-2 font-mono text-muted-foreground">
 														{card.number}
 													</td>
 													<td className={`px-2 py-2 font-medium ${isDone ? "text-muted-foreground line-through" : ""}`}>
-														{card.title}
+														<span className="flex items-center gap-1.5">
+															{isBlocked && <Ban className="h-3 w-3 shrink-0 text-red-500" />}
+															{card.title}
+														</span>
 													</td>
 													<td className="px-2 py-2">
 														<div className="flex items-center gap-1.5">
