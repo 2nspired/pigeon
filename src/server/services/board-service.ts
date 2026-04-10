@@ -75,7 +75,7 @@ async function getFullBoardData(boardId: string) {
 						orderBy: { position: "asc" },
 						include: {
 							checklists: { orderBy: { position: "asc" } },
-							milestone: { select: { id: true, name: true } },
+							milestone: { select: { id: true, name: true, targetDate: true } },
 							relationsTo: { where: { type: "blocks" }, select: { id: true } },
 							_count: { select: { comments: true } },
 						},

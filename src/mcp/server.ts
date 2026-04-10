@@ -12,7 +12,7 @@ import {
 	detectFeatures,
 	err,
 	ok,
-	resolveCardId,
+	resolveCardRef,
 	resolveOrCreateMilestone,
 	SCHEMA_VERSION,
 	safeExecute,
@@ -284,9 +284,9 @@ server.registerTool(
 	},
 	async ({ cardId: cardRef, title, description, priority, tags, assignee, milestoneName, metadata }) => {
 		return safeExecute(async () => {
-			const cardId = await resolveCardId(cardRef);
-			if (!cardId)
-				return err(`Card "${cardRef}" not found.`, "Use getBoard to see valid card refs.");
+			const resolved = await resolveCardRef(cardRef);
+			if (!resolved.ok) return err(resolved.message);
+			const cardId = resolved.id;
 
 			const existing = await db.card.findUnique({ where: { id: cardId } });
 			if (!existing) return err("Card not found.");
@@ -353,9 +353,9 @@ server.registerTool(
 	},
 	async ({ cardId: cardRef, columnName, position }) => {
 		return safeExecute(async () => {
-			const cardId = await resolveCardId(cardRef);
-			if (!cardId)
-				return err(`Card "${cardRef}" not found.`, "Use getBoard to see valid card refs.");
+			const resolved = await resolveCardRef(cardRef);
+			if (!resolved.ok) return err(resolved.message);
+			const cardId = resolved.id;
 
 			const card = await db.card.findUnique({
 				where: { id: cardId },
@@ -428,9 +428,9 @@ server.registerTool(
 	},
 	async ({ cardId: cardRef, content }) => {
 		return safeExecute(async () => {
-			const cardId = await resolveCardId(cardRef);
-			if (!cardId)
-				return err(`Card "${cardRef}" not found.`, "Use getBoard to see valid card refs.");
+			const resolved = await resolveCardRef(cardRef);
+			if (!resolved.ok) return err(resolved.message);
+			const cardId = resolved.id;
 
 			const card = await db.card.findUnique({ where: { id: cardId } });
 			if (!card) return err("Card not found.");
@@ -496,7 +496,7 @@ server.registerTool(
 	{
 		title: "Get Roadmap",
 		description:
-			"Roadmap view: cards grouped by milestone and horizon. Horizons: In Progress/Review=Now, To Do=Next, Backlog=Later, Done=Done.",
+			"Roadmap view: cards grouped by milestone and horizon. Includes blockedBy refs, assignee breakdown, and progress per milestone. Horizons: In Progress/Review=Now, To Do=Next, Backlog=Later, Done=Done.",
 		inputSchema: {
 			boardId: z.string().describe("Board UUID"),
 			format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
@@ -519,6 +519,7 @@ server.registerTool(
 								include: {
 									milestone: { select: { id: true, name: true } },
 									checklists: { select: { completed: true } },
+									relationsTo: { where: { type: "blocks" }, select: { fromCard: { select: { number: true } } } },
 								},
 							},
 						},
@@ -536,11 +537,15 @@ server.registerTool(
 					ref: `#${card.number}`,
 					title: card.title,
 					priority: card.priority,
+					assignee: (card as { assignee?: string | null }).assignee ?? null,
 					column: col.name,
 					horizon: getHorizon(col),
 					milestone: card.milestone?.name ?? null,
 					checklistDone: card.checklists.filter((c) => c.completed).length,
 					checklistTotal: card.checklists.length,
+					blockedBy: (card.relationsTo as { fromCard: { number: number } }[]).map(
+						(r) => `#${r.fromCard.number}`,
+					),
 				}))
 			);
 
@@ -562,11 +567,17 @@ server.registerTool(
 				})),
 				groups: Array.from(milestoneMap.entries()).map(([name, cards]) => {
 					const done = cards.filter((c) => c.horizon === "done").length;
+					const blocked = cards.filter((c) => c.blockedBy.length > 0 && c.horizon !== "done").length;
 					return {
 						milestone: name,
 						total: cards.length,
 						done,
+						blocked,
 						progress: cards.length > 0 ? `${Math.round((done / cards.length) * 100)}%` : "0%",
+						assignees: {
+							human: cards.filter((c) => c.assignee === "HUMAN").length,
+							agent: cards.filter((c) => c.assignee === "AGENT").length,
+						},
 						now: cards.filter((c) => c.horizon === "now"),
 						next: cards.filter((c) => c.horizon === "next"),
 						later: cards.filter((c) => c.horizon === "later"),
@@ -967,8 +978,8 @@ server.registerPrompt(
 				],
 			};
 
-		const cardId = await resolveCardId(cardRef, board.projectId);
-		if (!cardId)
+		const cardResolved = await resolveCardRef(cardRef, board.projectId);
+		if (!cardResolved.ok)
 			return {
 				messages: [
 					{

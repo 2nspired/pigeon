@@ -20,7 +20,7 @@ A local-first kanban board with MCP integration for AI-assisted development. You
 - Work-Next Score — smart card ranking to suggest what to work on next
 
 **Views**
-- Roadmap view with milestone horizons and river flow visualization
+- Roadmap view with horizon landscape (Now/Next/Later), draggable milestones, and progressive disclosure
 - Timeline view for card history
 - Cross-project dashboard with responsive layout
 - Notes scratch pad with promote-to-card
@@ -156,7 +156,7 @@ The tracker uses an **Essential + Catalog** pattern: 10 essential tools are alwa
 | `moveCard` | Move to column by name (e.g. "In Progress") |
 | `addComment` | Add a comment — decisions, blockers, context |
 | `searchCards` | Search across all projects by text or tag |
-| `getRoadmap` | Cards grouped by milestone and horizon (now/next/later/done) |
+| `getRoadmap` | Cards grouped by milestone and horizon (now/next/later/done) with blocking info and assignee breakdown |
 | `checkOnboarding` | Detect setup state + return project/board list inline |
 | `getTools` | Browse extended tools by category |
 | `runTool` | Execute any extended tool by name |
