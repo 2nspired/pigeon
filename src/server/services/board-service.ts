@@ -7,9 +7,8 @@ const DEFAULT_COLUMNS = [
 	{ name: "Backlog", description: "This hasn't been started", position: 0, role: "backlog", isParking: false },
 	{ name: "To Do", description: "This is ready to be picked up", position: 1, role: "todo", isParking: false },
 	{ name: "In Progress", description: "This is actively being worked on", position: 2, role: "active", isParking: false },
-	{ name: "Review", description: "This is in review", position: 3, role: "review", isParking: false },
-	{ name: "Done", description: "This has been completed", position: 4, role: "done", isParking: false },
-	{ name: "Parking Lot", description: "Ideas and items to revisit later", position: 5, role: "parking", isParking: true },
+	{ name: "Done", description: "This has been completed", position: 3, role: "done", isParking: false },
+	{ name: "Parking Lot", description: "Ideas and items to revisit later", position: 4, role: "parking", isParking: true },
 ];
 
 type BoardListItem = Board & {

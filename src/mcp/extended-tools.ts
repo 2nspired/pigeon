@@ -735,7 +735,7 @@ registerExtendedTool("listActivity", {
 
 registerExtendedTool("createProject", {
 	category: "setup",
-	description: "Create a project with default board and columns (Backlog, To Do, In Progress, Review, Done, Parking Lot).",
+	description: "Create a project with default board and columns (Backlog, To Do, In Progress, Done, Parking Lot).",
 	parameters: z.object({
 		name: z.string(),
 		description: z.string().optional(),
@@ -759,9 +759,8 @@ registerExtendedTool("createProject", {
 								{ name: "Backlog", description: "This hasn't been started", position: 0, role: "backlog" },
 								{ name: "To Do", description: "This is ready to be picked up", position: 1, role: "todo" },
 								{ name: "In Progress", description: "This is actively being worked on", position: 2, role: "active" },
-								{ name: "Review", description: "This is in review", position: 3, role: "review" },
-								{ name: "Done", description: "This has been completed", position: 4, role: "done" },
-								{ name: "Parking Lot", description: "Ideas and items to revisit later", position: 5, role: "parking", isParking: true },
+								{ name: "Done", description: "This has been completed", position: 3, role: "done" },
+								{ name: "Parking Lot", description: "Ideas and items to revisit later", position: 4, role: "parking", isParking: true },
 							],
 						},
 					},

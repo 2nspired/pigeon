@@ -50,9 +50,8 @@ export async function seedTutorialProject(
 		{ name: "Backlog", position: 0, role: "backlog", isParking: false },
 		{ name: "To Do", position: 1, role: "todo", isParking: false },
 		{ name: "In Progress", position: 2, role: "active", isParking: false },
-		{ name: "Review", position: 3, role: "review", isParking: false },
-		{ name: "Done", position: 4, role: "done", isParking: false },
-		{ name: "Parking Lot", position: 5, role: "parking", isParking: true },
+		{ name: "Done", position: 3, role: "done", isParking: false },
+		{ name: "Parking Lot", position: 4, role: "parking", isParking: true },
 	];
 
 	const columnMap = new Map<string, string>();
