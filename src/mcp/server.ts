@@ -40,10 +40,10 @@ server.registerTool(
 	{
 		title: "Get Board",
 		description:
-			"Full board state: columns, cards with #refs, checklists, milestones. Use format='toon' for ~40% fewer tokens.",
+			"Full board state: columns, cards with #refs, checklists, milestones. TOON by default (~40% fewer tokens).",
 		inputSchema: {
 			boardId: z.string().describe("Board UUID"),
-			format: z.enum(["json", "toon"]).default("json").describe("'toon' saves ~40% tokens"),
+			format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
 		},
 		annotations: { readOnlyHint: true },
 	},
@@ -387,7 +387,7 @@ server.registerTool(
 				number: card.number,
 				ref: `#${card.number}`,
 				title: card.title,
-				description: card.description,
+				description: card.description ? card.description.slice(0, 200) + (card.description.length > 200 ? "…" : "") : "",
 				priority: card.priority,
 				tags: JSON.parse(card.tags) as string[],
 				column: card.column.name,
@@ -413,7 +413,7 @@ server.registerTool(
 			"Roadmap view: cards grouped by milestone and horizon. Horizons: In Progress/Review=Now, To Do=Next, Backlog=Later, Done=Done.",
 		inputSchema: {
 			boardId: z.string().describe("Board UUID"),
-			format: z.enum(["json", "toon"]).default("json").describe("'toon' saves ~40% tokens"),
+			format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
 		},
 		annotations: { readOnlyHint: true },
 	},

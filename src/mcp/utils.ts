@@ -97,15 +97,16 @@ export type ToolResult = { content: ToolContent[]; isError?: boolean };
 
 /** Format a successful tool response. Supports optional TOON encoding. Injects _meta.estimatedTokens. */
 export function ok(data: unknown, format?: "json" | "toon"): ToolResult {
-	const enriched = typeof data === "object" && data !== null && !Array.isArray(data)
-		? { ...(data as Record<string, unknown>) }
+	// Estimate tokens from a quick pre-pass (cheap string length, no double-encode)
+	const roughLen = JSON.stringify(data)?.length ?? 0;
+	const estimatedTokens = Math.ceil(roughLen / 4);
+
+	// Inject _meta into objects
+	const output = typeof data === "object" && data !== null && !Array.isArray(data)
+		? { ...(data as Record<string, unknown>), _meta: { estimatedTokens } }
 		: data;
-	const preText = format === "toon" ? toToon(enriched) : JSON.stringify(enriched, null, 2);
-	const estimatedTokens = Math.ceil(preText.length / 4);
-	const withMeta = typeof enriched === "object" && enriched !== null && !Array.isArray(enriched)
-		? { ...(enriched as Record<string, unknown>), _meta: { estimatedTokens } }
-		: enriched;
-	const text = format === "toon" ? toToon(withMeta) : JSON.stringify(withMeta, null, 2);
+
+	const text = format === "toon" ? toToon(output) : JSON.stringify(output, null, 2);
 	return { content: [{ type: "text" as const, text }] };
 }
 
