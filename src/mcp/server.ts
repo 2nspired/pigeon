@@ -7,6 +7,7 @@ import { db } from "./db.js";
 import { registerResources } from "./resources.js";
 import { executeTool, getRegistrySize, getToolCatalog } from "./tool-registry.js";
 import { toToon } from "./toon.js";
+import { checkStaleness, formatStalenessWarnings } from "./staleness.js";
 import {
 	AGENT_NAME,
 	detectFeatures,
@@ -656,6 +657,12 @@ server.registerTool(
 			);
 		}
 
+		// Check staleness across all projects
+		const allWarnings = (
+			await Promise.all(projects.map((p) => checkStaleness(p.id)))
+		).flat();
+		const stalenessWarnings = allWarnings.length > 0 ? formatStalenessWarnings(allWarnings) : null;
+
 		return ok({
 			state,
 			stats: { projects: projectCount, boards: boardCount, cards: cardCount, handoffs: handoffCount },
@@ -671,6 +678,7 @@ server.registerTool(
 				})),
 			})),
 			options,
+			stalenessWarnings,
 		});
 	}
 );
