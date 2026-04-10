@@ -56,7 +56,7 @@ Before calling `saveHandoff` at the end of a session, call `reviewSessionFacts(p
 | Column | Purpose | When to move here |
 |---|---|---|
 | **Backlog** | Known work that hasn't been prioritized yet. Dumping ground for "we should do this eventually." | When identifying future work during planning or conversation |
-| **To Do** | Prioritized and ready to pick up. This is the active work queue. | When the user or agent agrees this should happen next |
+| **Up Next** | Prioritized and ready to pick up. This is the active work queue. | When the user or agent agrees this should happen next |
 | **In Progress** | Actively being worked on right now. Limit to 2-3 cards to stay focused. | When you start writing code or doing real work on it |
 | **Review** | Code is written, needs human review, testing, or verification. Not present on all boards. | When the agent finishes implementation and wants the user to check |
 | **Done** | Shipped, merged, verified. No more work needed. | After human confirms it's good, or after merging |
@@ -64,7 +64,7 @@ Before calling `saveHandoff` at the end of a session, call `reviewSessionFacts(p
 
 ## When to Use the Board
 
-**Start of conversation** — Call `getBoard` once to understand current state. For large boards (50+ cards), use `getBoard` with `summary: true` or `excludeDone: true` to reduce payload. You can also filter to specific columns with `columns: ["Backlog", "To Do", "In Progress"]`. This replaces re-reading files and git logs to figure out where things stand. If there are checklist items or cards in "To Do", that's your work queue.
+**Start of conversation** — Call `getBoard` once to understand current state. For large boards (50+ cards), use `getBoard` with `summary: true` or `excludeDone: true` to reduce payload. You can also filter to specific columns with `columns: ["Backlog", "Up Next", "In Progress"]`. This replaces re-reading files and git logs to figure out where things stand. If there are checklist items or cards in "Up Next", that's your work queue.
 
 **Planning phase** — Use `bulkCreateCards` (not individual createCard calls) to lay out planned work. Add checklist items for sub-tasks. This is where the user sees your plan before you start coding.
 
@@ -85,7 +85,7 @@ Before calling `saveHandoff` at the end of a session, call `reviewSessionFacts(p
 
 | Information | Where it belongs |
 |---|---|
-| What needs to be done | Cards in To Do / Backlog |
+| What needs to be done | Cards in Up Next / Backlog |
 | Current work breakdown | Checklist items on the active card |
 | Architecture decisions | Comment on the relevant card |
 | "Why did we choose X?" | Comment on the card |
@@ -108,7 +108,7 @@ This keeps the card's history connected to the code without needing a formal mod
 ### Reducing Token Usage
 - Use `getBoard` with `summary: true` for lightweight views (no descriptions or checklist items)
 - Use `getBoard` with `excludeDone: true` to skip Done/Parking columns — often the bulk of payload
-- Use `getBoard` with `columns: ["To Do", "In Progress"]` to fetch only the columns you need
+- Use `getBoard` with `columns: ["Up Next", "In Progress"]` to fetch only the columns you need
 - One `getBoard` call at conversation start gives you everything — don't call it repeatedly
 
 ### Bulk Operations

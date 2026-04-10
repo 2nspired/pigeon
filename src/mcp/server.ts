@@ -48,7 +48,7 @@ server.registerTool(
 		inputSchema: {
 			boardId: z.string().describe("Board UUID"),
 			format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
-			columns: z.array(z.string()).optional().describe("Only include these columns by name (e.g. ['Backlog', 'To Do', 'In Progress'])"),
+			columns: z.array(z.string()).optional().describe("Only include these columns by name (e.g. ['Backlog', 'Up Next', 'In Progress'])"),
 			excludeDone: z.boolean().default(false).describe("Exclude columns with role 'done' or 'parking' — great for reducing payload"),
 			summary: z.boolean().optional().describe("Lightweight mode: returns only ref, title, priority, tags, milestone, checklist counts — no descriptions or checklist items. Auto-enabled when board has >50 cards; pass false to override."),
 		},
@@ -182,7 +182,7 @@ server.registerTool(
 		description: "Create a card. Uses column name (not ID); auto-creates milestone if name is new.",
 		inputSchema: {
 			boardId: z.string().describe("Board UUID"),
-			columnName: z.string().describe("Column name (e.g. 'To Do', 'Backlog')"),
+			columnName: z.string().describe("Column name (e.g. 'Up Next', 'Backlog')"),
 			title: z.string().describe("Card title"),
 			description: z.string().optional().describe("Markdown description"),
 			priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).default("NONE"),
@@ -499,7 +499,7 @@ server.registerTool(
 	{
 		title: "Get Roadmap",
 		description:
-			"Roadmap view: cards grouped by milestone and horizon. Includes blockedBy refs, assignee breakdown, and progress per milestone. Horizons: In Progress/Review=Now, To Do=Next, Backlog=Later, Done=Done.",
+			"Roadmap view: cards grouped by milestone and horizon. Includes blockedBy refs, assignee breakdown, and progress per milestone. Horizons: In Progress/Review=Now, Up Next=Next, Backlog=Later, Done=Done.",
 		inputSchema: {
 			boardId: z.string().describe("Board UUID"),
 			format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
@@ -1233,7 +1233,7 @@ server.registerPrompt(
 				"## Step 1: Create the project",
 				"",
 				`Use \`runTool('createProject', { name: "${projectName}", description: "..." })\``,
-				"This creates a default board with standard columns (Backlog, To Do, In Progress, Review, Done, Parking Lot).",
+				"This creates a default board with standard columns (Backlog, Up Next, In Progress, Review, Done, Parking Lot).",
 				""
 			);
 		}
@@ -1243,7 +1243,7 @@ server.registerPrompt(
 			"## Step 2: Populate the board",
 			"",
 			"Read the project's README, CLAUDE.md, and `git log --oneline -20` to understand state.",
-			"Then create cards: Completed→Done, Active→In Progress, Next→To Do, Future→Backlog, Ideas→Parking Lot.",
+			"Then create cards: Completed→Done, Active→In Progress, Next→Up Next, Future→Backlog, Ideas→Parking Lot.",
 			"Use `runTool('bulkCreateCards', {...})` to batch-create.",
 			"",
 			"## Step 3: Add to the project's CLAUDE.md",
@@ -1445,7 +1445,7 @@ server.registerPrompt(
 			"",
 			'1. **Project name** — What are you building? (e.g. "My App", "Website Redesign")',
 			'2. **Board name** — Optional, defaults to "Main Board"',
-			"3. **Initial columns** — A board starts with: Backlog, To Do, In Progress, Review, Done, Parking Lot",
+			"3. **Initial columns** — A board starts with: Backlog, Up Next, In Progress, Review, Done, Parking Lot",
 			"",
 			"Once you tell me the project name, I'll:",
 			"- Create the project with `createProject`",

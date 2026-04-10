@@ -62,7 +62,7 @@ export function CreateBoardDialog({ projectId }: { projectId: string }) {
 					<DialogHeader>
 						<DialogTitle>Create Board</DialogTitle>
 						<DialogDescription>
-							A new board with To Do, In Progress, Done, and Parking Lot columns.
+							A new board with Up Next, In Progress, Done, and Parking Lot columns.
 						</DialogDescription>
 					</DialogHeader>
 					<div className="mt-4 space-y-4">
