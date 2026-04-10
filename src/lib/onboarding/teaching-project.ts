@@ -44,7 +44,7 @@ export const teachingProject = {
 		{
 			title: "Understanding Columns",
 			description: [
-				"**What:** Columns represent workflow stages. The default board has: Backlog → To Do → In Progress → Review → Done, plus a Parking Lot.",
+				"**What:** Columns represent workflow stages. The default board has: Backlog → Up Next → In Progress → Review → Done, plus a Parking Lot.",
 				"**When to use:** Move cards between columns to reflect their current status.",
 				"**How to try:** Look at the board — cards in each column are at that stage of work.",
 				"**Tip:** The Parking Lot is special — it's for ideas you want to save but aren't ready to prioritize.",
@@ -113,7 +113,7 @@ export const teachingProject = {
 			createdBy: "AGENT",
 		},
 
-		// ── To Do (4) — features to try next ────────────────────────────
+		// ── Up Next (4) — features to try next ──────────────────────────
 		{
 			title: "Connect Related Cards",
 			description: [
@@ -122,7 +122,7 @@ export const teachingProject = {
 				'**How to try:** Open this card — it shows a "blocked by #8" indicator. Card #8 must be completed before this one can proceed.',
 				"**Tip:** Blocked cards show a special indicator on the board, making dependencies visible at a glance.",
 			].join("\n\n"),
-			column: "To Do",
+			column: "Up Next",
 			priority: "MEDIUM",
 			tags: ["tutorial", "relations"],
 			createdBy: "AGENT",
@@ -135,7 +135,7 @@ export const teachingProject = {
 				'**How to try:** Open this card to see the "blocks #7" relation. Try completing this card first, then work on #7.',
 				'**Tip:** Use "blocks" for hard dependencies and "related" for soft associations.',
 			].join("\n\n"),
-			column: "To Do",
+			column: "Up Next",
 			priority: "HIGH",
 			tags: ["tutorial", "relations"],
 			createdBy: "AGENT",
@@ -148,7 +148,7 @@ export const teachingProject = {
 				'**How to try:** Look at the tags on this card and others. Notice how tutorial cards all share the "tutorial" tag.',
 				'**Tip:** Tags are free-form text — use consistent naming (e.g., "feature:auth", "bug", "dx") for easy filtering.',
 			].join("\n\n"),
-			column: "To Do",
+			column: "Up Next",
 			priority: "LOW",
 			tags: ["tutorial", "organization", "feature:tags"],
 			createdBy: "AGENT",
@@ -161,7 +161,7 @@ export const teachingProject = {
 				'**How to try:** This card is attached to the "Getting Started" milestone. Check the roadmap view to see milestone progress.',
 				"**Tip:** Milestones show completion percentage based on how many attached cards are in the Done column.",
 			].join("\n\n"),
-			column: "To Do",
+			column: "Up Next",
 			priority: "MEDIUM",
 			tags: ["tutorial", "planning"],
 			createdBy: "AGENT",

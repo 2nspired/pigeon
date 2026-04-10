@@ -48,7 +48,7 @@ export async function seedTutorialProject(
 	// Create columns (board service does this automatically, but we use raw Prisma here)
 	const columnDefs = [
 		{ name: "Backlog", position: 0, role: "backlog", isParking: false },
-		{ name: "To Do", position: 1, role: "todo", isParking: false },
+		{ name: "Up Next", position: 1, role: "todo", isParking: false },
 		{ name: "In Progress", position: 2, role: "active", isParking: false },
 		{ name: "Done", position: 3, role: "done", isParking: false },
 		{ name: "Parking Lot", position: 4, role: "parking", isParking: true },
