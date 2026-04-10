@@ -25,7 +25,16 @@ import { useSearchParams } from "next/navigation";
 import { use, useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { NoteCollection, NoteSearchInput, NoteTagFilter, NoteTagInput, NoteViewToggle, filterNotes, type NoteItem, type NoteViewMode } from "@/components/notes/note-views";
+import {
+	filterNotes,
+	NoteCollection,
+	type NoteItem,
+	NoteSearchInput,
+	NoteTagFilter,
+	NoteTagInput,
+	type NoteViewMode,
+	NoteViewToggle,
+} from "@/components/notes/note-views";
 import { CreateBoardDialog } from "@/components/project/create-board-dialog";
 import {
 	AlertDialog,
@@ -39,12 +48,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -61,6 +65,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Markdown } from "@/components/ui/markdown";
 import {
 	Select,
 	SelectContent,
@@ -70,7 +75,6 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Markdown } from "@/components/ui/markdown";
 import { COLOR_CLASSES } from "@/lib/project-colors";
 import type { ProjectColor } from "@/lib/schemas/project-schemas";
 import { api } from "@/trpc/react";
@@ -91,7 +95,12 @@ const toolbarActions: InsertAction[] = [
 	{ label: "Heading", icon: <Heading2 className="h-3.5 w-3.5" />, prefix: "## ", block: true },
 	{ label: "Quote", icon: <Quote className="h-3.5 w-3.5" />, prefix: "> ", block: true },
 	{ label: "Bullet list", icon: <List className="h-3.5 w-3.5" />, prefix: "- ", block: true },
-	{ label: "Numbered list", icon: <ListOrdered className="h-3.5 w-3.5" />, prefix: "1. ", block: true },
+	{
+		label: "Numbered list",
+		icon: <ListOrdered className="h-3.5 w-3.5" />,
+		prefix: "1. ",
+		block: true,
+	},
 	{ label: "Code", icon: <Code className="h-3.5 w-3.5" />, prefix: "`", suffix: "`" },
 	{ label: "Link", icon: <LinkIcon className="h-3.5 w-3.5" />, prefix: "[", suffix: "](url)" },
 ];
@@ -100,7 +109,7 @@ function applyToolbarAction(
 	textarea: HTMLTextAreaElement,
 	action: InsertAction,
 	content: string,
-	setContent: (v: string) => void,
+	setContent: (v: string) => void
 ) {
 	const start = textarea.selectionStart;
 	const end = textarea.selectionEnd;
@@ -150,7 +159,7 @@ function NoteEditor({
 			if (!textareaRef.current) return;
 			applyToolbarAction(textareaRef.current, action, content, setContent);
 		},
-		[content, setContent],
+		[content, setContent]
 	);
 
 	return (
@@ -209,15 +218,12 @@ function NoteEditor({
 
 // ─── Page ──────────────────────────────────────────────────────────
 
-export default function ProjectPage({
-	params,
-}: {
-	params: Promise<{ projectId: string }>;
-}) {
+export default function ProjectPage({ params }: { params: Promise<{ projectId: string }> }) {
 	const { projectId } = use(params);
 	const searchParams = useSearchParams();
 	const tabParam = searchParams.get("tab");
-	const initialTab = tabParam === "notes" ? "notes" : tabParam === "decisions" ? "decisions" : "boards";
+	const initialTab =
+		tabParam === "notes" ? "notes" : tabParam === "decisions" ? "decisions" : "boards";
 	const fromBoardId = searchParams.get("from");
 	const [tab, setTab] = useState<"boards" | "notes" | "decisions">(initialTab);
 	const [noteCreateOpen, setNoteCreateOpen] = useState(false);
@@ -246,19 +252,17 @@ export default function ProjectPage({
 					</Link>
 				)}
 				<div className="flex items-center justify-between">
-					<div className={`flex items-center gap-3 border-l-[4px] pl-3 ${COLOR_CLASSES[projectColor].border}`}>
+					<div
+						className={`flex items-center gap-3 border-l-[4px] pl-3 ${COLOR_CLASSES[projectColor].border}`}
+					>
 						<div>
-							<h1 className="text-3xl font-bold tracking-tight">
-								{project?.name ?? "..."}
-							</h1>
+							<h1 className="text-3xl font-bold tracking-tight">{project?.name ?? "..."}</h1>
 							{project?.description && (
 								<p className="text-muted-foreground">{project.description}</p>
 							)}
 						</div>
 					</div>
-					{tab === "boards" && (
-						<CreateBoardDialog projectId={projectId} />
-					)}
+					{tab === "boards" && <CreateBoardDialog projectId={projectId} />}
 					{tab === "notes" && (
 						<Button onClick={() => setNoteCreateOpen(true)}>
 							<Plus className="mr-2 h-4 w-4" />
@@ -315,18 +319,16 @@ export default function ProjectPage({
 			</div>
 
 			{tab === "boards" && (
-				<BoardsTab
-					projectId={projectId}
-					boards={boards}
-					isLoading={boardsLoading}
-				/>
+				<BoardsTab projectId={projectId} boards={boards} isLoading={boardsLoading} />
 			)}
 			{tab === "notes" && (
-				<ProjectNotesTab projectId={projectId} createOpen={noteCreateOpen} setCreateOpen={setNoteCreateOpen} />
+				<ProjectNotesTab
+					projectId={projectId}
+					createOpen={noteCreateOpen}
+					setCreateOpen={setNoteCreateOpen}
+				/>
 			)}
-			{tab === "decisions" && (
-				<ProjectDecisionsTab projectId={projectId} />
-			)}
+			{tab === "decisions" && <ProjectDecisionsTab projectId={projectId} />}
 		</div>
 	);
 }
@@ -403,9 +405,7 @@ function BoardsTab({
 					<div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
 						<LayoutGrid className="mb-4 h-12 w-12 text-muted-foreground" />
 						<h2 className="text-lg font-semibold">No boards yet</h2>
-						<p className="text-sm text-muted-foreground">
-							Create a board to start tracking work.
-						</p>
+						<p className="text-sm text-muted-foreground">Create a board to start tracking work.</p>
 					</div>
 				) : (
 					boards?.map((board) => {
@@ -424,9 +424,7 @@ function BoardsTab({
 									<Card className="transition-colors hover:bg-muted/50">
 										<CardHeader className="pb-3">
 											<CardTitle className="text-lg">{board.name}</CardTitle>
-											{board.description && (
-												<CardDescription>{board.description}</CardDescription>
-											)}
+											{board.description && <CardDescription>{board.description}</CardDescription>}
 										</CardHeader>
 										<div className="px-6 pb-4">
 											{totalCards > 0 ? (
@@ -458,7 +456,9 @@ function BoardsTab({
 																style={{ width: `${pct}%` }}
 															/>
 														</div>
-														<span className="text-[10px] text-muted-foreground">{totalCards} cards</span>
+														<span className="text-[10px] text-muted-foreground">
+															{totalCards} cards
+														</span>
 													</div>
 												</>
 											) : (
@@ -511,8 +511,8 @@ function BoardsTab({
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete board?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This will permanently delete <strong>{boardToDelete?.name}</strong> and
-							all its columns and cards. This action cannot be undone.
+							This will permanently delete <strong>{boardToDelete?.name}</strong> and all its
+							columns and cards. This action cannot be undone.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -559,7 +559,15 @@ function BoardsTab({
 
 // ─── Project Notes Tab ─────────────────────────────────────────────
 
-function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: string; createOpen: boolean; setCreateOpen: (v: boolean) => void }) {
+function ProjectNotesTab({
+	projectId,
+	createOpen,
+	setCreateOpen,
+}: {
+	projectId: string;
+	createOpen: boolean;
+	setCreateOpen: (v: boolean) => void;
+}) {
 	const [viewingId, setViewingId] = useState<string | null>(null);
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [promoteId, setPromoteId] = useState<string | null>(null);
@@ -578,16 +586,13 @@ function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: 
 
 	const utils = api.useUtils();
 
-	const { data: notes, isLoading } = api.note.list.useQuery(
-		{ projectId },
-		{ refetchInterval: 5000 },
-	);
+	const { data: notes, isLoading } = api.note.list.useQuery({ projectId });
 
 	const { data: boards } = api.board.list.useQuery({ projectId });
 
 	const { data: promoteBoard } = api.board.getFull.useQuery(
 		{ id: promoteBoardId },
-		{ enabled: !!promoteBoardId },
+		{ enabled: !!promoteBoardId }
 	);
 
 	const createNote = api.note.create.useMutation({
@@ -688,7 +693,11 @@ function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: 
 			) : (
 				<div className="space-y-4">
 					<div className="flex items-center justify-between">
-						<NoteTagFilter notes={notes} selectedTags={filterTags} setSelectedTags={setFilterTags} />
+						<NoteTagFilter
+							notes={notes}
+							selectedTags={filterTags}
+							setSelectedTags={setFilterTags}
+						/>
 						<div className="flex items-center gap-3">
 							<NoteSearchInput value={search} onChange={setSearch} />
 							<NoteViewToggle view={viewMode} setView={setViewMode} />
@@ -772,7 +781,13 @@ function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: 
 			})()}
 
 			{/* Create dialog */}
-			<Dialog open={createOpen} onOpenChange={(open) => { if (!open) resetForm(); setCreateOpen(open); }}>
+			<Dialog
+				open={createOpen}
+				onOpenChange={(open) => {
+					if (!open) resetForm();
+					setCreateOpen(open);
+				}}
+			>
 				<DialogContent className="sm:max-w-4xl max-h-[90dvh] overflow-y-auto">
 					<form onSubmit={handleCreate}>
 						<DialogHeader>
@@ -782,13 +797,31 @@ function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: 
 						<div className="mt-4 space-y-4">
 							<div className="space-y-2">
 								<Label htmlFor="pnote-title">Title</Label>
-								<Input id="pnote-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What's on your mind?" autoFocus />
+								<Input
+									id="pnote-title"
+									value={title}
+									onChange={(e) => setTitle(e.target.value)}
+									placeholder="What's on your mind?"
+									autoFocus
+								/>
 							</div>
-							<NoteTagInput tags={noteTags} setTags={setNoteTags} tagInput={noteTagInput} setTagInput={setNoteTagInput} />
-							<NoteEditor content={content} setContent={setContent} preview={preview} setPreview={setPreview} />
+							<NoteTagInput
+								tags={noteTags}
+								setTags={setNoteTags}
+								tagInput={noteTagInput}
+								setTagInput={setNoteTagInput}
+							/>
+							<NoteEditor
+								content={content}
+								setContent={setContent}
+								preview={preview}
+								setPreview={setPreview}
+							/>
 						</div>
 						<DialogFooter className="mt-6">
-							<Button type="submit" disabled={createNote.isPending || !title.trim()}>Save</Button>
+							<Button type="submit" disabled={createNote.isPending || !title.trim()}>
+								Save
+							</Button>
 						</DialogFooter>
 					</form>
 				</DialogContent>
@@ -804,13 +837,30 @@ function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: 
 						<div className="mt-4 space-y-4">
 							<div className="space-y-2">
 								<Label htmlFor="pnote-edit-title">Title</Label>
-								<Input id="pnote-edit-title" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+								<Input
+									id="pnote-edit-title"
+									value={title}
+									onChange={(e) => setTitle(e.target.value)}
+									autoFocus
+								/>
 							</div>
-							<NoteTagInput tags={noteTags} setTags={setNoteTags} tagInput={noteTagInput} setTagInput={setNoteTagInput} />
-							<NoteEditor content={content} setContent={setContent} preview={preview} setPreview={setPreview} />
+							<NoteTagInput
+								tags={noteTags}
+								setTags={setNoteTags}
+								tagInput={noteTagInput}
+								setTagInput={setNoteTagInput}
+							/>
+							<NoteEditor
+								content={content}
+								setContent={setContent}
+								preview={preview}
+								setPreview={setPreview}
+							/>
 						</div>
 						<DialogFooter className="mt-6">
-							<Button type="submit" disabled={updateNote.isPending || !title.trim()}>Save</Button>
+							<Button type="submit" disabled={updateNote.isPending || !title.trim()}>
+								Save
+							</Button>
 						</DialogFooter>
 					</form>
 				</DialogContent>
@@ -821,18 +871,28 @@ function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: 
 				<DialogContent>
 					<DialogHeader>
 						<DialogTitle>Promote to Card</DialogTitle>
-						<DialogDescription>Choose a board and column. The note will be deleted after promotion.</DialogDescription>
+						<DialogDescription>
+							Choose a board and column. The note will be deleted after promotion.
+						</DialogDescription>
 					</DialogHeader>
 					<div className="mt-4 space-y-4">
 						<div className="space-y-2">
 							<Label>Board</Label>
-							<Select value={promoteBoardId} onValueChange={(v) => { setPromoteBoardId(v); setPromoteColumnId(""); }}>
+							<Select
+								value={promoteBoardId}
+								onValueChange={(v) => {
+									setPromoteBoardId(v);
+									setPromoteColumnId("");
+								}}
+							>
 								<SelectTrigger>
 									<SelectValue placeholder="Select board" />
 								</SelectTrigger>
 								<SelectContent>
 									{boards?.map((b) => (
-										<SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+										<SelectItem key={b.id} value={b.id}>
+											{b.name}
+										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
@@ -846,7 +906,9 @@ function ProjectNotesTab({ projectId, createOpen, setCreateOpen }: { projectId: 
 									</SelectTrigger>
 									<SelectContent>
 										{promoteBoard.columns.map((c) => (
-											<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+											<SelectItem key={c.id} value={c.id}>
+												{c.name}
+											</SelectItem>
 										))}
 									</SelectContent>
 								</Select>
@@ -877,10 +939,10 @@ function ProjectDecisionsTab({ projectId }: { projectId: string }) {
 	const [statusFilter, setStatusFilter] = useState<string>("all");
 	const [expandedId, setExpandedId] = useState<string | null>(null);
 
-	const { data: decisions, isLoading } = api.decision.list.useQuery(
-		{ projectId, ...(statusFilter !== "all" ? { status: statusFilter } : {}) },
-		{ refetchInterval: 5000 },
-	);
+	const { data: decisions, isLoading } = api.decision.list.useQuery({
+		projectId,
+		...(statusFilter !== "all" ? { status: statusFilter } : {}),
+	});
 
 	if (isLoading) {
 		return <p className="text-sm text-muted-foreground">Loading decisions...</p>;
@@ -916,81 +978,92 @@ function ProjectDecisionsTab({ projectId }: { projectId: string }) {
 				</div>
 			) : (
 				<div className="space-y-3">
-					{decisions.map((d: {
-						id: string;
-						title: string;
-						status: string;
-						decision: string;
-						alternatives: string[];
-						rationale: string;
-						author: string;
-						card: { id: string; number: number; title: string } | null;
-						createdAt: Date;
-					}) => {
-						const isExpanded = expandedId === d.id;
-						return (
-							<div
-								key={d.id}
-								className="rounded-lg border bg-card transition-colors hover:bg-muted/30"
-							>
-								<button
-									type="button"
-									className="w-full px-4 py-3 text-left"
-									onClick={() => setExpandedId(isExpanded ? null : d.id)}
+					{decisions.map(
+						(d: {
+							id: string;
+							title: string;
+							status: string;
+							decision: string;
+							alternatives: string[];
+							rationale: string;
+							author: string;
+							card: { id: string; number: number; title: string } | null;
+							createdAt: Date;
+						}) => {
+							const isExpanded = expandedId === d.id;
+							return (
+								<div
+									key={d.id}
+									className="rounded-lg border bg-card transition-colors hover:bg-muted/30"
 								>
-									<div className="flex items-center gap-2">
-										<Badge variant="outline" className={`text-[10px] ${DECISION_STATUS_COLORS[d.status] ?? ""}`}>
-											{d.status}
-										</Badge>
-										<span className="flex-1 text-sm font-medium">{d.title}</span>
-										{d.card && (
-											<span className="text-xs font-mono text-muted-foreground">
-												#{d.card.number}
+									<button
+										type="button"
+										className="w-full px-4 py-3 text-left"
+										onClick={() => setExpandedId(isExpanded ? null : d.id)}
+									>
+										<div className="flex items-center gap-2">
+											<Badge
+												variant="outline"
+												className={`text-[10px] ${DECISION_STATUS_COLORS[d.status] ?? ""}`}
+											>
+												{d.status}
+											</Badge>
+											<span className="flex-1 text-sm font-medium">{d.title}</span>
+											{d.card && (
+												<span className="text-xs font-mono text-muted-foreground">
+													#{d.card.number}
+												</span>
+											)}
+											<span className="text-xs text-muted-foreground">
+												{new Date(d.createdAt).toLocaleDateString()}
 											</span>
+										</div>
+										{!isExpanded && (
+											<p className="mt-1 text-xs text-muted-foreground line-clamp-1">
+												{d.decision}
+											</p>
 										)}
-										<span className="text-xs text-muted-foreground">
-											{new Date(d.createdAt).toLocaleDateString()}
-										</span>
-									</div>
-									{!isExpanded && (
-										<p className="mt-1 text-xs text-muted-foreground line-clamp-1">
-											{d.decision}
-										</p>
+									</button>
+									{isExpanded && (
+										<div className="border-t px-4 py-3 space-y-3">
+											<div>
+												<Label className="text-xs text-muted-foreground">Decision</Label>
+												<p className="mt-0.5 text-sm">{d.decision}</p>
+											</div>
+											{d.rationale && (
+												<div>
+													<Label className="text-xs text-muted-foreground">Rationale</Label>
+													<p className="mt-0.5 text-sm">{d.rationale}</p>
+												</div>
+											)}
+											{d.alternatives.length > 0 && (
+												<div>
+													<Label className="text-xs text-muted-foreground">
+														Alternatives considered
+													</Label>
+													<ul className="mt-0.5 space-y-1">
+														{d.alternatives.map((alt, i) => (
+															<li key={i} className="text-sm text-muted-foreground">
+																&bull; {alt}
+															</li>
+														))}
+													</ul>
+												</div>
+											)}
+											<div className="flex items-center gap-3 text-xs text-muted-foreground">
+												<span>By {d.author}</span>
+												{d.card && (
+													<span>
+														Linked to #{d.card.number} {d.card.title}
+													</span>
+												)}
+											</div>
+										</div>
 									)}
-								</button>
-								{isExpanded && (
-									<div className="border-t px-4 py-3 space-y-3">
-										<div>
-											<Label className="text-xs text-muted-foreground">Decision</Label>
-											<p className="mt-0.5 text-sm">{d.decision}</p>
-										</div>
-										{d.rationale && (
-											<div>
-												<Label className="text-xs text-muted-foreground">Rationale</Label>
-												<p className="mt-0.5 text-sm">{d.rationale}</p>
-											</div>
-										)}
-										{d.alternatives.length > 0 && (
-											<div>
-												<Label className="text-xs text-muted-foreground">Alternatives considered</Label>
-												<ul className="mt-0.5 space-y-1">
-													{d.alternatives.map((alt, i) => (
-														<li key={i} className="text-sm text-muted-foreground">
-															&bull; {alt}
-														</li>
-													))}
-												</ul>
-											</div>
-										)}
-										<div className="flex items-center gap-3 text-xs text-muted-foreground">
-											<span>By {d.author}</span>
-											{d.card && <span>Linked to #{d.card.number} {d.card.title}</span>}
-										</div>
-									</div>
-								)}
-							</div>
-						);
-					})}
+								</div>
+							);
+						}
+					)}
 				</div>
 			)}
 		</div>

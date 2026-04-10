@@ -1,30 +1,30 @@
 "use client";
 
 import {
-	DndContext,
-	DragOverlay,
-	type DragEndEvent,
-	type DragStartEvent,
 	type CollisionDetection,
+	DndContext,
+	type DragEndEvent,
+	DragOverlay,
+	type DragStartEvent,
 	PointerSensor,
-	useSensor,
-	useSensors,
 	pointerWithin,
 	rectIntersection,
+	useSensor,
+	useSensors,
 } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { Lightbulb } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
-
-import { BoardColumn } from "./board-column";
-import { BoardToolbar, emptyFilters, type BoardFilters } from "./board-toolbar";
-import { CardCreateInline } from "./card-create-inline";
-import { CardDetailSheet } from "./card-detail-sheet";
-import { BoardCard } from "./board-card";
-import { SortableCard } from "./sortable-card";
-import { AddColumnButton } from "./column-header";
 import type { RouterOutputs } from "@/trpc/react";
 import { api } from "@/trpc/react";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { BoardCard } from "./board-card";
+import { BoardColumn } from "./board-column";
+import { type BoardFilters, BoardToolbar, emptyFilters } from "./board-toolbar";
+import { CardCreateInline } from "./card-create-inline";
+import { CardDetailSheet } from "./card-detail-sheet";
+import { AddColumnButton } from "./column-header";
+import { SortableCard } from "./sortable-card";
 
 type FullBoard = RouterOutputs["board"]["getFull"];
 type BoardCardType = FullBoard["columns"][number]["cards"][number];
@@ -45,7 +45,8 @@ function filterCards(cards: BoardCardType[], filters: BoardFilters): BoardCardTy
 		if (filters.search) {
 			const q = filters.search.toLowerCase();
 			const matchesTitle = card.title.toLowerCase().includes(q);
-			const matchesNumber = `#${card.number}` === filters.search || String(card.number) === filters.search;
+			const matchesNumber =
+				`#${card.number}` === filters.search || String(card.number) === filters.search;
 			if (!matchesTitle && !matchesNumber) return false;
 		}
 		if (filters.priority !== "ALL" && card.priority !== filters.priority) return false;
@@ -77,7 +78,7 @@ export function BoardView({ board }: { board: FullBoard }) {
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
 			activationConstraint: { distance: 5 },
-		}),
+		})
 	);
 
 	// Collect all unique tags across the board for the filter dropdown
@@ -99,11 +100,16 @@ export function BoardView({ board }: { board: FullBoard }) {
 			board.columns.map((col) => {
 				const cards = filterCards(col.cards, filters);
 				if (col.name === "Done") {
-					return { ...col, cards: [...cards].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()) };
+					return {
+						...col,
+						cards: [...cards].sort(
+							(a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+						),
+					};
 				}
 				return { ...col, cards };
 			}),
-		[board.columns, filters],
+		[board.columns, filters]
 	);
 
 	const totalCards = allCards.length;
@@ -125,14 +131,12 @@ export function BoardView({ board }: { board: FullBoard }) {
 			}
 			return null;
 		},
-		[board.columns],
+		[board.columns]
 	);
 
 	const handleDragStart = (event: DragStartEvent) => {
 		const { active } = event;
-		const card = board.columns
-			.flatMap((col) => col.cards)
-			.find((c) => c.id === active.id);
+		const card = board.columns.flatMap((col) => col.cards).find((c) => c.id === active.id);
 		if (card) setActiveCard(card);
 	};
 
@@ -184,7 +188,7 @@ export function BoardView({ board }: { board: FullBoard }) {
 			onDragStart={handleDragStart}
 			onDragEnd={handleDragEnd}
 		>
-			<div className="flex flex-1 flex-col overflow-hidden">
+			<div className="relative flex flex-1 flex-col overflow-hidden">
 				<BoardToolbar
 					filters={filters}
 					onFiltersChange={setFilters}
@@ -208,6 +212,19 @@ export function BoardView({ board }: { board: FullBoard }) {
 					</div>
 				</div>
 
+				{totalCards === 0 && (
+					<div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+						<div className="pointer-events-auto rounded-lg border bg-card/95 px-8 py-6 text-center shadow-lg backdrop-blur-sm">
+							<Lightbulb className="mx-auto mb-3 h-8 w-8 text-yellow-500" />
+							<h3 className="text-base font-semibold">This board is empty</h3>
+							<p className="mt-1 max-w-sm text-sm text-muted-foreground">
+								Click the <strong>+</strong> at the bottom of any column to create your first card,
+								or use an AI agent with the MCP tools to populate the board.
+							</p>
+						</div>
+					</div>
+				)}
+
 				<CardDetailSheet
 					cardId={selectedCardId}
 					boardId={board.id}
@@ -225,4 +242,3 @@ export function BoardView({ board }: { board: FullBoard }) {
 		</DndContext>
 	);
 }
-

@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { emitBoardEvent } from "@/lib/events";
 import { createBoardSchema, updateBoardSchema } from "@/lib/schemas/board-schemas";
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
 import { boardService } from "@/server/services/board-service";
@@ -15,15 +16,13 @@ export const boardRouter = createTRPCRouter({
 			return result.data;
 		}),
 
-	getFull: publicProcedure
-		.input(z.object({ id: z.string().uuid() }))
-		.query(async ({ input }) => {
-			const result = await boardService.getFull(input.id);
-			if (!result.success) {
-				throw new TRPCError({ code: "NOT_FOUND", message: result.error.message });
-			}
-			return result.data;
-		}),
+	getFull: publicProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ input }) => {
+		const result = await boardService.getFull(input.id);
+		if (!result.success) {
+			throw new TRPCError({ code: "NOT_FOUND", message: result.error.message });
+		}
+		return result.data;
+	}),
 
 	create: publicProcedure.input(createBoardSchema).mutation(async ({ input }) => {
 		const result = await boardService.create(input);
@@ -40,16 +39,16 @@ export const boardRouter = createTRPCRouter({
 			if (!result.success) {
 				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
 			}
+			emitBoardEvent(input.id, "board:changed");
 			return result.data;
 		}),
 
-	delete: publicProcedure
-		.input(z.object({ id: z.string().uuid() }))
-		.mutation(async ({ input }) => {
-			const result = await boardService.delete(input.id);
-			if (!result.success) {
-				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
-			}
-			return result.data;
-		}),
+	delete: publicProcedure.input(z.object({ id: z.string().uuid() })).mutation(async ({ input }) => {
+		const result = await boardService.delete(input.id);
+		if (!result.success) {
+			throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
+		}
+		emitBoardEvent(input.id, "board:changed");
+		return result.data;
+	}),
 });

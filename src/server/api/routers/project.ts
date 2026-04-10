@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { createProjectSchema, updateProjectSchema } from "@/lib/schemas/project-schemas";
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
+import { onboardingService } from "@/server/services/onboarding-service";
 import { projectService } from "@/server/services/project-service";
 
 export const projectRouter = createTRPCRouter({
@@ -13,15 +14,13 @@ export const projectRouter = createTRPCRouter({
 		return result.data;
 	}),
 
-	getById: publicProcedure
-		.input(z.object({ id: z.string().uuid() }))
-		.query(async ({ input }) => {
-			const result = await projectService.getById(input.id);
-			if (!result.success) {
-				throw new TRPCError({ code: "NOT_FOUND", message: result.error.message });
-			}
-			return result.data;
-		}),
+	getById: publicProcedure.input(z.object({ id: z.string().uuid() })).query(async ({ input }) => {
+		const result = await projectService.getById(input.id);
+		if (!result.success) {
+			throw new TRPCError({ code: "NOT_FOUND", message: result.error.message });
+		}
+		return result.data;
+	}),
 
 	create: publicProcedure.input(createProjectSchema).mutation(async ({ input }) => {
 		const result = await projectService.create(input);
@@ -41,13 +40,19 @@ export const projectRouter = createTRPCRouter({
 			return result.data;
 		}),
 
-	delete: publicProcedure
-		.input(z.object({ id: z.string().uuid() }))
-		.mutation(async ({ input }) => {
-			const result = await projectService.delete(input.id);
-			if (!result.success) {
-				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
-			}
-			return result.data;
-		}),
+	delete: publicProcedure.input(z.object({ id: z.string().uuid() })).mutation(async ({ input }) => {
+		const result = await projectService.delete(input.id);
+		if (!result.success) {
+			throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
+		}
+		return result.data;
+	}),
+
+	seedTutorial: publicProcedure.mutation(async () => {
+		const result = await onboardingService.seedTutorial();
+		if (!result.success) {
+			throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
+		}
+		return result.data;
+	}),
 });

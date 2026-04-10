@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, FolderOpen, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { BookOpen, Bot, FolderOpen, Loader2, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -17,12 +17,7 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -40,12 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { COLOR_CLASSES } from "@/lib/project-colors";
 import { PROJECT_COLORS, type ProjectColor } from "@/lib/schemas/project-schemas";
 import { api } from "@/trpc/react";
@@ -85,6 +75,16 @@ export default function ProjectsPage() {
 
 	const utils = api.useUtils();
 	const { data: projects, isLoading } = api.project.list.useQuery();
+
+	const seedTutorial = api.project.seedTutorial.useMutation({
+		onSuccess: (data) => {
+			utils.project.list.invalidate();
+			toast.success(
+				data.alreadyExists ? "Tutorial project already exists" : "Tutorial project created!"
+			);
+		},
+		onError: (e) => toast.error(e.message),
+	});
 
 	const deleteProject = api.project.delete.useMutation({
 		onSuccess: () => {
@@ -154,10 +154,26 @@ export default function ProjectsPage() {
 				) : projects?.length === 0 ? (
 					<div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
 						<FolderOpen className="mb-4 h-12 w-12 text-muted-foreground" />
-						<h2 className="text-lg font-semibold">No projects yet</h2>
-						<p className="text-sm text-muted-foreground">
-							Create your first project to get started.
+						<h2 className="text-lg font-semibold">Welcome to Project Tracker</h2>
+						<p className="mt-1 max-w-md text-sm text-muted-foreground">
+							Create your first project, or explore the tutorial project to learn how everything
+							works.
 						</p>
+						<div className="mt-6 flex items-center gap-3">
+							<CreateProjectDialog />
+							<Button
+								variant="outline"
+								onClick={() => seedTutorial.mutate()}
+								disabled={seedTutorial.isPending}
+							>
+								{seedTutorial.isPending ? (
+									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+								) : (
+									<BookOpen className="mr-2 h-4 w-4" />
+								)}
+								Create Tutorial Project
+							</Button>
+						</div>
 					</div>
 				) : (
 					projects?.map((project) => {
@@ -165,7 +181,9 @@ export default function ProjectsPage() {
 						return (
 							<div key={project.id} className="group relative">
 								<Link href={`/projects/${project.id}`}>
-									<Card className={`border-l-[4px] ${COLOR_CLASSES[colorKey].border} transition-colors hover:bg-muted/50`}>
+									<Card
+										className={`border-l-[4px] ${COLOR_CLASSES[colorKey].border} transition-colors hover:bg-muted/50`}
+									>
 										<CardHeader className="pb-3">
 											<CardTitle className="text-lg">{project.name}</CardTitle>
 											{project.description && (
@@ -173,8 +191,12 @@ export default function ProjectsPage() {
 											)}
 										</CardHeader>
 										<div className="flex items-center gap-3 px-6 pb-4 text-xs text-muted-foreground">
-											<span>{project._count.boards} board{project._count.boards !== 1 ? "s" : ""}</span>
-											<span>{project._count.cards} card{project._count.cards !== 1 ? "s" : ""}</span>
+											<span>
+												{project._count.boards} board{project._count.boards !== 1 ? "s" : ""}
+											</span>
+											<span>
+												{project._count.cards} card{project._count.cards !== 1 ? "s" : ""}
+											</span>
 											{project.hasAgentCards && (
 												<TooltipProvider>
 													<Tooltip>
@@ -232,8 +254,8 @@ export default function ProjectsPage() {
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete project?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This will permanently delete <strong>{projectToDelete?.name}</strong> and
-							all its boards, cards, and notes. This action cannot be undone.
+							This will permanently delete <strong>{projectToDelete?.name}</strong> and all its
+							boards, cards, and notes. This action cannot be undone.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>

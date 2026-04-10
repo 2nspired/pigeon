@@ -18,7 +18,16 @@ import {
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { NoteCollection, NoteSearchInput, NoteTagFilter, NoteTagInput, NoteViewToggle, filterNotes, type NoteItem, type NoteViewMode } from "@/components/notes/note-views";
+import {
+	filterNotes,
+	NoteCollection,
+	type NoteItem,
+	NoteSearchInput,
+	NoteTagFilter,
+	NoteTagInput,
+	type NoteViewMode,
+	NoteViewToggle,
+} from "@/components/notes/note-views";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Markdown } from "@/components/ui/markdown";
 import {
 	Select,
 	SelectContent,
@@ -39,7 +49,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Markdown } from "@/components/ui/markdown";
 import { api } from "@/trpc/react";
 
 // ─── Markdown toolbar helpers ──────────────────────────────────────
@@ -58,7 +67,12 @@ const toolbarActions: InsertAction[] = [
 	{ label: "Heading", icon: <Heading2 className="h-3.5 w-3.5" />, prefix: "## ", block: true },
 	{ label: "Quote", icon: <Quote className="h-3.5 w-3.5" />, prefix: "> ", block: true },
 	{ label: "Bullet list", icon: <ListIcon className="h-3.5 w-3.5" />, prefix: "- ", block: true },
-	{ label: "Numbered list", icon: <ListOrdered className="h-3.5 w-3.5" />, prefix: "1. ", block: true },
+	{
+		label: "Numbered list",
+		icon: <ListOrdered className="h-3.5 w-3.5" />,
+		prefix: "1. ",
+		block: true,
+	},
 	{ label: "Code", icon: <Code className="h-3.5 w-3.5" />, prefix: "`", suffix: "`" },
 	{ label: "Link", icon: <Link className="h-3.5 w-3.5" />, prefix: "[", suffix: "](url)" },
 ];
@@ -67,7 +81,7 @@ function applyToolbarAction(
 	textarea: HTMLTextAreaElement,
 	action: InsertAction,
 	content: string,
-	setContent: (v: string) => void,
+	setContent: (v: string) => void
 ) {
 	const start = textarea.selectionStart;
 	const end = textarea.selectionEnd;
@@ -120,7 +134,7 @@ function NoteEditor({
 			if (!textareaRef.current) return;
 			applyToolbarAction(textareaRef.current, action, content, setContent);
 		},
-		[content, setContent],
+		[content, setContent]
 	);
 
 	return (
@@ -203,20 +217,19 @@ export default function NotesPage() {
 	const utils = api.useUtils();
 
 	const { data: notes, isLoading } = api.note.list.useQuery(
-		filterProjectId !== undefined ? { projectId: filterProjectId || null } : undefined,
-		{ refetchInterval: 5000 },
+		filterProjectId !== undefined ? { projectId: filterProjectId || null } : undefined
 	);
 
 	const { data: projects } = api.project.list.useQuery();
 
 	const { data: boards } = api.board.list.useQuery(
 		{ projectId: promoteProjectId },
-		{ enabled: !!promoteProjectId },
+		{ enabled: !!promoteProjectId }
 	);
 
 	const { data: board } = api.board.getFull.useQuery(
 		{ id: promoteBoardId },
-		{ enabled: !!promoteBoardId },
+		{ enabled: !!promoteBoardId }
 	);
 
 	const createNote = api.note.create.useMutation({
@@ -315,14 +328,14 @@ export default function NotesPage() {
 			<div className="mb-6 flex items-center justify-between">
 				<div>
 					<h1 className="text-2xl font-bold">Notes</h1>
-					<p className="text-sm text-muted-foreground">
-						Quick thoughts, ideas, and scratch space
-					</p>
+					<p className="text-sm text-muted-foreground">Quick thoughts, ideas, and scratch space</p>
 				</div>
 				<div className="flex items-center gap-3">
 					<Select
 						value={filterProjectId ?? "all"}
-						onValueChange={(v) => setFilterProjectId(v === "all" ? undefined : v === "none" ? "" : v)}
+						onValueChange={(v) =>
+							setFilterProjectId(v === "all" ? undefined : v === "none" ? "" : v)
+						}
 					>
 						<SelectTrigger className="w-[180px]">
 							<SelectValue placeholder="All notes" />
@@ -331,13 +344,20 @@ export default function NotesPage() {
 							<SelectItem value="all">All notes</SelectItem>
 							<SelectItem value="none">General (no project)</SelectItem>
 							{projects?.map((p) => (
-								<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+								<SelectItem key={p.id} value={p.id}>
+									{p.name}
+								</SelectItem>
 							))}
 						</SelectContent>
 					</Select>
 					<NoteSearchInput value={search} onChange={setSearch} />
 					<NoteViewToggle view={viewMode} setView={setViewMode} />
-					<Button onClick={() => { resetForm(); setCreateOpen(true); }}>
+					<Button
+						onClick={() => {
+							resetForm();
+							setCreateOpen(true);
+						}}
+					>
 						<Plus className="mr-2 h-4 w-4" />
 						New Note
 					</Button>
@@ -474,13 +494,20 @@ export default function NotesPage() {
 										<SelectContent>
 											<SelectItem value="none">General</SelectItem>
 											{projects?.map((p) => (
-												<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+												<SelectItem key={p.id} value={p.id}>
+													{p.name}
+												</SelectItem>
 											))}
 										</SelectContent>
 									</Select>
 								</div>
 							</div>
-							<NoteTagInput tags={noteTags} setTags={setNoteTags} tagInput={noteTagInput} setTagInput={setNoteTagInput} />
+							<NoteTagInput
+								tags={noteTags}
+								setTags={setNoteTags}
+								tagInput={noteTagInput}
+								setTagInput={setNoteTagInput}
+							/>
 							<NoteEditor
 								content={content}
 								setContent={setContent}
@@ -527,13 +554,20 @@ export default function NotesPage() {
 										<SelectContent>
 											<SelectItem value="none">General</SelectItem>
 											{projects?.map((p) => (
-												<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+												<SelectItem key={p.id} value={p.id}>
+													{p.name}
+												</SelectItem>
 											))}
 										</SelectContent>
 									</Select>
 								</div>
 							</div>
-							<NoteTagInput tags={noteTags} setTags={setNoteTags} tagInput={noteTagInput} setTagInput={setNoteTagInput} />
+							<NoteTagInput
+								tags={noteTags}
+								setTags={setNoteTags}
+								tagInput={noteTagInput}
+								setTagInput={setNoteTagInput}
+							/>
 							<NoteEditor
 								content={content}
 								setContent={setContent}
@@ -562,13 +596,22 @@ export default function NotesPage() {
 					<div className="mt-4 space-y-4">
 						<div className="space-y-2">
 							<Label>Project</Label>
-							<Select value={promoteProjectId} onValueChange={(v) => { setPromoteProjectId(v); setPromoteBoardId(""); setPromoteColumnId(""); }}>
+							<Select
+								value={promoteProjectId}
+								onValueChange={(v) => {
+									setPromoteProjectId(v);
+									setPromoteBoardId("");
+									setPromoteColumnId("");
+								}}
+							>
 								<SelectTrigger>
 									<SelectValue placeholder="Select project" />
 								</SelectTrigger>
 								<SelectContent>
 									{projects?.map((p) => (
-										<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+										<SelectItem key={p.id} value={p.id}>
+											{p.name}
+										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
@@ -576,13 +619,21 @@ export default function NotesPage() {
 						{promoteProjectId && boards && (
 							<div className="space-y-2">
 								<Label>Board</Label>
-								<Select value={promoteBoardId} onValueChange={(v) => { setPromoteBoardId(v); setPromoteColumnId(""); }}>
+								<Select
+									value={promoteBoardId}
+									onValueChange={(v) => {
+										setPromoteBoardId(v);
+										setPromoteColumnId("");
+									}}
+								>
 									<SelectTrigger>
 										<SelectValue placeholder="Select board" />
 									</SelectTrigger>
 									<SelectContent>
 										{boards.map((b) => (
-											<SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+											<SelectItem key={b.id} value={b.id}>
+												{b.name}
+											</SelectItem>
 										))}
 									</SelectContent>
 								</Select>
@@ -597,7 +648,9 @@ export default function NotesPage() {
 									</SelectTrigger>
 									<SelectContent>
 										{board.columns.map((c) => (
-											<SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+											<SelectItem key={c.id} value={c.id}>
+												{c.name}
+											</SelectItem>
 										))}
 									</SelectContent>
 								</Select>
@@ -605,10 +658,7 @@ export default function NotesPage() {
 						)}
 					</div>
 					<DialogFooter className="mt-6">
-						<Button
-							onClick={handlePromote}
-							disabled={!promoteColumnId || createCard.isPending}
-						>
+						<Button onClick={handlePromote} disabled={!promoteColumnId || createCard.isPending}>
 							Promote to Card
 						</Button>
 					</DialogFooter>

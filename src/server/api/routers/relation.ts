@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { emitCardChanged } from "@/lib/events";
 import { createRelationSchema } from "@/lib/schemas/relation-schemas";
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
 import { relationService } from "@/server/services/relation-service";
@@ -13,6 +14,8 @@ export const relationRouter = createTRPCRouter({
 				message: result.error.message,
 			});
 		}
+		emitCardChanged(input.fromCardId);
+		emitCardChanged(input.toCardId);
 		return result.data;
 	}),
 
@@ -22,7 +25,7 @@ export const relationRouter = createTRPCRouter({
 				fromCardId: z.string().uuid(),
 				toCardId: z.string().uuid(),
 				type: z.string(),
-			}),
+			})
 		)
 		.mutation(async ({ input }) => {
 			const result = await relationService.unlink(input.fromCardId, input.toCardId, input.type);
@@ -32,6 +35,8 @@ export const relationRouter = createTRPCRouter({
 					message: result.error.message,
 				});
 			}
+			emitCardChanged(input.fromCardId);
+			emitCardChanged(input.toCardId);
 			return result.data;
 		}),
 

@@ -11,15 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useBoardEvents } from "@/hooks/use-board-events";
 import { api } from "@/trpc/react";
 
-function EditableBoardName({
-	boardId,
-	name,
-}: {
-	boardId: string;
-	name: string;
-}) {
+function EditableBoardName({ boardId, name }: { boardId: string; name: string }) {
 	const [editing, setEditing] = useState(false);
 	const [value, setValue] = useState(name);
 	const inputRef = useRef<HTMLInputElement>(null);
@@ -71,7 +66,10 @@ function EditableBoardName({
 	return (
 		<button
 			type="button"
-			onClick={() => { setEditing(true); setValue(name); }}
+			onClick={() => {
+				setEditing(true);
+				setValue(name);
+			}}
 			className="group flex items-center gap-1.5 text-left"
 		>
 			<h1 className="text-lg font-semibold">{name}</h1>
@@ -88,10 +86,11 @@ export default function BoardPage({
 	const { projectId, boardId } = use(params);
 
 	const [showHandoffs, setShowHandoffs] = useState(false);
+	const refetchInterval = useBoardEvents(boardId);
 
 	const { data: board, isLoading } = api.board.getFull.useQuery(
 		{ id: boardId },
-		{ refetchInterval: 3000 },
+		{ refetchInterval }
 	);
 
 	if (isLoading) {
@@ -128,9 +127,7 @@ export default function BoardPage({
 				</Link>
 				<div className="flex-1">
 					<EditableBoardName boardId={board.id} name={board.name} />
-					<p className="text-xs text-muted-foreground">
-						{board.project.name}
-					</p>
+					<p className="text-xs text-muted-foreground">{board.project.name}</p>
 				</div>
 				<Link href={`/projects/${projectId}?tab=notes&from=${boardId}`}>
 					<Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
@@ -170,10 +167,7 @@ export default function BoardPage({
 // ─── Session History Panel ────────────────────────────────────────
 
 function SessionHistoryPanel({ boardId }: { boardId: string }) {
-	const { data: handoffs } = api.handoff.list.useQuery(
-		{ boardId, limit: 10 },
-		{ refetchInterval: 5000 },
-	);
+	const { data: handoffs } = api.handoff.list.useQuery({ boardId, limit: 10 });
 
 	if (!handoffs || handoffs.length === 0) {
 		return (
@@ -186,48 +180,56 @@ function SessionHistoryPanel({ boardId }: { boardId: string }) {
 	return (
 		<div className="max-h-48 overflow-y-auto border-b bg-muted/30">
 			<div className="space-y-0 divide-y">
-				{handoffs.map((h: {
-					id: string;
-					agentName: string;
-					summary: string;
-					workingOn: string[];
-					findings: string[];
-					nextSteps: string[];
-					blockers: string[];
-					createdAt: Date;
-				}) => (
-					<div key={h.id} className="px-4 py-2">
-						<div className="flex items-center gap-2">
-							<Bot className="h-3.5 w-3.5 text-violet-500" />
-							<span className="text-xs font-medium">{h.agentName}</span>
-							<span className="text-[10px] text-muted-foreground">
-								{new Date(h.createdAt).toLocaleString(undefined, {
-									month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
-								})}
-							</span>
+				{handoffs.map(
+					(h: {
+						id: string;
+						agentName: string;
+						summary: string;
+						workingOn: string[];
+						findings: string[];
+						nextSteps: string[];
+						blockers: string[];
+						createdAt: Date;
+					}) => (
+						<div key={h.id} className="px-4 py-2">
+							<div className="flex items-center gap-2">
+								<Bot className="h-3.5 w-3.5 text-violet-500" />
+								<span className="text-xs font-medium">{h.agentName}</span>
+								<span className="text-[10px] text-muted-foreground">
+									{new Date(h.createdAt).toLocaleString(undefined, {
+										month: "short",
+										day: "numeric",
+										hour: "2-digit",
+										minute: "2-digit",
+									})}
+								</span>
+							</div>
+							{h.summary && (
+								<p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{h.summary}</p>
+							)}
+							<div className="mt-1 flex flex-wrap gap-1">
+								{h.workingOn.length > 0 && (
+									<Badge variant="outline" className="text-[9px] px-1 py-0">
+										{h.workingOn.length} worked on
+									</Badge>
+								)}
+								{h.nextSteps.length > 0 && (
+									<Badge variant="outline" className="text-[9px] px-1 py-0">
+										{h.nextSteps.length} next steps
+									</Badge>
+								)}
+								{h.blockers.length > 0 && (
+									<Badge
+										variant="outline"
+										className="text-[9px] px-1 py-0 text-red-500 border-red-500/20"
+									>
+										{h.blockers.length} blockers
+									</Badge>
+								)}
+							</div>
 						</div>
-						{h.summary && (
-							<p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{h.summary}</p>
-						)}
-						<div className="mt-1 flex flex-wrap gap-1">
-							{h.workingOn.length > 0 && (
-								<Badge variant="outline" className="text-[9px] px-1 py-0">
-									{h.workingOn.length} worked on
-								</Badge>
-							)}
-							{h.nextSteps.length > 0 && (
-								<Badge variant="outline" className="text-[9px] px-1 py-0">
-									{h.nextSteps.length} next steps
-								</Badge>
-							)}
-							{h.blockers.length > 0 && (
-								<Badge variant="outline" className="text-[9px] px-1 py-0 text-red-500 border-red-500/20">
-									{h.blockers.length} blockers
-								</Badge>
-							)}
-						</div>
-					</div>
-				))}
+					)
+				)}
 			</div>
 		</div>
 	);

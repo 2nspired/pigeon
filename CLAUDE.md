@@ -6,16 +6,18 @@ Local-first kanban board with MCP integration for AI-assisted development.
 
 - Next.js 16 (App Router, Turbopack) + React 19
 - Prisma 7 + SQLite (file:./data/tracker.db)
-- tRPC v11 + React Query v5 (3s polling)
+- tRPC v11 + React Query v5 (SSE real-time updates, polling fallback)
 - shadcn/ui (new-york) + Tailwind CSS 4
 - @dnd-kit for drag-and-drop
 - MCP server (stdio) at src/mcp/server.ts
 
 ## Commands
 
-- `npm run dev` — start dev server
+- `npm run dev` — start dev server (auto-creates DB if missing)
+- `npm run setup` — interactive setup wizard
 - `npm run mcp:dev` — run MCP server standalone (for testing)
 - `npm run db:push` — push schema changes to SQLite
+- `npm run db:seed` — seed tutorial project
 - `npm run db:studio` — open Prisma Studio
 
 ## Project Structure

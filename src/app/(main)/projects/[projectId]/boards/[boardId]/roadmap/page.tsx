@@ -8,6 +8,7 @@ import { MilestoneManager } from "@/components/roadmap/milestone-manager";
 import { RoadmapView } from "@/components/roadmap/roadmap-view";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useBoardEvents } from "@/hooks/use-board-events";
 import { api } from "@/trpc/react";
 
 export default function RoadmapPage({
@@ -17,10 +18,11 @@ export default function RoadmapPage({
 }) {
 	const { projectId, boardId } = use(params);
 	const [milestoneManagerOpen, setMilestoneManagerOpen] = useState(false);
+	const refetchInterval = useBoardEvents(boardId);
 
 	const { data: board, isLoading } = api.board.getFull.useQuery(
 		{ id: boardId },
-		{ refetchInterval: 5000 },
+		{ refetchInterval }
 	);
 
 	if (isLoading) {

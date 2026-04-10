@@ -1,6 +1,16 @@
 "use client";
 
-import { Bot, CheckSquare, ExternalLink, Search, User, X } from "lucide-react";
+import {
+	BookOpen,
+	Bot,
+	CheckSquare,
+	ExternalLink,
+	Loader2,
+	Rocket,
+	Search,
+	User,
+	X,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -38,19 +48,28 @@ export default function DashboardPage() {
 	const [priority, setPriority] = useState("ALL");
 	const [assignee, setAssignee] = useState("ALL");
 
-	const { data: cards, isLoading } = api.card.listAll.useQuery(
-		{
-			search: search || undefined,
-			priority: priority !== "ALL" ? priority : undefined,
-			assignee: assignee !== "ALL" ? assignee : undefined,
+	const utils = api.useUtils();
+
+	const seedTutorial = api.project.seedTutorial.useMutation({
+		onSuccess: () => {
+			utils.project.list.invalidate();
+			utils.card.listAll.invalidate();
 		},
-		{ refetchInterval: 5000 },
-	);
+	});
+
+	const { data: cards, isLoading } = api.card.listAll.useQuery({
+		search: search || undefined,
+		priority: priority !== "ALL" ? priority : undefined,
+		assignee: assignee !== "ALL" ? assignee : undefined,
+	});
 
 	const hasFilters = search !== "" || priority !== "ALL" || assignee !== "ALL";
 
 	// Group cards by project
-	const grouped = new Map<string, { projectName: string; projectId: string; cards: NonNullable<typeof cards> }>();
+	const grouped = new Map<
+		string,
+		{ projectName: string; projectId: string; cards: NonNullable<typeof cards> }
+	>();
 	for (const card of cards ?? []) {
 		const key = card.column.board.project.id;
 		if (!grouped.has(key)) {
@@ -67,9 +86,7 @@ export default function DashboardPage() {
 		<div className="mx-auto max-w-5xl px-4 py-6">
 			<div className="mb-6">
 				<h1 className="text-2xl font-bold">Dashboard</h1>
-				<p className="text-sm text-muted-foreground">
-					All cards across every project
-				</p>
+				<p className="text-sm text-muted-foreground">All cards across every project</p>
 			</div>
 
 			{/* Filters */}
@@ -137,9 +154,35 @@ export default function DashboardPage() {
 			{isLoading ? (
 				<p className="text-sm text-muted-foreground">Loading...</p>
 			) : grouped.size === 0 ? (
-				<p className="py-12 text-center text-muted-foreground">
-					{hasFilters ? "No cards match your filters." : "No cards yet. Create a project and board to get started."}
-				</p>
+				hasFilters ? (
+					<p className="py-12 text-center text-muted-foreground">No cards match your filters.</p>
+				) : (
+					<div className="flex flex-col items-center justify-center py-16 text-center">
+						<Rocket className="mb-4 h-12 w-12 text-muted-foreground" />
+						<h2 className="text-lg font-semibold">Get started</h2>
+						<p className="mt-1 max-w-md text-sm text-muted-foreground">
+							No cards yet. Create a project and add cards, or explore the tutorial to see how
+							everything works.
+						</p>
+						<div className="mt-6 flex items-center gap-3">
+							<Link href="/projects">
+								<Button>Go to Projects</Button>
+							</Link>
+							<Button
+								variant="outline"
+								onClick={() => seedTutorial.mutate()}
+								disabled={seedTutorial.isPending}
+							>
+								{seedTutorial.isPending ? (
+									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+								) : (
+									<BookOpen className="mr-2 h-4 w-4" />
+								)}
+								Create Tutorial Project
+							</Button>
+						</div>
+					</div>
+				)
 			) : (
 				<div className="space-y-8">
 					{Array.from(grouped.values()).map((group) => (
@@ -166,9 +209,7 @@ export default function DashboardPage() {
 												#{card.number}
 											</span>
 											<div className="min-w-0 flex-1">
-												<span className="text-sm font-medium">
-													{card.title}
-												</span>
+												<span className="text-sm font-medium">{card.title}</span>
 												<div className="flex items-center gap-2 text-[10px] text-muted-foreground">
 													<span>{card.column.name}</span>
 													<span>in {card.column.board.name}</span>

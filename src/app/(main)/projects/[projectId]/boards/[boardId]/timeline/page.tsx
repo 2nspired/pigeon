@@ -7,6 +7,7 @@ import { use } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useBoardEvents } from "@/hooks/use-board-events";
 import { api } from "@/trpc/react";
 
 export default function TimelinePage({
@@ -15,10 +16,11 @@ export default function TimelinePage({
 	params: Promise<{ projectId: string; boardId: string }>;
 }) {
 	const { projectId, boardId } = use(params);
+	const refetchInterval = useBoardEvents(boardId);
 
 	const { data: board, isLoading } = api.board.getFull.useQuery(
 		{ id: boardId },
-		{ refetchInterval: 5000 },
+		{ refetchInterval }
 	);
 
 	if (isLoading) {
@@ -45,7 +47,7 @@ export default function TimelinePage({
 				...card,
 				columnName: col.name,
 				isParking: col.isParking,
-			})),
+			}))
 		)
 		.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
@@ -61,9 +63,7 @@ export default function TimelinePage({
 		grouped.get(date)!.push(card);
 	}
 
-	const doneColumn = board.columns.find(
-		(c) => c.name.toLowerCase() === "done",
-	);
+	const doneColumn = board.columns.find((c) => c.name.toLowerCase() === "done");
 	const doneCardIds = new Set(doneColumn?.cards.map((c) => c.id) ?? []);
 
 	return (
@@ -84,9 +84,7 @@ export default function TimelinePage({
 			</div>
 
 			{allCards.length === 0 ? (
-				<p className="py-12 text-center text-muted-foreground">
-					No cards yet.
-				</p>
+				<p className="py-12 text-center text-muted-foreground">No cards yet.</p>
 			) : (
 				<div className="relative">
 					{/* Vertical line */}
@@ -97,9 +95,7 @@ export default function TimelinePage({
 							<div key={date}>
 								<div className="relative mb-3 flex items-center gap-3 pl-10">
 									<div className="absolute left-2.5 h-3 w-3 rounded-full border-2 border-background bg-primary" />
-									<h2 className="text-sm font-semibold text-muted-foreground">
-										{date}
-									</h2>
+									<h2 className="text-sm font-semibold text-muted-foreground">{date}</h2>
 								</div>
 								<div className="space-y-2 pl-10">
 									{cards.map((card) => {
@@ -112,9 +108,7 @@ export default function TimelinePage({
 											<div
 												key={card.id}
 												className={`rounded-lg border p-3 transition-colors ${
-													isDone
-														? "border-green-500/20 bg-green-500/5"
-														: "bg-card"
+													isDone ? "border-green-500/20 bg-green-500/5" : "bg-card"
 												}`}
 											>
 												<div className="flex items-start justify-between gap-2">
@@ -123,7 +117,9 @@ export default function TimelinePage({
 															<span className="text-[10px] font-mono text-muted-foreground">
 																#{card.number}
 															</span>
-															<span className={`text-sm font-medium ${isDone ? "line-through text-muted-foreground" : ""}`}>
+															<span
+																className={`text-sm font-medium ${isDone ? "line-through text-muted-foreground" : ""}`}
+															>
 																{card.title}
 															</span>
 														</div>
@@ -151,7 +147,10 @@ export default function TimelinePage({
 															)}
 															<span className="flex items-center gap-0.5">
 																<Clock className="h-3 w-3" />
-																{new Date(card.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+																{new Date(card.createdAt).toLocaleTimeString([], {
+																	hour: "2-digit",
+																	minute: "2-digit",
+																})}
 															</span>
 														</div>
 													</div>

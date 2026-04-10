@@ -23,7 +23,7 @@ A local-first kanban board with MCP integration for AI-assisted development. You
 - Activity feed showing agent and human actions
 - Parking Lot column for ideas that aren't actionable yet
 - Project colors for quick visual identification
-- Auto-polling — board updates every 3 seconds when agents make changes
+- Real-time updates via SSE — board refreshes instantly when agents make changes (falls back to polling)
 - Multi-agent support (Claude, Codex, etc.) via `AGENT_NAME` env var
 - TOON encoding for ~40% token savings in agent responses
 - Schema version detection with migration hints
@@ -38,14 +38,23 @@ cd project-tracker
 npm install
 ```
 
-### 2. Set up the database
+### 2. Run the setup wizard
+
+```bash
+npm run setup
+```
+
+The wizard walks you through:
+1. Creating the SQLite database
+2. Optionally seeding a tutorial project with sample cards
+3. Connecting an external project to the MCP server
+
+Or set up manually:
 
 ```bash
 npx prisma generate
 npx prisma db push
 ```
-
-This creates a local SQLite database at `data/tracker.db`. No accounts, no cloud, no cost — everything runs on your machine.
 
 ### 3. Start the web UI
 
@@ -53,7 +62,7 @@ This creates a local SQLite database at `data/tracker.db`. No accounts, no cloud
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see your boards.
+Open [http://localhost:3000](http://localhost:3000) to see your boards. If the database doesn't exist yet, `npm run dev` creates it automatically.
 
 > **Note:** The web UI is optional. The MCP server works independently — your agent can use the board even without the browser open. But the UI is where you'll visually track progress.
 
@@ -119,9 +128,9 @@ Replace `/path/to/project-tracker` with the actual path where you cloned this re
 
 ## What the Agent Can Do
 
-The tracker uses an **Essential + Catalog** pattern: 9 essential tools are always loaded in the agent's context. 44 additional tools are discoverable via `getTools` and executable via `runTool` — this keeps the base context small while providing deep functionality on demand.
+The tracker uses an **Essential + Catalog** pattern: 10 essential tools are always loaded in the agent's context. 45 additional tools are discoverable via `getTools` and executable via `runTool` — this keeps the base context small while providing deep functionality on demand.
 
-### Essential MCP Tools (9)
+### Essential MCP Tools (10)
 
 | Tool | What it does |
 | --- | --- |
@@ -132,10 +141,11 @@ The tracker uses an **Essential + Catalog** pattern: 9 essential tools are alway
 | `addComment` | Add a comment — decisions, blockers, context |
 | `searchCards` | Search across all projects by text or tag |
 | `getRoadmap` | Cards grouped by milestone and horizon (now/next/later/done) |
-| `getTools` | Browse 44 extended tools by category |
+| `checkOnboarding` | Detect setup state (empty/existing/returning) and suggest next steps |
+| `getTools` | Browse 45 extended tools by category |
 | `runTool` | Execute any extended tool by name |
 
-### Extended Tool Categories (44 tools)
+### Extended Tool Categories (45 tools)
 
 | Category | Tools | What they do |
 | --- | --- | --- |
@@ -146,7 +156,7 @@ The tracker uses an **Essential + Catalog** pattern: 9 essential tools are alway
 | `milestones` | 4 | Create, update, set, list milestones |
 | `notes` | 4 | Create, update, list, delete project notes |
 | `activity` | 1 | View recent activity history |
-| `setup` | 3 | Create projects, columns, set repo path |
+| `setup` | 4 | Create projects, columns, set repo path, seed tutorial |
 | `relations` | 3 | Link/unlink cards, get blockers |
 | `session` | 3 | Save/load handoffs, board diff |
 | `decisions` | 3 | Record, list, update architectural decisions |
@@ -154,12 +164,13 @@ The tracker uses an **Essential + Catalog** pattern: 9 essential tools are alway
 | `git` | 4 | Sync commits, get log, code map, card commits |
 | `context` | 1 | Focus context bundles (card/milestone/tag scope) |
 
-### MCP Prompts (7)
+### MCP Prompts (8)
 
 | Prompt | Purpose |
 | --- | --- |
 | `resume-session` | Load board state + last handoff + diff since then. Use at conversation start. |
 | `end-session` | Review board accuracy, save handoff, clean up. Use before wrapping up. |
+| `onboarding` | Guided setup — `tutorial` seeds a sample project, `quickstart` creates a real one. |
 | `deep-dive` | Load focused context for deep work on a specific card. |
 | `sprint-review` | Velocity, milestone progress, stale cards, blockers. |
 | `plan-work` | Planning template for breaking work into cards and checklists. |
@@ -214,7 +225,7 @@ Agent: [recordDecision] → "Used jose library for JWT — lightweight, no deps"
 Agent: [end-session] → saves handoff for next conversation
 ```
 
-You see all of this happen on your board in real-time (3-second polling).
+You see all of this happen on your board in real-time via SSE.
 
 ## Connecting Multiple Projects
 
@@ -288,9 +299,11 @@ No setup required — create tags as you go, like GitHub labels.
 
 | Script | Description |
 | --- | --- |
-| `npm run dev` | Start web UI (Turbopack) |
+| `npm run setup` | Interactive setup wizard (DB + tutorial + connect) |
+| `npm run dev` | Start web UI (auto-creates DB if missing) |
 | `npm run build` | Production build |
 | `npm run db:push` | Push schema changes to SQLite |
+| `npm run db:seed` | Seed the tutorial project |
 | `npm run db:studio` | Browse database with Prisma Studio |
 | `npm run mcp:dev` | Run MCP server standalone (for testing) |
 | `npm run lint` | Check code with Biome |
@@ -326,8 +339,8 @@ src/
 │   ├── services/                  # Business logic (ServiceResult pattern)
 │   └── api/routers/               # tRPC routers
 ├── mcp/
-│   ├── server.ts                  # MCP server (9 essential tools, 7 prompts)
-│   ├── tool-registry.ts           # Extended tool catalog (44 tools, 14 categories)
+│   ├── server.ts                  # MCP server (10 essential tools, 8 prompts)
+│   ├── tool-registry.ts           # Extended tool catalog (45 tools, 14 categories)
 │   ├── extended-tools.ts          # Core extended tools
 │   ├── tools/                     # Domain-split tool files
 │   │   ├── relation-tools.ts      # Card dependencies
@@ -336,18 +349,24 @@ src/
 │   │   ├── scratch-tools.ts       # Agent scratchpad
 │   │   ├── git-tools.ts           # Git commit linking
 │   │   ├── query-tools.ts         # Smart queries
-│   │   └── context-tools.ts       # Focus context bundles
+│   │   ├── context-tools.ts       # Focus context bundles
+│   │   └── onboarding-tools.ts    # Tutorial project seeding
 │   ├── resources.ts               # 4 MCP resources
 │   ├── git-utils.ts               # Git child_process wrapper
 │   ├── toon.ts                    # TOON compact encoding
 │   └── utils.ts                   # Shared helpers, version detection
 ├── lib/
 │   ├── schemas/                   # Zod validation
+│   ├── onboarding/                # Teaching project data + seed runner
 │   └── card-templates.ts          # Card templates
 └── trpc/                          # tRPC React client
 scripts/
-└── connect.sh                     # Connect any project to the tracker
-prisma/schema.prisma               # Data model (15 models)
+├── connect.sh                     # Connect any project to the tracker
+├── setup.ts                       # Interactive setup wizard
+└── dev.ts                         # Smart dev script (auto-creates DB)
+prisma/
+├── schema.prisma                  # Data model (15 models)
+└── seed.ts                        # CLI seed entry point
 data/tracker.db                    # SQLite database (gitignored)
 AGENTS.md                          # Shared agent guidelines (all agents)
 CLAUDE.md                          # Claude-specific project config
@@ -390,7 +409,7 @@ If you use an alternate config directory (e.g. `~/.claude-alt/`), the project-le
 
 ### Database is empty after cloning
 
-The SQLite database (`data/tracker.db`) is gitignored — each install starts fresh. Run `npx prisma db push` to create the tables, then create your first project through the web UI or MCP tools.
+The SQLite database (`data/tracker.db`) is gitignored — each install starts fresh. Run `npm run setup` to create the database and optionally seed a tutorial project, or run `npm run dev` which auto-creates the database on first start.
 
 ### Schema version mismatch
 

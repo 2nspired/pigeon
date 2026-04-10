@@ -42,10 +42,7 @@ function ActivityFeedPanel({
 	onCardClick,
 	onClose,
 }: ActivityFeedProps & { onClose: () => void }) {
-	const { data: activities } = api.activity.listByBoard.useQuery(
-		{ boardId },
-		{ refetchInterval: 5000 },
-	);
+	const { data: activities } = api.activity.listByBoard.useQuery({ boardId });
 
 	return (
 		<div className="fixed right-0 top-14 z-40 flex h-[calc(100dvh-3.5rem)] w-80 flex-col border-l bg-background shadow-lg">
