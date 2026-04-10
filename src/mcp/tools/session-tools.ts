@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
+import { checkStaleness, formatStalenessWarnings } from "../staleness.js";
 import { AGENT_NAME, ok, err, safeExecute } from "../utils.js";
 
 // ─── Session ───────────────────────────────────────────────────────
@@ -50,7 +51,10 @@ registerExtendedTool("loadHandoff", {
 	}),
 	annotations: { readOnlyHint: true },
 	handler: ({ boardId }) => safeExecute(async () => {
-		const board = await db.board.findUnique({ where: { id: boardId as string } });
+		const board = await db.board.findUnique({
+			where: { id: boardId as string },
+			select: { id: true, projectId: true },
+		});
 		if (!board) return err("Board not found.", "Use listProjects → listBoards to find a valid boardId.");
 
 		// Get latest handoff
@@ -66,6 +70,10 @@ registerExtendedTool("loadHandoff", {
 		// Compute board diff since handoff
 		const diff = await computeBoardDiff(boardId as string, handoff.createdAt);
 
+		// Check for stale context entries
+		const warnings = await checkStaleness(board.projectId);
+		const stalenessWarnings = formatStalenessWarnings(warnings);
+
 		return ok({
 			handoff: {
 				id: handoff.id,
@@ -78,6 +86,7 @@ registerExtendedTool("loadHandoff", {
 				createdAt: handoff.createdAt,
 			},
 			diff,
+			stalenessWarnings,
 			capabilities: {
 				_hint: "These agent-workflow tools are available via runTool(). Use getTools({ tool: 'name' }) for full schema.",
 				memory: [
