@@ -10,18 +10,18 @@ import {
 	Link2,
 	Milestone as MilestoneIcon,
 	MessageSquare,
+	Pencil,
 	Plus,
 	Trash2,
 	User,
 	X,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Markdown } from "@/components/ui/markdown";
 import {
 	Select,
@@ -30,17 +30,35 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import {
 	Sheet,
 	SheetContent,
-	SheetDescription,
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { priorityValues } from "@/lib/schemas/card-schemas";
+import { priorityValues, type Priority } from "@/lib/schemas/card-schemas";
 import { api } from "@/trpc/react";
+
+// ─── Constants ────────────────────────────────────────────────────
+
+const PRIORITY_BADGE_STYLES: Record<Priority, string> = {
+	NONE: "border-border text-muted-foreground",
+	LOW: "border-blue-400/50 bg-blue-400/10 text-blue-600 dark:text-blue-400",
+	MEDIUM: "border-yellow-400/50 bg-yellow-400/10 text-yellow-600 dark:text-yellow-400",
+	HIGH: "border-orange-400/50 bg-orange-400/10 text-orange-600 dark:text-orange-400",
+	URGENT: "border-red-500/50 bg-red-500/10 text-red-600 dark:text-red-500",
+};
+
+const PRIORITY_LABELS: Record<Priority, string> = {
+	NONE: "No priority",
+	LOW: "Low",
+	MEDIUM: "Medium",
+	HIGH: "High",
+	URGENT: "Urgent",
+};
+
+// ─── Main Component ───────────────────────────────────────────────
 
 type CardDetailSheetProps = {
 	cardId: string | null;
@@ -103,9 +121,76 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 		onError: (error) => toast.error(error.message),
 	});
 
+	// Form inputs
 	const [newChecklistItem, setNewChecklistItem] = useState("");
 	const [newComment, setNewComment] = useState("");
 	const [tagInput, setTagInput] = useState("");
+
+	// Title: local buffer with inline edit
+	const [localTitle, setLocalTitle] = useState("");
+	const [isEditingTitle, setIsEditingTitle] = useState(false);
+	const titleInputRef = useRef<HTMLInputElement>(null);
+
+	// Description: preview/edit with local buffer
+	const [isEditingDescription, setIsEditingDescription] = useState(false);
+	const [localDescription, setLocalDescription] = useState("");
+	const descriptionRef = useRef<HTMLTextAreaElement>(null);
+
+	// Sync local state when card data changes (don't overwrite mid-edit)
+	const isEditingTitleRef = useRef(false);
+	const isEditingDescriptionRef = useRef(false);
+	isEditingTitleRef.current = isEditingTitle;
+	isEditingDescriptionRef.current = isEditingDescription;
+
+	useEffect(() => {
+		if (card) {
+			if (!isEditingTitleRef.current) setLocalTitle(card.title);
+			if (!isEditingDescriptionRef.current) setLocalDescription(card.description ?? "");
+		}
+	}, [card?.id, card?.title, card?.description]);
+
+	// Reset edit states when switching cards
+	useEffect(() => {
+		setIsEditingTitle(false);
+		setIsEditingDescription(false);
+	}, [cardId]);
+
+	// ─── Handlers ─────────────────────────────────────────────────
+
+	const handleTitleSave = useCallback(() => {
+		if (!card) return;
+		const trimmed = localTitle.trim();
+		if (!trimmed || trimmed === card.title) {
+			setLocalTitle(card.title);
+			setIsEditingTitle(false);
+			return;
+		}
+		updateCard.mutate({ id: card.id, data: { title: trimmed } });
+		setIsEditingTitle(false);
+	}, [localTitle, card, updateCard]);
+
+	const handleDescriptionSave = useCallback(() => {
+		if (!card) return;
+		const trimmed = localDescription.trim();
+		if (trimmed !== (card.description ?? "")) {
+			updateCard.mutate({
+				id: card.id,
+				data: { description: trimmed || undefined },
+			});
+		}
+		setIsEditingDescription(false);
+	}, [localDescription, card, updateCard]);
+
+	const handleDescriptionKeyDown = useCallback((e: React.KeyboardEvent) => {
+		if (e.key === "Escape") {
+			setLocalDescription(card?.description ?? "");
+			setIsEditingDescription(false);
+		}
+		if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+			e.preventDefault();
+			handleDescriptionSave();
+		}
+	}, [card?.description, handleDescriptionSave]);
 
 	if (!card) return null;
 
@@ -126,101 +211,191 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 	return (
 		<Sheet open={!!cardId} onOpenChange={() => onClose()}>
 			<SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
-				<SheetHeader>
+				<SheetHeader className="px-6">
 					<SheetTitle className="pr-6">
 						<div className="flex items-center gap-2">
-							<span className="shrink-0 text-sm font-mono text-muted-foreground">#{card.number}</span>
-							<Input
-								value={card.title}
-								onChange={(e) =>
-									updateCard.mutate({
-										id: card.id,
-										data: { title: e.target.value },
-									})
-								}
-								className="border-0 p-0 text-lg font-semibold shadow-none focus-visible:ring-0"
-							/>
+							<span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+								#{card.number}
+							</span>
+							{isEditingTitle ? (
+								<Input
+									ref={titleInputRef}
+									value={localTitle}
+									onChange={(e) => setLocalTitle(e.target.value)}
+									onBlur={handleTitleSave}
+									onKeyDown={(e) => {
+										if (e.key === "Enter") handleTitleSave();
+										if (e.key === "Escape") {
+											setLocalTitle(card.title);
+											setIsEditingTitle(false);
+										}
+									}}
+									className="border-0 p-0 text-lg font-semibold shadow-none focus-visible:ring-0"
+									autoFocus
+								/>
+							) : (
+								<button
+									type="button"
+									onClick={() => {
+										setLocalTitle(card.title);
+										setIsEditingTitle(true);
+									}}
+									className="group flex min-w-0 items-center gap-1.5 text-left"
+								>
+									<span className="truncate text-lg font-semibold">{card.title}</span>
+									<Pencil className="h-3 w-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+								</button>
+							)}
 						</div>
 					</SheetTitle>
-					<SheetDescription className="flex items-center gap-2 text-xs">
+					<p className="text-xs text-muted-foreground">
 						Created by {card.createdBy === "AGENT" ? "Agent" : "Human"}
 						{card.assignee && (
 							<>
-								<span className="text-muted-foreground">|</span>
+								<span className="mx-1.5">|</span>
 								Assigned to {card.assignee === "AGENT" ? "Agent" : "Human"}
 							</>
 						)}
-					</SheetDescription>
+					</p>
 				</SheetHeader>
 
-				<div className="space-y-6 px-4 pb-6">
-					{/* Priority & Assignee */}
-					<div className="grid grid-cols-2 gap-4">
-						<div className="space-y-2">
-							<Label>Priority</Label>
-							<Select
-								value={card.priority}
-								onValueChange={(value) =>
-									updateCard.mutate({ id: card.id, data: { priority: value as "NONE" | "LOW" | "MEDIUM" | "HIGH" | "URGENT" } })
-								}
+				<div className="space-y-8 px-6 pb-8">
+					{/* Metadata badges */}
+					<div className="flex flex-wrap items-center gap-2">
+						{/* Priority */}
+						<Select
+							value={card.priority}
+							onValueChange={(value) =>
+								updateCard.mutate({ id: card.id, data: { priority: value as Priority } })
+							}
+						>
+							<SelectTrigger
+								className={`h-7 w-fit gap-1 rounded-full border px-2.5 text-xs font-medium shadow-none ${
+									PRIORITY_BADGE_STYLES[card.priority as Priority]
+								}`}
 							>
-								<SelectTrigger>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									{priorityValues.map((p) => (
-										<SelectItem key={p} value={p}>
-											{p === "NONE" ? "None" : p.charAt(0) + p.slice(1).toLowerCase()}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-						<div className="space-y-2">
-							<Label>Assignee</Label>
-							<Select
-								value={card.assignee ?? "NONE"}
-								onValueChange={(value) =>
-									updateCard.mutate({
-										id: card.id,
-										data: { assignee: value === "NONE" ? null : (value as "HUMAN" | "AGENT") },
-									})
-								}
-							>
-								<SelectTrigger>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="NONE">Unassigned</SelectItem>
-									<SelectItem value="HUMAN">Human</SelectItem>
-									<SelectItem value="AGENT">Agent</SelectItem>
-								</SelectContent>
-							</Select>
-						</div>
-					</div>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								{priorityValues.map((p) => (
+									<SelectItem key={p} value={p}>
+										{PRIORITY_LABELS[p]}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 
-					{/* Milestone */}
-					<MilestoneSelector cardId={card.id} projectId={card.projectId} currentMilestoneId={card.milestoneId} boardId={boardId} />
+						{/* Assignee */}
+						<Select
+							value={card.assignee ?? "NONE"}
+							onValueChange={(value) =>
+								updateCard.mutate({
+									id: card.id,
+									data: { assignee: value === "NONE" ? null : (value as "HUMAN" | "AGENT") },
+								})
+							}
+						>
+							<SelectTrigger className="h-7 w-fit gap-1.5 rounded-full border px-2.5 text-xs font-medium shadow-none">
+								<SelectValue placeholder="Unassigned" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="NONE">Unassigned</SelectItem>
+								<SelectItem value="HUMAN">Human</SelectItem>
+								<SelectItem value="AGENT">Agent</SelectItem>
+							</SelectContent>
+						</Select>
+
+						{/* Milestone */}
+						<MilestoneSelector
+							cardId={card.id}
+							projectId={card.projectId}
+							currentMilestoneId={card.milestoneId}
+							boardId={boardId}
+						/>
+					</div>
 
 					{/* Description */}
 					<div className="space-y-2">
-						<Label>Description</Label>
-						<Textarea
-							value={card.description ?? ""}
-							onChange={(e) =>
-								updateCard.mutate({
-									id: card.id,
-									data: { description: e.target.value || undefined },
-								})
-							}
-							placeholder="Add a description..."
-							rows={4}
-						/>
+						<div className="flex items-center justify-between">
+							<SectionHeader>Description</SectionHeader>
+							{!isEditingDescription && card.description && (
+								<Button
+									variant="ghost"
+									size="icon-xs"
+									onClick={() => {
+										setLocalDescription(card.description ?? "");
+										setIsEditingDescription(true);
+									}}
+								>
+									<Pencil className="h-3 w-3" />
+								</Button>
+							)}
+						</div>
+						{isEditingDescription ? (
+							<div className="space-y-2">
+								<Textarea
+									ref={descriptionRef}
+									value={localDescription}
+									onChange={(e) => setLocalDescription(e.target.value)}
+									onKeyDown={handleDescriptionKeyDown}
+									onBlur={handleDescriptionSave}
+									placeholder="Add a description... (Markdown supported)"
+									rows={6}
+									autoFocus
+									className="text-sm"
+								/>
+								<div className="flex items-center justify-between text-xs text-muted-foreground">
+									<span>Markdown supported. Cmd+Enter to save, Esc to cancel.</span>
+									<div className="flex gap-1">
+										<Button
+											variant="ghost"
+											size="xs"
+											onMouseDown={(e) => e.preventDefault()}
+											onClick={() => {
+												setLocalDescription(card.description ?? "");
+												setIsEditingDescription(false);
+											}}
+										>
+											Cancel
+										</Button>
+										<Button
+											variant="outline"
+											size="xs"
+											onMouseDown={(e) => e.preventDefault()}
+											onClick={handleDescriptionSave}
+										>
+											Save
+										</Button>
+									</div>
+								</div>
+							</div>
+						) : card.description ? (
+							<div
+								className="cursor-pointer rounded-md border border-transparent px-1 py-0.5 text-sm transition-colors hover:border-border hover:bg-muted/50"
+								onClick={() => {
+									setLocalDescription(card.description ?? "");
+									setIsEditingDescription(true);
+								}}
+							>
+								<Markdown>{card.description}</Markdown>
+							</div>
+						) : (
+							<button
+								type="button"
+								className="w-full rounded-md border border-dashed border-border px-3 py-3 text-left text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-muted/50"
+								onClick={() => {
+									setLocalDescription("");
+									setIsEditingDescription(true);
+								}}
+							>
+								Add a description...
+							</button>
+						)}
 					</div>
 
 					{/* Tags */}
 					<div className="space-y-2">
-						<Label>Tags</Label>
+						<SectionHeader>Tags</SectionHeader>
 						<div className="flex flex-wrap gap-1">
 							{tags.map((tag) => (
 								<Badge
@@ -244,6 +419,7 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 										handleAddTag();
 									}
 								}}
+								className="text-sm"
 							/>
 							<Button
 								variant="outline"
@@ -259,23 +435,21 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 					{/* Dependencies */}
 					<DependenciesSection cardId={card.id} boardId={boardId} />
 
-					<Separator />
+					<div className="border-t border-border/50" />
 
 					{/* Checklist */}
-					<div className="space-y-2">
-						<div className="flex items-center gap-2">
-							<CheckSquare className="h-4 w-4" />
-							<Label>Checklist</Label>
+					<div className="space-y-3">
+						<div className="flex items-center justify-between">
+							<SectionHeader>Checklist</SectionHeader>
 							{card.checklists.length > 0 && (
-								<span className="text-xs text-muted-foreground">
-									{card.checklists.filter((c) => c.completed).length}/
-									{card.checklists.length}
-								</span>
+								<Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+									{card.checklists.filter((c) => c.completed).length}/{card.checklists.length}
+								</Badge>
 							)}
 						</div>
 						<div className="space-y-1">
 							{card.checklists.map((item) => (
-								<div key={item.id} className="flex items-center gap-2">
+								<div key={item.id} className="flex items-center gap-2 py-0.5">
 									<input
 										type="checkbox"
 										checked={item.completed}
@@ -294,8 +468,7 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 									</span>
 									<Button
 										variant="ghost"
-										size="icon"
-										className="h-6 w-6"
+										size="icon-xs"
 										onClick={() => deleteChecklist.mutate({ id: item.id })}
 									>
 										<Trash2 className="h-3 w-3" />
@@ -332,17 +505,16 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 						</form>
 					</div>
 
-					<Separator />
+					<div className="border-t border-border/50" />
 
 					{/* Comments */}
 					<div className="space-y-3">
-						<div className="flex items-center gap-2">
-							<MessageSquare className="h-4 w-4" />
-							<Label>Comments</Label>
+						<div className="flex items-center justify-between">
+							<SectionHeader>Comments</SectionHeader>
 							{card.comments.length > 0 && (
-								<span className="text-xs text-muted-foreground">
+								<Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
 									{card.comments.length}
-								</span>
+								</Badge>
 							)}
 						</div>
 						<div className="space-y-3">
@@ -370,8 +542,8 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 										</span>
 									</div>
 									<div className="text-sm">
-									<Markdown>{comment.content}</Markdown>
-								</div>
+										<Markdown>{comment.content}</Markdown>
+									</div>
 								</div>
 							))}
 						</div>
@@ -411,13 +583,13 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 					{/* Commits */}
 					{card.gitLinks && card.gitLinks.length > 0 && (
 						<>
-							<Separator />
+							<div className="border-t border-border/50" />
 							<div className="space-y-3">
-								<div className="flex items-center gap-2">
-									<GitCommit className="h-4 w-4 text-muted-foreground" />
-									<Label className="text-muted-foreground">
-										Commits ({card.gitLinks.length})
-									</Label>
+								<div className="flex items-center justify-between">
+									<SectionHeader>Commits</SectionHeader>
+									<Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+										{card.gitLinks.length}
+									</Badge>
 								</div>
 								<div className="space-y-2">
 									{card.gitLinks.map((link) => {
@@ -425,7 +597,7 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 										return (
 											<div
 												key={link.id}
-												className="rounded-md border p-2 text-xs space-y-1"
+												className="rounded-md border p-2.5 text-xs space-y-1"
 											>
 												<div className="flex items-center gap-2">
 													<code className="rounded bg-muted px-1 py-0.5 text-[10px] font-mono">
@@ -448,42 +620,40 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 						</>
 					)}
 
-					<Separator />
-
 					{/* Activity log */}
 					{card.activities.length > 0 && (
-						<div className="space-y-3">
-							<div className="flex items-center gap-2">
-								<Clock className="h-4 w-4 text-muted-foreground" />
-								<Label className="text-muted-foreground">Activity</Label>
-							</div>
-							<div className="space-y-2">
-								{card.activities.map((activity) => (
-									<div
-										key={activity.id}
-										className="flex items-start gap-2 text-xs text-muted-foreground"
-									>
-										<div className="mt-0.5 shrink-0">
-											{activity.actorType === "AGENT" ? (
-												<Bot className="h-3.5 w-3.5 text-purple-500" />
-											) : (
-												<User className="h-3.5 w-3.5" />
-											)}
+						<>
+							<div className="border-t border-border/50" />
+							<div className="space-y-3">
+								<SectionHeader>Activity</SectionHeader>
+								<div className="space-y-2">
+									{card.activities.map((activity) => (
+										<div
+											key={activity.id}
+											className="flex items-start gap-2 text-xs text-muted-foreground"
+										>
+											<div className="mt-0.5 shrink-0">
+												{activity.actorType === "AGENT" ? (
+													<Bot className="h-3.5 w-3.5 text-purple-500" />
+												) : (
+													<User className="h-3.5 w-3.5" />
+												)}
+											</div>
+											<div className="flex-1">
+												<span className="font-medium">
+													{activity.actorName ??
+														(activity.actorType === "AGENT" ? "Claude" : "You")}
+												</span>{" "}
+												<ActivityDescription action={activity.action} details={activity.details} />
+												<span className="ml-1.5 opacity-50">
+													{formatRelativeTime(new Date(activity.createdAt))}
+												</span>
+											</div>
 										</div>
-										<div className="flex-1">
-											<span className="font-medium">
-												{activity.actorName ??
-													(activity.actorType === "AGENT" ? "Claude" : "You")}
-											</span>{" "}
-											<ActivityDescription action={activity.action} details={activity.details} />
-											<span className="ml-1.5 opacity-50">
-												{formatRelativeTime(new Date(activity.createdAt))}
-											</span>
-										</div>
-									</div>
-								))}
+									))}
+								</div>
 							</div>
-						</div>
+						</>
 					)}
 
 					{/* Delete */}
@@ -504,6 +674,16 @@ export function CardDetailSheet({ cardId, boardId, onClose }: CardDetailSheetPro
 				</div>
 			</SheetContent>
 		</Sheet>
+	);
+}
+
+// ─── Section Header ───────────────────────────────────────────────
+
+function SectionHeader({ children }: { children: React.ReactNode }) {
+	return (
+		<span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+			{children}
+		</span>
 	);
 }
 
@@ -546,10 +726,7 @@ function DependenciesSection({ cardId, boardId }: { cardId: string; boardId: str
 
 	return (
 		<div className="space-y-2">
-			<div className="flex items-center gap-2">
-				<Link2 className="h-4 w-4 text-muted-foreground" />
-				<Label>Dependencies</Label>
-			</div>
+			<SectionHeader>Dependencies</SectionHeader>
 			<div className="space-y-2">
 				{groups.map((group) => {
 					const meta = RELATION_LABELS[group.key];
@@ -619,10 +796,11 @@ function DecisionsSection({ cardId, projectId }: { cardId: string; projectId: st
 
 	return (
 		<div className="space-y-2">
-			<div className="flex items-center gap-2">
-				<FileText className="h-4 w-4 text-muted-foreground" />
-				<Label>Decisions</Label>
-				<span className="text-xs text-muted-foreground">{decisions.length}</span>
+			<div className="flex items-center justify-between">
+				<SectionHeader>Decisions</SectionHeader>
+				<Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+					{decisions.length}
+				</Badge>
 			</div>
 			<div className="space-y-2">
 				{decisions.map((d: { id: string; title: string; status: string; decision: string }) => (
@@ -643,22 +821,7 @@ function DecisionsSection({ cardId, projectId }: { cardId: string; projectId: st
 	);
 }
 
-function ActivityDescription({ action, details }: { action: string; details: string | null }) {
-	switch (action) {
-		case "created":
-			return <span>created this card</span>;
-		case "moved":
-			return <span>{details ?? "moved this card"}</span>;
-		case "commented":
-			return <span>added a comment</span>;
-		case "checklist_completed":
-			return <span>completed {details?.replace("Completed: ", "") ?? "a checklist item"}</span>;
-		case "checklist_unchecked":
-			return <span>unchecked {details?.replace("Unchecked: ", "") ?? "a checklist item"}</span>;
-		default:
-			return <span>{details ?? action}</span>;
-	}
-}
+// ─── Milestone Selector ───────────────────────────────────────────
 
 function MilestoneSelector({
 	cardId,
@@ -696,11 +859,7 @@ function MilestoneSelector({
 	});
 
 	return (
-		<div className="space-y-2">
-			<div className="flex items-center gap-2">
-				<MilestoneIcon className="h-4 w-4 text-muted-foreground" />
-				<Label>Milestone</Label>
-			</div>
+		<>
 			<Select
 				value={currentMilestoneId ?? "__none__"}
 				onValueChange={(value) => {
@@ -714,7 +873,8 @@ function MilestoneSelector({
 					});
 				}}
 			>
-				<SelectTrigger>
+				<SelectTrigger className="h-7 w-fit gap-1.5 rounded-full border px-2.5 text-xs font-medium shadow-none">
+					<MilestoneIcon className="h-3 w-3 text-muted-foreground" />
 					<SelectValue placeholder="No milestone" />
 				</SelectTrigger>
 				<SelectContent>
@@ -748,8 +908,27 @@ function MilestoneSelector({
 					</Button>
 				</form>
 			)}
-		</div>
+		</>
 	);
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────
+
+function ActivityDescription({ action, details }: { action: string; details: string | null }) {
+	switch (action) {
+		case "created":
+			return <span>created this card</span>;
+		case "moved":
+			return <span>{details ?? "moved this card"}</span>;
+		case "commented":
+			return <span>added a comment</span>;
+		case "checklist_completed":
+			return <span>completed {details?.replace("Completed: ", "") ?? "a checklist item"}</span>;
+		case "checklist_unchecked":
+			return <span>unchecked {details?.replace("Unchecked: ", "") ?? "a checklist item"}</span>;
+		default:
+			return <span>{details ?? action}</span>;
+	}
 }
 
 function formatRelativeTime(date: Date): string {
