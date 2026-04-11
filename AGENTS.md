@@ -197,8 +197,19 @@ Then add to the project's agent instructions file (`CLAUDE.md`, `AGENTS.md`, etc
 ```
 ## Project Tracking
 
-This project is tracked in the Project Tracker board.
-Use the `project-tracker` MCP tools to read and update the board.
-At the start of each conversation, use the `resume-session` prompt with the board ID.
-Reference cards by #number in conversation (e.g. "working on #7").
+This project uses a Project Tracker board via MCP.
+
+**Session lifecycle:** Use the `resume-session` MCP prompt (with boardId) at
+conversation start and `end-session` before wrapping up. These are MCP prompts,
+not tools — invoke them via prompts/get. If prompts aren't supported in your
+client, use `runTool({ tool: 'loadHandoff', params: { boardId } })` instead.
+
+**Tool architecture:** 10 essential tools are always visible (getBoard, createCard,
+updateCard, moveCard, addComment, searchCards, getRoadmap, checkOnboarding,
+getTools, runTool). 70+ extended tools live behind `getTools`/`runTool` — call
+`getTools()` with no args to see all categories.
+
+**Basics:** Reference cards by #number (e.g. "working on #7"). Move cards to
+reflect progress. Use `addComment` for decisions and blockers. Call
+`end-session` to save a handoff so the next conversation picks up in context.
 ```

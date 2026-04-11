@@ -672,11 +672,11 @@ server.registerTool(
 		}
 		if (state === "returning") {
 			options.push(
-				{ action: "resume-session prompt with boardId", description: "Continue where you left off" },
+				{ action: "Use MCP prompt 'resume-session' with { boardId } — or call runTool({ tool: 'loadHandoff', params: { boardId } }) as a tool-based alternative", description: "Continue where you left off" },
 			);
 		} else if (state === "existing") {
 			options.push(
-				{ action: "resume-session prompt with boardId", description: "Start working on a board" },
+				{ action: "Use MCP prompt 'resume-session' with { boardId } — or call runTool({ tool: 'loadHandoff', params: { boardId } }) as a tool-based alternative", description: "Start working on a board" },
 			);
 		}
 
@@ -689,6 +689,11 @@ server.registerTool(
 		return ok({
 			state,
 			stats: { projects: projectCount, boards: boardCount, cards: cardCount, handoffs: handoffCount },
+			toolArchitecture: {
+				essential: "10 tools are always visible: getBoard, createCard, updateCard, moveCard, addComment, searchCards, getRoadmap, checkOnboarding, getTools, runTool.",
+				extended: `${getRegistrySize()} additional tools are behind getTools/runTool. Call getTools() to see categories, getTools({ category }) to list tools, runTool({ tool, params }) to execute.`,
+				prompts: "8 MCP prompts are available (resume-session, end-session, onboarding, deep-dive, sprint-review, plan-work, setup-project, holistic-review). Prompts are invoked via the MCP prompts/get protocol, not via runTool.",
+			},
 			offerSampleProject,
 			projects: projects.map((p) => ({
 				id: p.id,
