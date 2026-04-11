@@ -60,7 +60,7 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 		>
 			<div className="space-y-2">
 				<div className="flex items-start justify-between gap-2">
-					<span className="text-sm font-medium leading-tight">{card.title}</span>
+					<span className="text-xs font-medium leading-tight">{card.title}</span>
 					<div className="flex shrink-0 items-center gap-1.5">
 						{showScore && card._workNextScore !== undefined && (
 							<span
@@ -78,14 +78,14 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 				{tags.length > 0 && (
 					<div className="flex flex-wrap gap-1">
 						{tags.slice(0, 3).map((tag) => (
-							<Badge key={tag} variant="outline" className="px-1.5 py-0 text-2xs font-normal">
+							<span key={tag} className="rounded-full border border-border px-1.5 text-[0.625rem] leading-4 text-muted-foreground">
 								{tag}
-							</Badge>
+							</span>
 						))}
 						{tags.length > 3 && (
-							<Badge variant="outline" className="px-1.5 py-0 text-2xs font-normal">
+							<span className="rounded-full border border-border px-1.5 text-[0.625rem] leading-4 text-muted-foreground">
 								+{tags.length - 3}
-							</Badge>
+							</span>
 						)}
 					</div>
 				)}

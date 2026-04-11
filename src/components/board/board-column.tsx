@@ -45,13 +45,13 @@ export function BoardColumn({ column, boardId, sortMode, onCardClick }: BoardCol
 
 	return (
 		<div
-			className={`flex w-72 shrink-0 flex-col rounded-lg border border-transparent p-2 transition-colors ${
+			className={`flex w-84 shrink-0 flex-col rounded-lg border border-transparent p-2 transition-colors ${
 				isOver ? "border-primary/50 bg-primary/10 shadow-sm" : "bg-muted/30"
 			}`}
 		>
 			<ColumnHeader column={column} boardId={boardId} />
 
-			<div ref={setNodeRef} className="flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto">
+			<div ref={setNodeRef} className="flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto pr-2">
 				<SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
 					{column.cards.map((card) => (
 						<SortableCard
