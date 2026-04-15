@@ -42,6 +42,7 @@ export function useBoardEvents(boardId: string): number | undefined {
 					void utils.board.getFull.invalidate({ id: boardId });
 					void utils.handoff.list.invalidate({ boardId });
 					void utils.activity.listByBoard.invalidate({ boardId });
+					void utils.timeline.listByBoard.invalidate({ boardId });
 				} catch {
 					// Ignore parse errors
 				}
