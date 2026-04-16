@@ -19,6 +19,7 @@ export const updateProjectSchema = z.object({
 	description: z.string().max(500).optional(),
 	color: z.enum(PROJECT_COLORS).optional(),
 	favorite: z.boolean().optional(),
+	defaultBoardId: z.string().uuid().nullable().optional(),
 });
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;

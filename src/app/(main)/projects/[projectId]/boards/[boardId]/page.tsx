@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Bot, BrainCircuit, Clock, Columns3, List, Map, NotebookPen, Pencil, Users } from "lucide-react";
+import { ArrowLeft, Bot, BrainCircuit, Check, Clock, Columns3, Copy, List, Map, NotebookPen, Pencil, Pin, Users } from "lucide-react";
 import Link from "next/link";
 import { use, useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -17,6 +17,96 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import type { BoardView as BoardViewType } from "@/lib/board-views";
 import { useBoardEvents } from "@/hooks/use-board-events";
 import { api } from "@/trpc/react";
+
+function CopyBoardIdButton({ boardId }: { boardId: string }) {
+	const [copied, setCopied] = useState(false);
+
+	const handleCopy = async () => {
+		try {
+			await navigator.clipboard.writeText(boardId);
+			setCopied(true);
+			toast.success("Board ID copied");
+			setTimeout(() => setCopied(false), 1500);
+		} catch {
+			toast.error("Failed to copy");
+		}
+	};
+
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Button
+					variant="ghost"
+					size="icon"
+					className="h-6 w-6"
+					onClick={handleCopy}
+					aria-label="Copy board ID"
+				>
+					{copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent>Copy board ID</TooltipContent>
+		</Tooltip>
+	);
+}
+
+function DefaultBoardToggle({
+	projectId,
+	boardId,
+	isDefault,
+}: {
+	projectId: string;
+	boardId: string;
+	isDefault: boolean;
+}) {
+	const utils = api.useUtils();
+	const setDefault = api.project.setDefaultBoard.useMutation({
+		onSuccess: (_, variables) => {
+			utils.board.getFull.invalidate({ id: boardId });
+			utils.project.getById.invalidate({ id: projectId });
+			toast.success(variables.boardId ? "Default board set" : "Default board cleared");
+		},
+		onError: (e) => toast.error(e.message),
+	});
+
+	if (isDefault) {
+		return (
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button
+						variant="secondary"
+						size="sm"
+						className="h-8 gap-1.5 text-xs"
+						disabled={setDefault.isPending}
+						onClick={() => setDefault.mutate({ projectId, boardId: null })}
+					>
+						<Pin className="h-3.5 w-3.5 fill-current" />
+						Default
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent>briefMe auto-opens this board from the repo — click to unset</TooltipContent>
+			</Tooltip>
+		);
+	}
+
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Button
+					variant="outline"
+					size="sm"
+					className="h-8 gap-1.5 text-xs"
+					disabled={setDefault.isPending}
+					onClick={() => setDefault.mutate({ projectId, boardId })}
+				>
+					<Pin className="h-3.5 w-3.5" />
+					Set as default
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent>Make briefMe auto-open this board when called from the repo</TooltipContent>
+		</Tooltip>
+	);
+}
 
 function EditableBoardName({ boardId, name }: { boardId: string; name: string }) {
 	const [editing, setEditing] = useState(false);
@@ -174,7 +264,10 @@ export default function BoardPage({
 						<TooltipContent>Return to project</TooltipContent>
 					</Tooltip>
 					<div className="flex-1">
-						<EditableBoardName boardId={board.id} name={board.name} />
+						<div className="flex items-center gap-1">
+							<EditableBoardName boardId={board.id} name={board.name} />
+							<CopyBoardIdButton boardId={board.id} />
+						</div>
 						<p className="text-xs text-muted-foreground">{board.project.name}</p>
 					</div>
 					<div className="flex items-center rounded-md border">
@@ -205,6 +298,11 @@ export default function BoardPage({
 							<TooltipContent>List view</TooltipContent>
 						</Tooltip>
 					</div>
+					<DefaultBoardToggle
+						projectId={projectId}
+						boardId={board.id}
+						isDefault={board.project.defaultBoardId === board.id}
+					/>
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Link href={`/projects/${projectId}?tab=notes&from=${boardId}`}>

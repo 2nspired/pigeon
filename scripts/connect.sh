@@ -28,6 +28,26 @@ if [ "$TARGET_DIR" = "$TRACKER_ROOT" ]; then
   exit 1
 fi
 
+# Resolve git repo root if possible — this is what briefMe matches on.
+REPO_ROOT=""
+if git -C "$TARGET_DIR" rev-parse --show-toplevel >/dev/null 2>&1; then
+  REPO_ROOT="$(git -C "$TARGET_DIR" rev-parse --show-toplevel)"
+  REPO_ROOT="$(cd "$REPO_ROOT" && pwd -P)"
+else
+  echo "Warning: $TARGET_DIR is not inside a git repo."
+  echo "  Auto-detect for briefMe needs a git root — skipping registration."
+fi
+
+# Register the repo with Project Tracker so briefMe can auto-detect it.
+if [ -n "$REPO_ROOT" ]; then
+  DEFAULT_NAME="$(basename "$REPO_ROOT")"
+  read -r -p "Project name for this repo [$DEFAULT_NAME]: " PROJECT_NAME </dev/tty || PROJECT_NAME=""
+  PROJECT_NAME="${PROJECT_NAME:-$DEFAULT_NAME}"
+
+  echo "Registering $REPO_ROOT as \"$PROJECT_NAME\"..."
+  (cd "$TRACKER_ROOT" && npx tsx scripts/register-repo.ts "$REPO_ROOT" "$PROJECT_NAME")
+fi
+
 # Check if .mcp.json already exists
 if [ -f "$MCP_FILE" ]; then
   # Check if project-tracker is already configured
@@ -50,6 +70,14 @@ fi
 
 # Detect agent name — default to "Claude", override with AGENT_NAME env var or flag
 AGENT_NAME="${AGENT_NAME:-Claude}"
+
+# Reject values that would break the JSON we're about to write.
+case "$AGENT_NAME" in
+  *[\"\\]*|*$'\n'*)
+    echo "Error: AGENT_NAME must not contain quotes, backslashes, or newlines." >&2
+    exit 1
+    ;;
+esac
 
 # Create .mcp.json
 cat > "$MCP_FILE" <<EOF
@@ -77,8 +105,9 @@ cat <<'SNIPPET'
 
   This project uses a Project Tracker board via MCP.
 
-  **Session lifecycle:** Call `briefMe({ boardId })` at the start of each
-  conversation for a one-shot session primer (handoff, top work, blockers, pulse).
+  **Session lifecycle:** Call `briefMe()` at the start of each conversation
+  for a one-shot session primer (handoff, top work, blockers, pulse).
+  briefMe auto-detects the project from your git repo — no args needed.
   Use the `end-session` MCP prompt before wrapping up to save a handoff.
 
   **Tool architecture:** 11 essential tools are always visible (getBoard, createCard,

@@ -1,3 +1,6 @@
+import { execFile } from "node:child_process";
+import { realpath } from "node:fs/promises";
+import { promisify } from "node:util";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -36,6 +39,85 @@ function humanizeAge(date: Date): string {
 	if (hours < 24) return `${hours}h`;
 	const days = Math.floor(hours / 24);
 	return `${days}d`;
+}
+
+const execFileAsync = promisify(execFile);
+
+type ResolvedBoard =
+	| { ok: true; boardId: string; projectName: string; boardName: string }
+	| { ok: false; reason: string; hint: string };
+
+async function resolveBoardFromCwd(): Promise<ResolvedBoard> {
+	// MCP_CALLER_CWD is set by scripts/mcp-start.sh before it cd's into the
+	// tracker root; it preserves the project root the server was spawned from.
+	const callerCwd = process.env.MCP_CALLER_CWD || process.cwd();
+
+	let repoRoot: string;
+	try {
+		const { stdout } = await execFileAsync("git", ["rev-parse", "--show-toplevel"], {
+			cwd: callerCwd,
+			timeout: 3000,
+		});
+		repoRoot = await realpath(stdout.trim());
+	} catch {
+		return {
+			ok: false,
+			reason: `Not inside a git repository (cwd: ${callerCwd}).`,
+			hint: "Pass boardId explicitly, or run from a project's git root after connecting it with scripts/connect.sh.",
+		};
+	}
+
+	const project = await db.project.findUnique({
+		where: { repoPath: repoRoot },
+		select: {
+			id: true,
+			name: true,
+			defaultBoardId: true,
+			boards: {
+				orderBy: { createdAt: "asc" },
+				select: { id: true, name: true },
+				take: 1,
+			},
+		},
+	});
+
+	if (!project) {
+		return {
+			ok: false,
+			reason: `No project registered for ${repoRoot}.`,
+			hint: "Run scripts/connect.sh from this repo to register it, or pass boardId explicitly.",
+		};
+	}
+
+	let boardId: string | null = project.defaultBoardId;
+	let boardName: string | null = null;
+
+	if (boardId) {
+		const defaultBoard = await db.board.findUnique({
+			where: { id: boardId },
+			select: { id: true, name: true, projectId: true },
+		});
+		if (defaultBoard && defaultBoard.projectId === project.id) {
+			boardName = defaultBoard.name;
+		} else {
+			boardId = null;
+		}
+	}
+
+	if (!boardId) {
+		const firstBoard = project.boards[0];
+		if (!firstBoard) {
+			return {
+				ok: false,
+				reason: `Project "${project.name}" has no boards.`,
+				hint: "Create a board in the web UI at http://localhost:3100, then retry.",
+			};
+		}
+		boardId = firstBoard.id;
+		boardName = firstBoard.name;
+	}
+
+	return { ok: true, boardId, projectName: project.name, boardName: boardName ?? "" };
 }
 
 // Initialize extended tools (registers them in the catalog)
@@ -740,15 +822,24 @@ server.registerTool(
 	{
 		title: "Brief Me",
 		description:
-			"One-shot session primer: last handoff + diff since it, top 3 work-next candidates, blockers, open decisions, staleness, one-line pulse. Call this first at session start instead of getBoard — ~300-500 tokens vs. full board. TOON by default.",
+			"One-shot session primer: last handoff + diff since it, top 3 work-next candidates, blockers, open decisions, staleness, one-line pulse. Call this first at session start instead of getBoard — ~300-500 tokens vs. full board. With no args, auto-detects the project from the current git repo (after scripts/connect.sh). Pass boardId to override. TOON by default.",
 		inputSchema: {
-			boardId: z.string().describe("Board UUID"),
+			boardId: z.string().optional().describe("Board UUID (optional — auto-detected from cwd when omitted)"),
 			format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
 		},
 		annotations: { readOnlyHint: true },
 	},
-	wrapEssentialHandler("briefMe", async ({ boardId, format }) => {
+	wrapEssentialHandler("briefMe", async ({ boardId: explicitBoardId, format }) => {
 		return safeExecute(async () => {
+			let boardId = explicitBoardId;
+			let autoResolved: { projectName: string; boardName: string } | null = null;
+			if (!boardId) {
+				const resolved = await resolveBoardFromCwd();
+				if (!resolved.ok) return err(resolved.reason, resolved.hint);
+				boardId = resolved.boardId;
+				autoResolved = { projectName: resolved.projectName, boardName: resolved.boardName };
+			}
+
 			const board = await db.board.findUnique({
 				where: { id: boardId },
 				include: {
@@ -850,6 +941,7 @@ server.registerTool(
 
 			return ok({
 				pulse,
+				...(autoResolved ? { resolvedFromCwd: { ...autoResolved, boardId } } : {}),
 				handoff,
 				diff,
 				topWork,

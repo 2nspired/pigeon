@@ -14,13 +14,15 @@ model Project {
   color           String   @default("slate")
   slug            String   @unique
   favorite        Boolean  @default(false)
-  repoPath        String?  @map("repo_path")
+  repoPath        String?  @unique @map("repo_path")
+  defaultBoardId  String?  @unique @map("default_board_id")
   projectPrompt   String?  @map("project_prompt")
   nextCardNumber  Int      @default(1) @map("next_card_number")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   boards         Board[]
+  defaultBoard   Board?   @relation("DefaultBoard", fields: [defaultBoardId], references: [id], onDelete: SetNull)
   labels         Label[]
   cards          Card[]
   notes          Note[]
@@ -75,10 +77,11 @@ model Board {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  columns   Column[]
-  handoffs  SessionHandoff[]
-  scratches AgentScratch[]
+  project           Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  columns           Column[]
+  handoffs          SessionHandoff[]
+  scratches         AgentScratch[]
+  defaultForProject Project?         @relation("DefaultBoard")
 
   @@index([projectId])
   @@map("board")

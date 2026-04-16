@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { createProjectSchema, updateProjectSchema } from "@/lib/schemas/project-schemas";
 import { createTRPCRouter, publicProcedure } from "@/server/api/trpc";
+import { db } from "@/server/db";
 import { onboardingService } from "@/server/services/onboarding-service";
 import { projectService } from "@/server/services/project-service";
 
@@ -56,6 +57,35 @@ export const projectRouter = createTRPCRouter({
 				throw new TRPCError({ code: "NOT_FOUND", message: result.error.message });
 			}
 			const updated = await projectService.update(input.id, { favorite: !result.data.favorite });
+			if (!updated.success) {
+				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: updated.error.message });
+			}
+			return updated.data;
+		}),
+
+	setDefaultBoard: publicProcedure
+		.input(
+			z.object({
+				projectId: z.string().uuid(),
+				boardId: z.string().uuid().nullable(),
+			}),
+		)
+		.mutation(async ({ input }) => {
+			if (input.boardId !== null) {
+				const board = await db.board.findUnique({
+					where: { id: input.boardId },
+					select: { projectId: true },
+				});
+				if (!board || board.projectId !== input.projectId) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message: "Board does not belong to this project.",
+					});
+				}
+			}
+			const updated = await projectService.update(input.projectId, {
+				defaultBoardId: input.boardId,
+			});
 			if (!updated.success) {
 				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: updated.error.message });
 			}
