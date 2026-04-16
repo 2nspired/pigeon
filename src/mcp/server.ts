@@ -1404,7 +1404,7 @@ server.registerPrompt(
 			"3. **Outdated descriptions**: If a card doesn't match code reality → `updateCard`",
 			"4. **Missing context**: Architecture decisions or important context → `addComment`",
 			"5. **Priority misalignment**: If priorities don't reflect codebase needs → `updateCard`",
-			"6. **Milestone alignment**: Ungrouped cards that belong to a milestone → `runTool('setMilestone', ...)`",
+			"6. **Milestone alignment**: Ungrouped cards that belong to a milestone → `updateCard({ milestoneName })`",
 			"7. **Checklist updates**: Items completed in code → `runTool('toggleChecklistItem', ...)`",
 			"",
 			"Explore codebase structure and key files, compare against board, take corrective actions, then summarize changes.",

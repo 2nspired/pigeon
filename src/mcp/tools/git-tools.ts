@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { resolveCardRef, ok, err, errWithToolHint, safeExecute } from "../utils.js";
+import { ok, err, errWithToolHint, safeExecute } from "../utils.js";
 import { validateRepo, detectGitRepo, gitLog, gitDiffFiles } from "../git-utils.js";
 
 // ─── Git ──────────────────────────────────────────────────────────
@@ -157,30 +157,3 @@ registerExtendedTool("getGitLog", {
 	}),
 });
 
-registerExtendedTool("getCardCommits", {
-	category: "git",
-	description: "All git commits linked to a card.",
-	parameters: z.object({
-		cardId: z.string().describe("Card UUID or #number"),
-	}),
-	annotations: { readOnlyHint: true },
-	handler: ({ cardId }) => safeExecute(async () => {
-		const resolved = await resolveCardRef(cardId as string);
-		if (!resolved.ok) return err(resolved.message);
-		const id = resolved.id;
-
-		const links = await db.gitLink.findMany({
-			where: { cardId: id },
-			orderBy: { commitDate: "desc" },
-		});
-
-		return ok(links.map((l) => ({
-			hash: l.commitHash.slice(0, 7),
-			fullHash: l.commitHash,
-			message: l.message,
-			author: l.author,
-			date: l.commitDate,
-			filePaths: JSON.parse(l.filePaths) as string[],
-		})));
-	}),
-});

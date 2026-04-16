@@ -219,9 +219,10 @@ Types:
 
 registerExtendedTool("listFacts", {
 	category: "context",
-	description: "List facts for a project. Omit type to list all types. Filter by path, surface, or recheck status.",
+	description: "List facts for a project. Omit type to list all types. Filter by path, surface, or recheck status. Pass factId for single-fact lookup.",
 	parameters: z.object({
 		projectId: z.string().describe("Project UUID"),
+		factId: z.string().optional().describe("Fetch a single fact by UUID (searches all types)"),
 		type: z.enum(FACT_TYPES).optional().describe("Filter by fact type"),
 		path: z.string().optional().describe("Filter by exact file path (code/measurement)"),
 		pathPrefix: z.string().optional().describe("Filter by path prefix (e.g. 'src/mcp/')"),
@@ -232,10 +233,21 @@ registerExtendedTool("listFacts", {
 	}),
 	annotations: { readOnlyHint: true },
 	handler: (params) => safeExecute(async () => {
-		const { projectId, type, path, pathPrefix, surface, needsRecheck, author, limit } = params as {
-			projectId: string; type?: string; path?: string; pathPrefix?: string;
+		const { projectId, factId: singleId, type, path, pathPrefix, surface, needsRecheck, author, limit } = params as {
+			projectId: string; factId?: string; type?: string; path?: string; pathPrefix?: string;
 			surface?: string; needsRecheck?: boolean; author?: string; limit: number;
 		};
+
+		// Single-fact lookup by ID
+		if (singleId) {
+			const entry = await db.persistentContextEntry.findUnique({ where: { id: singleId } });
+			if (entry) return ok({ facts: [normalizeContext(entry)], total: 1 });
+			const codeFact = await db.codeFact.findUnique({ where: { id: singleId } });
+			if (codeFact) return ok({ facts: [normalizeCode(codeFact)], total: 1 });
+			const measurement = await db.measurementFact.findUnique({ where: { id: singleId } });
+			if (measurement) return ok({ facts: [normalizeMeasurement(measurement)], total: 1 });
+			return err("Fact not found.", "Check the factId and try again.");
+		}
 
 		const project = await db.project.findUnique({ where: { id: projectId } });
 		if (!project) return err("Project not found.", "Use listProjects to find a valid projectId.");
@@ -283,61 +295,3 @@ registerExtendedTool("listFacts", {
 	}),
 });
 
-// ─── getFact ──────────────────────────────────────────────────────
-
-registerExtendedTool("getFact", {
-	category: "context",
-	description: "Get a single fact by ID. Searches across all fact types.",
-	parameters: z.object({
-		factId: z.string().describe("Fact UUID"),
-	}),
-	annotations: { readOnlyHint: true },
-	handler: ({ factId }) => safeExecute(async () => {
-		const id = factId as string;
-
-		const entry = await db.persistentContextEntry.findUnique({ where: { id } });
-		if (entry) return ok(normalizeContext(entry));
-
-		const codeFact = await db.codeFact.findUnique({ where: { id } });
-		if (codeFact) return ok(normalizeCode(codeFact));
-
-		const measurement = await db.measurementFact.findUnique({ where: { id } });
-		if (measurement) return ok(normalizeMeasurement(measurement));
-
-		return err("Fact not found.", "Check the factId and try again.");
-	}),
-});
-
-// ─── deleteFact ───────────────────────────────────────────────────
-
-registerExtendedTool("deleteFact", {
-	category: "context",
-	description: "Delete a fact by ID. Searches across all fact types.",
-	parameters: z.object({
-		factId: z.string().describe("Fact UUID"),
-	}),
-	annotations: { destructiveHint: true },
-	handler: ({ factId }) => safeExecute(async () => {
-		const id = factId as string;
-
-		const entry = await db.persistentContextEntry.findUnique({ where: { id } });
-		if (entry) {
-			await db.persistentContextEntry.delete({ where: { id } });
-			return ok({ deleted: true, type: "context", content: entry.claim });
-		}
-
-		const codeFact = await db.codeFact.findUnique({ where: { id } });
-		if (codeFact) {
-			await db.codeFact.delete({ where: { id } });
-			return ok({ deleted: true, type: "code", content: codeFact.fact, path: codeFact.path });
-		}
-
-		const measurement = await db.measurementFact.findUnique({ where: { id } });
-		if (measurement) {
-			await db.measurementFact.delete({ where: { id } });
-			return ok({ deleted: true, type: "measurement", content: measurement.description, value: measurement.value, unit: measurement.unit });
-		}
-
-		return err("Fact not found.", "Check the factId and try again.");
-	}),
-});

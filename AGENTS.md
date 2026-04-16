@@ -6,6 +6,28 @@ Shared guidelines for any AI agent (Claude, Codex, etc.) using the Project Track
 
 When this MCP is connected to a project, use the board as your shared workspace with the user. These guidelines keep it useful without burning tokens.
 
+## Tool Migration (v2.4)
+
+Pruning pass: 18 tools removed or consolidated. Tool count: 75 → 57.
+
+| Old tool | New equivalent |
+|---|---|
+| `getFocusContext(...)` | Removed — use `getCardContext`, `getMilestoneContext`, or `getTagContext` |
+| `setMilestone({ cardId, ... })` | `updateCard({ cardId, milestoneName })` |
+| `bulkSetMilestone({ milestoneName, cardIds })` | `bulkUpdateCards` with `milestoneName` field |
+| `findSimilar(...)` | `searchCards` (text search covers most use cases) |
+| `getCardCommits({ cardId })` | `getCommitSummary({ cardId })` (returns same data + structured grouping) |
+| `getFact({ factId })` | `listFacts({ projectId, factId })` (single-fact lookup via factId param) |
+| `deleteFact({ factId })` | Removed — use Prisma Studio for deletions |
+| `deleteComment({ commentId })` | Removed — use Prisma Studio |
+| `deleteNote({ noteId })` | Removed — use Prisma Studio |
+| `deleteChecklistItem({ id })` | Removed — use Prisma Studio |
+| `reorderChecklistItem(...)` | Removed |
+| `rebuildKnowledgeIndex(...)` | Removed — index auto-initializes on first `queryKnowledge` call |
+| `setScratch` / `getScratch` / `listScratch` / `clearScratch` | `scratch({ action: "set\|get\|list\|clear", ... })` |
+| `bulkAddChecklistItems({ cardId, items })` | `bulkAddChecklistItems({ cards: [{ cardId, items }] })` (multi-card format) |
+| `bulkAddChecklistItemsMulti(...)` | `bulkAddChecklistItems` (same tool, renamed) |
+
 ## Tool Migration (v2.3)
 
 Context tools were split into single-purpose tools in v2.3:
@@ -26,21 +48,21 @@ The knowledge tools were consolidated in v2.2. If your prompts or learned workfl
 |---|---|
 | `saveContextEntry(...)` | `saveFact({ type: "context", content: "...", ... })` |
 | `listContextEntries(...)` | `listFacts({ type: "context", ... })` |
-| `getContextEntry({ entryId })` | `getFact({ factId })` |
-| `deleteContextEntry({ entryId })` | `deleteFact({ factId })` |
+| `getContextEntry({ entryId })` | `listFacts({ projectId, factId })` |
+| `deleteContextEntry({ entryId })` | Removed — use Prisma Studio |
 | `saveCodeFact(...)` | `saveFact({ type: "code", content: "...", path: "...", ... })` |
 | `listCodeFacts(...)` | `listFacts({ type: "code", ... })` |
-| `getCodeFact({ factId })` | `getFact({ factId })` |
-| `deleteCodeFact({ factId })` | `deleteFact({ factId })` |
+| `getCodeFact({ factId })` | `listFacts({ projectId, factId })` |
+| `deleteCodeFact({ factId })` | Removed — use Prisma Studio |
 | `saveMeasurement(...)` | `saveFact({ type: "measurement", content: "...", value: N, unit: "...", ... })` |
 | `listMeasurements(...)` | `listFacts({ type: "measurement", ... })` |
-| `getMeasurement({ measurementId })` | `getFact({ factId })` |
-| `deleteMeasurement({ measurementId })` | `deleteFact({ factId })` |
+| `getMeasurement({ measurementId })` | `listFacts({ projectId, factId })` |
+| `deleteMeasurement({ measurementId })` | Removed — use Prisma Studio |
 | `getBoardDiff({ boardId, since })` | Removed — use `loadHandoff` (includes board diff automatically) |
 | `reviewSessionFacts(...)` | Removed — save facts directly via `saveFact` during the session |
 | `getCodeMap({ cardId })` | Removed — use `getCommitSummary` (returns files + commit stats) |
 
-**Key concept:** The `content` field replaces `claim` (context), `fact` (code), and `description` (measurement). All three fact types share CRUD through `saveFact`/`listFacts`/`getFact`/`deleteFact` with a `type` discriminator. The underlying data is unchanged.
+**Key concept:** The `content` field replaces `claim` (context), `fact` (code), and `description` (measurement). All three fact types share CRUD through `saveFact`/`listFacts` with a `type` discriminator. The underlying data is unchanged.
 
 ## Project Prompt
 
@@ -72,7 +94,7 @@ Marks a card whose `metadata` JSON holds metrics read by `renderStatus`. Shape:
 
 ## Facts (Unified Knowledge Store)
 
-All persistent project knowledge is managed through a single set of tools: `saveFact`, `listFacts`, `getFact`, `deleteFact`. Each fact has a **type** that determines its schema:
+All persistent project knowledge is managed through `saveFact` and `listFacts`. Each fact has a **type** that determines its schema:
 
 ### `type: "context"` — Project-level knowledge claims
 Record facts, decisions, and learnings that should persist across sessions.
@@ -150,7 +172,7 @@ Don't manually set `status: "superseded"` without linking — use `supersedesId`
 
 `queryKnowledge(projectId, topic)` searches across all project knowledge: cards, comments, decisions, notes, handoffs, code facts, context entries, and indexed repo markdown files. Uses SQLite FTS5 with Porter stemming for relevance-ranked results.
 
-Before first use (or after significant changes), call `rebuildKnowledgeIndex(projectId)` to populate the search index. The index covers repo `*.md` files up to 100KB each, max depth 5 directories.
+The index auto-initializes on first query. It covers repo `*.md` files up to 100KB each, max depth 5 directories.
 
 ## Column Definitions
 
@@ -217,13 +239,12 @@ Do this as part of your end-of-work flow, not after every small commit.
 ### Bulk Operations
 - Use `bulkCreateCards` instead of multiple `createCard` calls
 - Use `bulkUpdateCards` to set priority, tags, assignee, or milestone on multiple cards at once
-- Use `bulkAddChecklistItems` to add multiple checklist items to a card in one call
-- Use `bulkSetMilestone` to assign a milestone to multiple cards at once
+- Use `bulkAddChecklistItems` to add checklist items to one or more cards in one call
 - Batch your board updates — don't interleave code work with constant board updates
 
 ### Board Health
 - Use `auditBoard` to find cards missing priority, tags, milestones, or checklists
-- Use `setMilestone` with `milestoneId` (from `listMilestones`) for precision — `milestoneName` auto-creates on typos
+- Use `updateCard` with `milestoneName` for milestone assignment — auto-creates if new
 - Use `listMilestones` to see completion percentage per milestone
 
 ### General
@@ -258,7 +279,7 @@ client, use `runTool({ tool: 'loadHandoff', params: { boardId } })` instead.
 
 **Tool architecture:** 10 essential tools are always visible (getBoard, createCard,
 updateCard, moveCard, addComment, searchCards, getRoadmap, checkOnboarding,
-getTools, runTool). 70+ extended tools live behind `getTools`/`runTool` — call
+getTools, runTool). ~47 extended tools live behind `getTools`/`runTool` — call
 `getTools()` with no args to see all categories.
 
 **Basics:** Reference cards by #number (e.g. "working on #7"). Move cards to

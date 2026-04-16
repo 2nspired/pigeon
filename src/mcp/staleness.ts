@@ -360,7 +360,7 @@ export function formatStalenessWarnings(warnings: StalenessWarning[]): string | 
 
 	sections.push(
 		"",
-		"Use `listFacts` to review, `saveFact` to update, or `deleteFact` to remove stale entries.",
+		"Use `listFacts` to review and `saveFact` to update stale entries.",
 	);
 
 	return sections.join("\n");

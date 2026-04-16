@@ -236,23 +236,3 @@ registerExtendedTool("getTagContext", {
 	}),
 });
 
-// ─── getFocusContext (deprecated) ─────────────────────────────────
-
-registerExtendedTool("getFocusContext", {
-	category: "context",
-	description: "DEPRECATED — use getCardContext, getMilestoneContext, or getTagContext instead.",
-	parameters: z.object({
-		boardId: z.string().optional(),
-		cardId: z.string().optional(),
-		milestone: z.string().optional(),
-		tag: z.string().optional(),
-		format: z.enum(["json", "toon"]).default("toon").optional(),
-	}),
-	annotations: { readOnlyHint: true },
-	handler: () => safeExecute(async () => {
-		return err(
-			"getFocusContext is deprecated.",
-			"Use getCardContext({ boardId, cardId }), getMilestoneContext({ boardId, milestone }), or getTagContext({ boardId, tag }) instead."
-		);
-	}),
-});

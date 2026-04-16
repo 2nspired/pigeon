@@ -98,13 +98,13 @@ registerExtendedTool("loadHandoff", {
 					"listHandoffs — view handoff history across sessions",
 				],
 				facts: [
-					"saveFact / listFacts / getFact / deleteFact — unified persistent knowledge (type: context | code | measurement)",
+					"saveFact / listFacts — unified persistent knowledge (type: context | code | measurement)",
 				],
 				notes: [
-					"createNote / updateNote / deleteNote / listNotes — persistent project-level notes",
+					"createNote / updateNote / listNotes — persistent project-level notes",
 				],
 				scratch: [
-					"setScratch / getScratch / listScratch / clearScratch — temporary key-value storage with optional expiry",
+					"scratch({ action: set|get|list|clear }) — temporary key-value storage with optional expiry",
 				],
 				analysis: [
 					"getCardContext — deep context for a single card (relations, commits, decisions, checklist)",
