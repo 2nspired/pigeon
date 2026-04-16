@@ -110,10 +110,11 @@ cat <<'SNIPPET'
   briefMe auto-detects the project from your git repo — no args needed.
   Use the `end-session` MCP prompt before wrapping up to save a handoff.
 
-  **Tool architecture:** 11 essential tools are always visible (getBoard, createCard,
-  updateCard, moveCard, addComment, searchCards, getRoadmap, briefMe, checkOnboarding,
-  getTools, runTool). 70+ extended tools live behind `getTools`/`runTool` — call
-  `getTools()` with no args to see all categories.
+  **Tool architecture:** 8 essential tools are always visible (briefMe, createCard,
+  updateCard, moveCard, addComment, checkOnboarding, getTools, runTool). ~60
+  extended tools live behind `getTools`/`runTool` — including getBoard, searchCards,
+  and getRoadmap, which briefMe composes internally. Call `getTools()` with no args
+  to see all categories.
 
   **Basics:** Reference cards by #number (e.g. "working on #7"). Move cards to
   reflect progress. Use `addComment` for decisions and blockers. Call

@@ -282,10 +282,11 @@ This project uses a Project Tracker board via MCP.
 conversation for a one-shot session primer (handoff, top work, blockers, pulse).
 Use the `end-session` MCP prompt before wrapping up to save a handoff.
 
-**Tool architecture:** 11 essential tools are always visible (getBoard, createCard,
-updateCard, moveCard, addComment, searchCards, getRoadmap, briefMe, checkOnboarding,
-getTools, runTool). ~47 extended tools live behind `getTools`/`runTool` — call
-`getTools()` with no args to see all categories.
+**Tool architecture:** 8 essential tools are always visible (briefMe, createCard,
+updateCard, moveCard, addComment, checkOnboarding, getTools, runTool). Extended
+tools — including getBoard, searchCards, getRoadmap — live behind
+`getTools`/`runTool`; briefMe composes the common session-start views.
+Call `getTools()` with no args to see all categories.
 
 **Basics:** Reference cards by #number (e.g. "working on #7"). Move cards to
 reflect progress. Use `addComment` for decisions and blockers. Call

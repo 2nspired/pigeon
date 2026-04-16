@@ -179,10 +179,11 @@ conversation for a one-shot session primer (handoff, top work, blockers,
 pulse). Use the `end-session` MCP prompt before wrapping up to save a
 handoff for the next session.
 
-**Tool architecture:** 11 essential tools are always visible (getBoard,
-createCard, updateCard, moveCard, addComment, searchCards, getRoadmap,
-briefMe, checkOnboarding, getTools, runTool). Extended tools live behind
-`getTools`/`runTool` — call `getTools()` with no args to see all categories.
+**Tool architecture:** 8 essential tools are always visible (briefMe,
+createCard, updateCard, moveCard, addComment, checkOnboarding, getTools,
+runTool). Extended tools — including getBoard, searchCards, getRoadmap —
+live behind `getTools`/`runTool`; briefMe composes the common session-start
+views. Call `getTools()` with no args to see all categories.
 
 **Basics:** Reference cards by #number (e.g. "working on #7"). Move cards to
 reflect progress. Use `addComment` for decisions and blockers.
@@ -206,23 +207,20 @@ AI Agent (Claude Code)  <-->  MCP Server  --------------------|
 
 ## MCP Surface
 
-The tracker uses an **Essential + Catalog** pattern: 11 essential tools are always loaded in the agent's context. 72 additional tools are discoverable via `getTools` and executable via `runTool` — this keeps the base context small while providing deep functionality on demand.
+The tracker uses an **Essential + Catalog** pattern: 8 essential tools are always loaded in the agent's context. Extended tools (including `getBoard`, `searchCards`, `getRoadmap`) are discoverable via `getTools` and executable via `runTool` — this keeps the base context small while providing deep functionality on demand.
 
-### Essential Tools (11)
+### Essential Tools (8)
 
 | Tool | What it does |
 | --- | --- |
-| `briefMe` | One-shot session primer — handoff, diff, top 3 work-next candidates, blockers, open decisions, staleness, one-line pulse. Call first at session start. |
-| `getBoard` | Board state with filtering — `columns`, `excludeDone`, `summary`. TOON format by default. |
+| `briefMe` | One-shot session primer — handoff, diff, top 3 work-next candidates, blockers, open decisions, staleness, one-line pulse. Call first at session start. Composes getBoard/getRoadmap internally. |
 | `createCard` | Create a card in a column (by name); auto-creates milestones. |
-| `updateCard` | Update any card fields. |
-| `moveCard` | Move to column by name (e.g. "In Progress"). |
+| `updateCard` | Update any card fields. Optional `intent`. |
+| `moveCard` | Move to column by name. Requires `intent` (short rationale). |
 | `addComment` | Add a comment — decisions, blockers, context. |
-| `searchCards` | Search across all projects by text or tag. |
-| `getRoadmap` | Cards grouped by milestone and horizon (now/next/later/done) with blocking info and assignee breakdown. |
 | `checkOnboarding` | Detect setup state + return project/board list inline. |
 | `getTools` | Browse extended tools by category. |
-| `runTool` | Execute any extended tool by name. |
+| `runTool` | Execute any extended tool by name (use this for `getBoard`, `searchCards`, `getRoadmap`, etc.). |
 
 ### Extended Tools (72)
 
@@ -430,7 +428,7 @@ src/
 │   ├── services/                  # Business logic (ServiceResult pattern)
 │   └── api/routers/               # tRPC routers
 ├── mcp/
-│   ├── server.ts                  # MCP server (11 essential tools, 8 prompts)
+│   ├── server.ts                  # MCP server (8 essential tools, 8 prompts)
 │   ├── tool-registry.ts           # Extended tool catalog (72 tools, 14 categories)
 │   └── tools/                     # Domain-split tool files
 ├── lib/                           # Schemas, utilities, templates

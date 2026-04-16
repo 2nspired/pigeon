@@ -15,7 +15,12 @@ import { initFts5 } from "./fts.js";
 import { wrapEssentialHandler } from "./instrumentation.js";
 import { registerResources } from "./resources.js";
 import { checkStaleness, formatStalenessWarnings } from "./staleness.js";
-import { executeTool, getRegistrySize, getToolCatalog } from "./tool-registry.js";
+import {
+	executeTool,
+	getRegistrySize,
+	getToolCatalog,
+	registerExtendedTool,
+} from "./tool-registry.js";
 import { toToon } from "./toon.js";
 import {
 	AGENT_NAME,
@@ -141,174 +146,179 @@ const server = new McpServer({
 	version: "2.2.0",
 });
 
-// ─── Essential Tools (always loaded in LLM context) ────────────────
+// ─── Discovery tools moved from essential → extended ────────────────
+// briefMe is now the session-start primer; getBoard, searchCards, and
+// getRoadmap live here so agents reach for them via runTool only when
+// briefMe's default view isn't enough.
 
-server.registerTool(
-	"getBoard",
-	{
-		title: "Get Board",
-		description:
-			"Board state with filtering. Use 'columns' to fetch specific columns, 'excludeDone' to skip Done/Parking, 'summary' for lightweight view (no descriptions/checklists). TOON by default (~40% fewer tokens).",
-		inputSchema: {
-			boardId: z.string().describe("Board UUID"),
-			format: z
-				.enum(["json", "toon"])
-				.default("toon")
-				.describe("Default 'toon'; use 'json' for raw"),
-			columns: z
-				.array(z.string())
-				.optional()
-				.describe(
-					"Only include these columns by name (e.g. ['Backlog', 'Up Next', 'In Progress'])"
-				),
-			excludeDone: z
-				.boolean()
-				.default(false)
-				.describe("Exclude columns with role 'done' or 'parking' — great for reducing payload"),
-			summary: z
-				.boolean()
-				.default(false)
-				.describe(
-					"Lightweight mode: returns only ref, title, priority, tags, milestone, checklist counts — no descriptions or checklist items."
-				),
-		},
-		annotations: { readOnlyHint: true },
-	},
-	wrapEssentialHandler(
-		"getBoard",
-		async ({ boardId, format, columns: columnFilter, excludeDone, summary: summaryMode }) => {
-			return safeExecute(async () => {
-				const board = await db.board.findUnique({
-					where: { id: boardId },
-					include: {
-						project: true,
-						columns: {
-							orderBy: { position: "asc" },
-							include: {
-								cards: {
-									orderBy: { position: "asc" },
-									include: {
-										checklists: { orderBy: { position: "asc" } },
-										milestone: { select: { id: true, name: true } },
-										_count: { select: { comments: true } },
-									},
+registerExtendedTool("getBoard", {
+	category: "discovery",
+	description:
+		"Board state with filtering. Use 'columns' to fetch specific columns, 'excludeDone' to skip Done/Parking, 'summary' for lightweight view (no descriptions/checklists). TOON by default (~40% fewer tokens).",
+	parameters: z.object({
+		boardId: z.string().describe("Board UUID"),
+		format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
+		columns: z
+			.array(z.string())
+			.optional()
+			.describe("Only include these columns by name (e.g. ['Backlog', 'Up Next', 'In Progress'])"),
+		excludeDone: z
+			.boolean()
+			.default(false)
+			.describe("Exclude columns with role 'done' or 'parking' — great for reducing payload"),
+		summary: z
+			.boolean()
+			.default(false)
+			.describe(
+				"Lightweight mode: returns only ref, title, priority, tags, milestone, checklist counts — no descriptions or checklist items."
+			),
+	}),
+	annotations: { readOnlyHint: true },
+	handler: (params) => {
+		const {
+			boardId,
+			format,
+			columns: columnFilter,
+			excludeDone,
+			summary: summaryMode,
+		} = params as {
+			boardId: string;
+			format: "json" | "toon";
+			columns?: string[];
+			excludeDone: boolean;
+			summary: boolean;
+		};
+		return safeExecute(async () => {
+			const board = await db.board.findUnique({
+				where: { id: boardId },
+				include: {
+					project: true,
+					columns: {
+						orderBy: { position: "asc" },
+						include: {
+							cards: {
+								orderBy: { position: "asc" },
+								include: {
+									checklists: { orderBy: { position: "asc" } },
+									milestone: { select: { id: true, name: true } },
+									_count: { select: { comments: true } },
 								},
 							},
 						},
 					},
-				});
+				},
+			});
 
-				if (!board)
-					return err(
-						"Board not found.",
-						"Use getTools({ category: 'discovery' }) → runTool('listProjects') → runTool('listBoards') to find a valid boardId."
-					);
+			if (!board)
+				return err(
+					"Board not found.",
+					"Use getTools({ category: 'discovery' }) → runTool('listProjects') → runTool('listBoards') to find a valid boardId."
+				);
 
-				// Filter columns
-				let filteredColumns = board.columns;
-				if (columnFilter && columnFilter.length > 0) {
-					const lowerFilter = (columnFilter as string[]).map((n) => n.toLowerCase());
-					filteredColumns = filteredColumns.filter((col) =>
-						lowerFilter.includes(col.name.toLowerCase())
-					);
-					if (filteredColumns.length === 0) {
-						const available = board.columns.map((c) => c.name).join(", ");
-						return err(`No matching columns found.`, `Available: ${available}`);
-					}
+			// Filter columns
+			let filteredColumns = board.columns;
+			if (columnFilter && columnFilter.length > 0) {
+				const lowerFilter = (columnFilter as string[]).map((n) => n.toLowerCase());
+				filteredColumns = filteredColumns.filter((col) =>
+					lowerFilter.includes(col.name.toLowerCase())
+				);
+				if (filteredColumns.length === 0) {
+					const available = board.columns.map((c) => c.name).join(", ");
+					return err(`No matching columns found.`, `Available: ${available}`);
 				}
-				if (excludeDone) {
-					filteredColumns = filteredColumns.filter(
-						(col) => !hasRole(col, "done") && !hasRole(col, "parking")
-					);
-				}
+			}
+			if (excludeDone) {
+				filteredColumns = filteredColumns.filter(
+					(col) => !hasRole(col, "done") && !hasRole(col, "parking")
+				);
+			}
 
-				const totalCardCount = filteredColumns.reduce((sum, col) => sum + col.cards.length, 0);
+			const totalCardCount = filteredColumns.reduce((sum, col) => sum + col.cards.length, 0);
 
-				// Pre-compute milestone progress for summary mode
-				const milestoneProgress = new Map<string, { done: number; total: number }>();
-				if (summaryMode) {
-					for (const col of filteredColumns) {
-						for (const card of col.cards) {
-							if (card.milestone) {
-								const entry = milestoneProgress.get(card.milestone.id) ?? { done: 0, total: 0 };
-								entry.total++;
-								if (hasRole(col, "done")) entry.done++;
-								milestoneProgress.set(card.milestone.id, entry);
-							}
+			// Pre-compute milestone progress for summary mode
+			const milestoneProgress = new Map<string, { done: number; total: number }>();
+			if (summaryMode) {
+				for (const col of filteredColumns) {
+					for (const card of col.cards) {
+						if (card.milestone) {
+							const entry = milestoneProgress.get(card.milestone.id) ?? { done: 0, total: 0 };
+							entry.total++;
+							if (hasRole(col, "done")) entry.done++;
+							milestoneProgress.set(card.milestone.id, entry);
 						}
 					}
 				}
+			}
 
-				const result = {
-					id: board.id,
-					name: board.name,
-					project: { id: board.project.id, name: board.project.name },
-					...(!summaryMode &&
-						totalCardCount > 50 && {
-							_hint: `Board has ${totalCardCount} cards. Consider summary: true to reduce payload.`,
-						}),
-					columns: filteredColumns.map((col) => ({
-						id: col.id,
-						name: col.name,
-						description: summaryMode ? undefined : col.description,
-						isParking: col.isParking,
-						cards: col.cards.map((card) => {
-							if (summaryMode) {
-								const msProgress = card.milestone ? milestoneProgress.get(card.milestone.id) : null;
-								return {
-									number: card.number,
-									ref: `#${card.number}`,
-									title: card.title,
-									priority: card.priority,
-									tags: JSON.parse(card.tags),
-									milestone: card.milestone?.name ?? null,
-									...(msProgress && {
-										milestoneProgress: `${Math.round((msProgress.done / msProgress.total) * 100)}%`,
-									}),
-									checklist: {
-										total: card.checklists.length,
-										done: card.checklists.filter((c) => c.completed).length,
-									},
-									assignee: card.assignee,
-								};
-							}
+			const result = {
+				id: board.id,
+				name: board.name,
+				project: { id: board.project.id, name: board.project.name },
+				...(!summaryMode &&
+					totalCardCount > 50 && {
+						_hint: `Board has ${totalCardCount} cards. Consider summary: true to reduce payload.`,
+					}),
+				columns: filteredColumns.map((col) => ({
+					id: col.id,
+					name: col.name,
+					description: summaryMode ? undefined : col.description,
+					isParking: col.isParking,
+					cards: col.cards.map((card) => {
+						if (summaryMode) {
+							const msProgress = card.milestone ? milestoneProgress.get(card.milestone.id) : null;
 							return {
-								id: card.id,
 								number: card.number,
 								ref: `#${card.number}`,
 								title: card.title,
-								description: card.description,
 								priority: card.priority,
 								tags: JSON.parse(card.tags),
-								assignee: card.assignee,
-								createdBy: card.createdBy,
-								version: card.version,
-								lastEditedBy: card.lastEditedBy,
-								milestone: card.milestone
-									? { id: card.milestone.id, name: card.milestone.name }
-									: null,
+								milestone: card.milestone?.name ?? null,
+								...(msProgress && {
+									milestoneProgress: `${Math.round((msProgress.done / msProgress.total) * 100)}%`,
+								}),
 								checklist: {
 									total: card.checklists.length,
 									done: card.checklists.filter((c) => c.completed).length,
-									items: card.checklists.map((c) => ({
-										id: c.id,
-										text: c.text,
-										completed: c.completed,
-									})),
 								},
-								commentCount: card._count.comments,
-								...(card.metadata &&
-									card.metadata !== "{}" && { metadata: JSON.parse(card.metadata) }),
+								assignee: card.assignee,
 							};
-						}),
-					})),
-				};
+						}
+						return {
+							id: card.id,
+							number: card.number,
+							ref: `#${card.number}`,
+							title: card.title,
+							description: card.description,
+							priority: card.priority,
+							tags: JSON.parse(card.tags),
+							assignee: card.assignee,
+							createdBy: card.createdBy,
+							version: card.version,
+							lastEditedBy: card.lastEditedBy,
+							milestone: card.milestone
+								? { id: card.milestone.id, name: card.milestone.name }
+								: null,
+							checklist: {
+								total: card.checklists.length,
+								done: card.checklists.filter((c) => c.completed).length,
+								items: card.checklists.map((c) => ({
+									id: c.id,
+									text: c.text,
+									completed: c.completed,
+								})),
+							},
+							commentCount: card._count.comments,
+							...(card.metadata &&
+								card.metadata !== "{}" && { metadata: JSON.parse(card.metadata) }),
+						};
+					}),
+				})),
+			};
 
-				return ok(result, format as "json" | "toon");
-			});
-		}
-	)
-);
+			return ok(result, format as "json" | "toon");
+		});
+	},
+});
 
 server.registerTool(
 	"createCard",
@@ -687,19 +697,16 @@ server.registerTool(
 	})
 );
 
-server.registerTool(
-	"searchCards",
-	{
-		title: "Search Cards",
-		description:
-			"Search cards by title/description across all projects. Tag filter is exact-match.",
-		inputSchema: {
-			query: z.string().describe("Text to match in title and description"),
-			tag: z.string().optional().describe("Exact tag match (e.g. 'bug')"),
-		},
-		annotations: { readOnlyHint: true },
-	},
-	wrapEssentialHandler("searchCards", async ({ query, tag }) => {
+registerExtendedTool("searchCards", {
+	category: "discovery",
+	description: "Search cards by title/description across all projects. Tag filter is exact-match.",
+	parameters: z.object({
+		query: z.string().describe("Text to match in title and description"),
+		tag: z.string().optional().describe("Exact tag match (e.g. 'bug')"),
+	}),
+	annotations: { readOnlyHint: true },
+	handler: (params) => {
+		const { query, tag } = params as { query: string; tag?: string };
 		return safeExecute(async () => {
 			const cards = await db.card.findMany({
 				where: {
@@ -733,25 +740,20 @@ server.registerTool(
 
 			return ok(results);
 		});
-	})
-);
-
-server.registerTool(
-	"getRoadmap",
-	{
-		title: "Get Roadmap",
-		description:
-			"Roadmap view: cards grouped by milestone and horizon. Includes blockedBy refs, assignee breakdown, and progress per milestone. Horizons: In Progress/Review=Now, Up Next=Next, Backlog=Later, Done=Done.",
-		inputSchema: {
-			boardId: z.string().describe("Board UUID"),
-			format: z
-				.enum(["json", "toon"])
-				.default("toon")
-				.describe("Default 'toon'; use 'json' for raw"),
-		},
-		annotations: { readOnlyHint: true },
 	},
-	wrapEssentialHandler("getRoadmap", async ({ boardId, format }) => {
+});
+
+registerExtendedTool("getRoadmap", {
+	category: "discovery",
+	description:
+		"Roadmap view: cards grouped by milestone and horizon. Includes blockedBy refs, assignee breakdown, and progress per milestone. Horizons: In Progress/Review=Now, Up Next=Next, Backlog=Later, Done=Done.",
+	parameters: z.object({
+		boardId: z.string().describe("Board UUID"),
+		format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
+	}),
+	annotations: { readOnlyHint: true },
+	handler: (params) => {
+		const { boardId, format } = params as { boardId: string; format: "json" | "toon" };
 		return safeExecute(async () => {
 			const board = await db.board.findUnique({
 				where: { id: boardId },
@@ -841,8 +843,8 @@ server.registerTool(
 
 			return ok(roadmap, format as "json" | "toon");
 		});
-	})
-);
+	},
+});
 
 // ─── Onboarding (Essential) ──────────────────────────────────────────
 
@@ -928,7 +930,7 @@ server.registerTool(
 			},
 			toolArchitecture: {
 				essential:
-					"11 tools are always visible: getBoard, createCard, updateCard, moveCard, addComment, searchCards, getRoadmap, briefMe, checkOnboarding, getTools, runTool.",
+					"8 tools are always visible: briefMe, createCard, updateCard, moveCard, addComment, checkOnboarding, getTools, runTool. briefMe is the session-start primer; getBoard, searchCards, and getRoadmap moved to extended — call via runTool.",
 				extended: `${getRegistrySize()} additional tools are behind getTools/runTool. Call getTools() to see categories, getTools({ category }) to list tools, runTool({ tool, params }) to execute.`,
 				prompts:
 					"8 MCP prompts are available (resume-session, end-session, onboarding, deep-dive, sprint-review, plan-work, setup-project, holistic-review). Prompts are invoked via the MCP prompts/get protocol, not via runTool.",
@@ -1915,7 +1917,7 @@ async function main() {
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
 	console.error(
-		`Project Tracker MCP v2.2 — 11 essential tools + ${getRegistrySize()} extended tools via getTools/runTool`
+		`Project Tracker MCP v2.2 — 8 essential tools + ${getRegistrySize()} extended tools via getTools/runTool`
 	);
 }
 
