@@ -35,9 +35,7 @@ import "./tools/git-tools.js";
 import "./tools/summary-tools.js";
 import "./tools/onboarding-tools.js";
 import "./tools/status-tools.js";
-import "./tools/context-entry-tools.js";
-import "./tools/codefact-tools.js";
-import "./tools/measurement-tools.js";
+import "./tools/fact-tools.js";
 import "./tools/knowledge-tools.js";
 import "./tools/instrumentation-tools.js";
 
@@ -59,7 +57,7 @@ server.registerTool(
 			format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
 			columns: z.array(z.string()).optional().describe("Only include these columns by name (e.g. ['Backlog', 'Up Next', 'In Progress'])"),
 			excludeDone: z.boolean().default(false).describe("Exclude columns with role 'done' or 'parking' — great for reducing payload"),
-			summary: z.boolean().optional().describe("Lightweight mode: returns only ref, title, priority, tags, milestone, checklist counts — no descriptions or checklist items. Auto-enabled when board has >50 cards; pass false to override."),
+			summary: z.boolean().default(false).describe("Lightweight mode: returns only ref, title, priority, tags, milestone, checklist counts — no descriptions or checklist items."),
 		},
 		annotations: { readOnlyHint: true },
 	},
@@ -105,14 +103,11 @@ server.registerTool(
 				filteredColumns = filteredColumns.filter((col) => !hasRole(col, "done") && !hasRole(col, "parking"));
 			}
 
-			// Auto-summary: when summary not explicitly set and board is large
 			const totalCardCount = filteredColumns.reduce((sum, col) => sum + col.cards.length, 0);
-			const autoSummaryApplied = summaryMode === undefined && totalCardCount > 50;
-			const effectiveSummary = summaryMode === true || autoSummaryApplied;
 
 			// Pre-compute milestone progress for summary mode
 			const milestoneProgress = new Map<string, { done: number; total: number }>();
-			if (effectiveSummary) {
+			if (summaryMode) {
 				for (const col of filteredColumns) {
 					for (const card of col.cards) {
 						if (card.milestone) {
@@ -129,16 +124,16 @@ server.registerTool(
 				id: board.id,
 				name: board.name,
 				project: { id: board.project.id, name: board.project.name },
-				...(autoSummaryApplied && {
-					_note: `Auto-summary applied (${totalCardCount} cards). Pass summary: false for full details.`,
+				...(!summaryMode && totalCardCount > 50 && {
+					_hint: `Board has ${totalCardCount} cards. Consider summary: true to reduce payload.`,
 				}),
 				columns: filteredColumns.map((col) => ({
 					id: col.id,
 					name: col.name,
-					description: effectiveSummary ? undefined : col.description,
+					description: summaryMode ? undefined : col.description,
 					isParking: col.isParking,
 					cards: col.cards.map((card) => {
-						if (effectiveSummary) {
+						if (summaryMode) {
 							const msProgress = card.milestone ? milestoneProgress.get(card.milestone.id) : null;
 							return {
 								number: card.number,
