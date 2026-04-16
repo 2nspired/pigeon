@@ -32,6 +32,7 @@ model Project {
   contextEntries PersistentContextEntry[]
   codeFacts         CodeFact[]
   measurementFacts  MeasurementFact[]
+  claims            Claim[]
 
   @@map("project")
 }
@@ -135,6 +136,7 @@ model Card {
   relationsTo   CardRelation[]  @relation("RelationTo")
   decisions     Decision[]
   gitLinks      GitLink[]
+  claims        Claim[]
 
   @@unique([projectId, number])
   @@index([columnId])
@@ -383,6 +385,45 @@ model MeasurementFact {
   @@index([projectId])
   @@index([needsRecheck])
   @@map("measurement_fact")
+}
+
+// ─── RFC: Note + Claim primitives (docs/RFC-NOTE-CLAIM-PRIMITIVES.md) ─
+// Step 1 parallel write surface. Old tables (persistent_context_entry,
+// code_fact, measurement_fact, decision) remain in use until the
+// dual-write + cutover steps land.
+
+model Claim {
+  id             String    @id @default(uuid())
+  projectId      String    @map("project_id")
+  kind           String    // 'context' | 'code' | 'measurement' | 'decision'
+  statement      String    // one-sentence assertion (list-row display)
+  body           String    @default("")        // markdown elaboration
+  evidence       String    @default("{}")      // JSON: { files?, symbols?, urls?, cardIds? }
+  payload        String    @default("{}")      // JSON: kind-specific structured data
+  author         String    @default("AGENT")   // AGENT_NAME or HUMAN
+  cardId         String?   @map("card_id")
+  status         String    @default("active")  // 'active' | 'superseded' | 'retired'
+  supersedesId   String?   @map("supersedes_id")
+  supersededById String?   @map("superseded_by_id")
+  recordedAtSha  String?   @map("recorded_at_sha")
+  verifiedAt     DateTime? @map("verified_at")
+  expiresAt      DateTime? @map("expires_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  card    Card?   @relation(fields: [cardId],    references: [id], onDelete: SetNull)
+  // supersedesId / supersededById are plain FK-less string IDs,
+  // matching the Decision model convention — cross-linking is
+  // enforced in the tool handler.
+
+  @@index([projectId])
+  @@index([projectId, kind])
+  @@index([projectId, status])
+  @@index([cardId])
+  @@index([kind, status])
+  @@index([updatedAt])
+  @@map("claim")
 }
 
 model ToolCallLog {
