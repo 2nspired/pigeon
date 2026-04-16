@@ -17,6 +17,7 @@ type BoardCardProps = {
 		assignee: string | null;
 		createdBy: string;
 		updatedAt: Date;
+		lastEditedBy: string | null;
 		checklists: Array<{ completed: boolean }>;
 		_count: { comments: number };
 		_blockedByCount?: number;
@@ -25,6 +26,8 @@ type BoardCardProps = {
 	showScore?: boolean;
 	onClick: () => void;
 };
+
+const AUTHORSHIP_PILL_WINDOW_MS = 30 * 60 * 1000;
 
 function getAgeDays(updatedAt: Date): number {
 	return Math.floor((Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60 * 24));
@@ -36,6 +39,32 @@ function getAgeIndicator(days: number): { className: string; label: string } | n
 	return null;
 }
 
+function formatRelativeTime(ms: number): string {
+	if (ms < 60_000) return "just now";
+	const minutes = Math.floor(ms / 60_000);
+	if (minutes < 60) return `${minutes}m`;
+	const hours = Math.floor(minutes / 60);
+	return `${hours}h`;
+}
+
+function getAuthorshipPill(
+	lastEditedBy: string | null,
+	updatedAt: Date,
+): { isHuman: boolean; name: string; relative: string; tooltip: string } | null {
+	if (!lastEditedBy) return null;
+	const updated = new Date(updatedAt);
+	const elapsed = Date.now() - updated.getTime();
+	if (elapsed < 0 || elapsed >= AUTHORSHIP_PILL_WINDOW_MS) return null;
+	const isHuman = lastEditedBy === "HUMAN";
+	const name = isHuman ? "Human" : lastEditedBy;
+	return {
+		isHuman,
+		name,
+		relative: formatRelativeTime(elapsed),
+		tooltip: `Last edited by ${name} at ${updated.toLocaleString()}`,
+	};
+}
+
 export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 	const tags: string[] = JSON.parse(card.tags);
 	const priority = card.priority as Priority;
@@ -44,6 +73,7 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 	const blockedByCount = card._blockedByCount ?? 0;
 	const ageDays = getAgeDays(card.updatedAt);
 	const aging = getAgeIndicator(ageDays);
+	const authorship = getAuthorshipPill(card.lastEditedBy, card.updatedAt);
 
 	return (
 		<div
@@ -74,6 +104,25 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 						<span className="text-2xs font-mono text-muted-foreground">#{card.number}</span>
 					</div>
 				</div>
+
+				{authorship && (
+					<span
+						className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[0.625rem] leading-4 ${
+							authorship.isHuman
+								? "border-border text-muted-foreground"
+								: "border-violet-500/30 bg-violet-500/5 text-violet-600 dark:text-violet-400"
+						}`}
+						title={authorship.tooltip}
+					>
+						{authorship.isHuman ? (
+							<User className="h-2.5 w-2.5" />
+						) : (
+							<Sparkles className="h-2.5 w-2.5" />
+						)}
+						<span>{authorship.name}</span>
+						<span className="opacity-60">· {authorship.relative}</span>
+					</span>
+				)}
 
 				{tags.length > 0 && (
 					<div className="flex flex-wrap gap-1">

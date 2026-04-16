@@ -15,6 +15,7 @@ type SortableCardProps = {
 		assignee: string | null;
 		createdBy: string;
 		updatedAt: Date;
+		lastEditedBy: string | null;
 		checklists: Array<{ completed: boolean }>;
 		_count: { comments: number };
 		_workNextScore?: number;

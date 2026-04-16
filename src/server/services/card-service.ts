@@ -165,6 +165,7 @@ async function update(cardId: string, data: UpdateCardInput): Promise<ServiceRes
 				assignee: data.assignee,
 				dueDate: data.dueDate !== undefined ? (data.dueDate ? new Date(data.dueDate) : null) : undefined,
 				milestoneId: data.milestoneId !== undefined ? data.milestoneId : undefined,
+				lastEditedBy: "HUMAN",
 			},
 		});
 		return { success: true, data: card };
@@ -196,11 +197,15 @@ async function move(cardId: string, data: MoveCardInput): Promise<ServiceResult<
 		const newPosition = Math.min(data.position, filtered.length);
 		filtered.splice(newPosition, 0, existing);
 
-		// Update all positions in batch
+		// Update all positions in batch; stamp lastEditedBy only on the moved card.
 		const updates = filtered.map((c, i) =>
 			db.card.update({
 				where: { id: c.id },
-				data: { columnId: data.columnId, position: i },
+				data: {
+					columnId: data.columnId,
+					position: i,
+					...(c.id === cardId && { lastEditedBy: "HUMAN" }),
+				},
 			}),
 		);
 
