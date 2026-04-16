@@ -17,8 +17,8 @@ A local-first kanban board with MCP integration for AI-assisted development. You
   - [Add tracking instructions](#5-add-tracking-instructions-to-your-project-optional)
 - [How It Works](#how-it-works)
 - [MCP Surface](#mcp-surface)
-  - [Essential tools](#essential-tools-11)
-  - [Extended tools](#extended-tools-72)
+  - [Essential tools](#essential-tools-8)
+  - [Extended tools](#extended-tools-by-category)
   - [Prompts](#prompts-8)
   - [Resources](#resources-5)
 - [Session Lifecycle](#session-lifecycle)
@@ -209,37 +209,41 @@ AI Agent (Claude Code)  <-->  MCP Server  --------------------|
 
 The tracker uses an **Essential + Catalog** pattern: 8 essential tools are always loaded in the agent's context. Extended tools (including `getBoard`, `searchCards`, `getRoadmap`) are discoverable via `getTools` and executable via `runTool` — this keeps the base context small while providing deep functionality on demand.
 
+<!-- tracker:essentials:start -->
 ### Essential Tools (8)
 
 | Tool | What it does |
 | --- | --- |
-| `briefMe` | One-shot session primer — handoff, diff, top 3 work-next candidates, blockers, open decisions, staleness, one-line pulse. Call first at session start. Composes getBoard/getRoadmap internally. |
-| `createCard` | Create a card in a column (by name); auto-creates milestones. |
-| `updateCard` | Update any card fields. Optional `intent`. |
-| `moveCard` | Move to column by name. Requires `intent` (short rationale). |
-| `addComment` | Add a comment — decisions, blockers, context. |
-| `checkOnboarding` | Detect setup state + return project/board list inline. |
+| `briefMe` | One-shot session primer — handoff, diff, top work, blockers, open decisions, pulse. |
+| `createCard` | Create a card in a column (by name). |
+| `updateCard` | Update card fields; optional `intent`. |
+| `moveCard` | Move a card to a column. Requires `intent`. |
+| `addComment` | Add a comment to a card. |
+| `checkOnboarding` | Detect DB state, list projects/boards, session-start discovery. |
 | `getTools` | Browse extended tools by category. |
-| `runTool` | Execute any extended tool by name (use this for `getBoard`, `searchCards`, `getRoadmap`, etc.). |
+| `runTool` | Execute any extended tool by name. |
+<!-- tracker:essentials:end -->
 
-### Extended Tools (72)
+<!-- tracker:extended:start -->
+### Extended Tools (by category)
 
-| Category | Count | Examples |
+| Category | Count | Tools |
 | --- | --- | --- |
-| `discovery` | 10 | List projects/boards, stats, board audit, similarity search, work-next, render status, query cards |
-| `cards` | 5 | Bulk create, bulk update, templates, bulk move, delete |
-| `checklist` | 6 | Add, bulk add, bulk add multi, toggle, delete, reorder |
-| `milestones` | 5 | Create, update, set, bulk set, list with completion % |
-| `notes` | 4 | Create, update, list, delete |
-| `relations` | 3 | Link/unlink cards, get blockers |
-| `session` | 5 | Save/load/list handoffs, board diff, review session facts |
-| `decisions` | 3 | Record, list, update architectural decisions |
-| `scratch` | 4 | Set, get, list, clear ephemeral agent notes |
-| `git` | 5 | Sync commits, get log, code map, card commits, commit summary |
-| `comments` | 2 | List and delete comments |
-| `setup` | 4 | Create projects, columns, set repo path, seed tutorial |
-| `activity` | 1 | Recent activity history |
-| `context` | 15 | Focus context, code facts CRUD, context entries CRUD, measurements CRUD, knowledge search, rebuild index |
+| `activity` | 1 | `listActivity` |
+| `cards` | 5 | `bulkCreateCards`, `bulkMoveCards`, `bulkUpdateCards`, `createCardFromTemplate`, `deleteCard` |
+| `checklist` | 3 | `addChecklistItem`, `bulkAddChecklistItems`, `toggleChecklistItem` |
+| `comments` | 1 | `listComments` |
+| `context` | 6 | `getCardContext`, `getMilestoneContext`, `getTagContext`, `listFacts`, `queryKnowledge`, `saveFact` |
+| `decisions` | 3 | `getDecisions`, `recordDecision`, `updateDecision` |
+| `discovery` | 13 | `auditBoard`, `getBoard`, `getCard`, `getRoadmap`, `getStats`, `getToolUsageStats`, `getWorkNextSuggestion`, `listBoards`, `listProjects`, `queryCards`, `renderStatus`, `searchCards`, `updateProjectPrompt` |
+| `git` | 3 | `getCommitSummary`, `getGitLog`, `syncGitActivity` |
+| `milestones` | 3 | `createMilestone`, `listMilestones`, `updateMilestone` |
+| `notes` | 3 | `createNote`, `listNotes`, `updateNote` |
+| `relations` | 3 | `getBlockers`, `linkCards`, `unlinkCards` |
+| `scratch` | 1 | `scratch` |
+| `session` | 3 | `listHandoffs`, `loadHandoff`, `saveHandoff` |
+| `setup` | 4 | `createColumn`, `createProject`, `seedTutorial`, `setRepoPath` |
+<!-- tracker:extended:end -->
 
 ### Prompts (8)
 
