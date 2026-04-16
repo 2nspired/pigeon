@@ -72,6 +72,36 @@ Each project has an optional `projectPrompt` field — a short orientation parag
 - `projectPrompt` is stored in the tracker DB and shared across all agent accounts. Use it for project-level context that any collaborator (human or agent) needs at session start — current phase, key constraints, what to focus on.
 - `CLAUDE.md` lives in the repo and is scoped to that repo's code. Use it for build commands, code conventions, and repo-specific instructions.
 
+## Intent on Writes
+
+When you call a write tool that changes board state, include a short **`intent`** string saying *why* you're doing it — one sentence, ≤120 chars, user-visible on the card and in the activity strip.
+
+**Why:** Humans watching the board see actions flow in real time. Without intent, a move from `In Progress` → `Review` is silent noise. With it, they read *why* and decide whether to step in.
+
+**Where it applies:**
+
+| Tool | `intent` | Notes |
+|---|---|---|
+| `moveCard` | **required** | Every move needs a reason (WIP stall, ready for review, parked, etc.) |
+| `deleteCard` | **required** | Intent gates a destructive action; it's not persisted after cascade |
+| `updateCard` | optional | Pass when the edit reflects a decision or discovery, not just a mechanical fix |
+
+**Examples:**
+
+```
+moveCard({ cardId: "#42", columnName: "Review", intent: "Tests green, ready for user to verify before merge" })
+moveCard({ cardId: "#42", columnName: "Parking Lot", intent: "Parked — waiting on design decision from #39" })
+updateCard({ cardId: "#42", priority: "HIGH", intent: "Bumped after user reported it blocks the Q2 launch" })
+```
+
+**Don't:**
+
+- Restate what the tool did (`"Moving to Done"`) — the column transition already shows that
+- Use intent as a changelog (`"Fixed typo"`) — that's the commit message's job
+- Leave it blank on `moveCard` to satisfy the type — write a real reason or don't move the card
+
+When you provide `intent`, the UI flashes a 10-second banner on the card so the human sees it live. Activity-strip entries render it in italic below the action.
+
 ## Project Status
 
 `renderStatus(projectId)` generates a STATUS.md-equivalent markdown snapshot from board data. It replaces hand-maintained STATUS.md files — if your repo has one, you can delete it after adopting renderStatus.

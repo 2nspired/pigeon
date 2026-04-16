@@ -118,4 +118,9 @@ cat <<'SNIPPET'
   **Basics:** Reference cards by #number (e.g. "working on #7"). Move cards to
   reflect progress. Use `addComment` for decisions and blockers. Call
   `end-session` to save a handoff so the next conversation picks up in context.
+
+  **Intent on writes:** `moveCard` and `deleteCard` require a short `intent`
+  string (≤120 chars) explaining *why* — humans watching the board read it live
+  in the activity strip and card banner. `updateCard` accepts it optionally;
+  pass one when the edit reflects a decision, skip it for mechanical fixes.
 SNIPPET

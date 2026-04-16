@@ -6,16 +6,17 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { getHorizon, hasRole } from "../lib/column-roles.js";
 import { seedTutorialProject } from "../lib/onboarding/seed-runner.js";
-import { db } from "./db.js";
-import { registerResources } from "./resources.js";
-import { executeTool, getRegistrySize, getToolCatalog } from "./tool-registry.js";
-import { toToon } from "./toon.js";
-import { initFts5 } from "./fts.js";
-import { checkStaleness, formatStalenessWarnings } from "./staleness.js";
 import { computeBoardDiff } from "../lib/services/board-diff.js";
 import { getLatestHandoff } from "../lib/services/handoff.js";
 import { getBlockers as getBlockersShared } from "../lib/services/relations.js";
 import { computeWorkNextScore } from "../lib/work-next-score.js";
+import { db } from "./db.js";
+import { initFts5 } from "./fts.js";
+import { wrapEssentialHandler } from "./instrumentation.js";
+import { registerResources } from "./resources.js";
+import { checkStaleness, formatStalenessWarnings } from "./staleness.js";
+import { executeTool, getRegistrySize, getToolCatalog } from "./tool-registry.js";
+import { toToon } from "./toon.js";
 import {
 	AGENT_NAME,
 	checkVersionConflict,
@@ -28,7 +29,6 @@ import {
 	SCHEMA_VERSION,
 	safeExecute,
 } from "./utils.js";
-import { wrapEssentialHandler } from "./instrumentation.js";
 
 function humanizeAge(date: Date): string {
 	const ms = Date.now() - date.getTime();
@@ -151,131 +151,163 @@ server.registerTool(
 			"Board state with filtering. Use 'columns' to fetch specific columns, 'excludeDone' to skip Done/Parking, 'summary' for lightweight view (no descriptions/checklists). TOON by default (~40% fewer tokens).",
 		inputSchema: {
 			boardId: z.string().describe("Board UUID"),
-			format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
-			columns: z.array(z.string()).optional().describe("Only include these columns by name (e.g. ['Backlog', 'Up Next', 'In Progress'])"),
-			excludeDone: z.boolean().default(false).describe("Exclude columns with role 'done' or 'parking' — great for reducing payload"),
-			summary: z.boolean().default(false).describe("Lightweight mode: returns only ref, title, priority, tags, milestone, checklist counts — no descriptions or checklist items."),
+			format: z
+				.enum(["json", "toon"])
+				.default("toon")
+				.describe("Default 'toon'; use 'json' for raw"),
+			columns: z
+				.array(z.string())
+				.optional()
+				.describe(
+					"Only include these columns by name (e.g. ['Backlog', 'Up Next', 'In Progress'])"
+				),
+			excludeDone: z
+				.boolean()
+				.default(false)
+				.describe("Exclude columns with role 'done' or 'parking' — great for reducing payload"),
+			summary: z
+				.boolean()
+				.default(false)
+				.describe(
+					"Lightweight mode: returns only ref, title, priority, tags, milestone, checklist counts — no descriptions or checklist items."
+				),
 		},
 		annotations: { readOnlyHint: true },
 	},
-	wrapEssentialHandler("getBoard", async ({ boardId, format, columns: columnFilter, excludeDone, summary: summaryMode }) => {
-		return safeExecute(async () => {
-			const board = await db.board.findUnique({
-				where: { id: boardId },
-				include: {
-					project: true,
-					columns: {
-						orderBy: { position: "asc" },
-						include: {
-							cards: {
-								orderBy: { position: "asc" },
-								include: {
-									checklists: { orderBy: { position: "asc" } },
-									milestone: { select: { id: true, name: true } },
-									_count: { select: { comments: true } },
+	wrapEssentialHandler(
+		"getBoard",
+		async ({ boardId, format, columns: columnFilter, excludeDone, summary: summaryMode }) => {
+			return safeExecute(async () => {
+				const board = await db.board.findUnique({
+					where: { id: boardId },
+					include: {
+						project: true,
+						columns: {
+							orderBy: { position: "asc" },
+							include: {
+								cards: {
+									orderBy: { position: "asc" },
+									include: {
+										checklists: { orderBy: { position: "asc" } },
+										milestone: { select: { id: true, name: true } },
+										_count: { select: { comments: true } },
+									},
 								},
 							},
 						},
 					},
-				},
-			});
+				});
 
-			if (!board)
-				return err(
-					"Board not found.",
-					"Use getTools({ category: 'discovery' }) → runTool('listProjects') → runTool('listBoards') to find a valid boardId."
-				);
+				if (!board)
+					return err(
+						"Board not found.",
+						"Use getTools({ category: 'discovery' }) → runTool('listProjects') → runTool('listBoards') to find a valid boardId."
+					);
 
-			// Filter columns
-			let filteredColumns = board.columns;
-			if (columnFilter && columnFilter.length > 0) {
-				const lowerFilter = (columnFilter as string[]).map((n) => n.toLowerCase());
-				filteredColumns = filteredColumns.filter((col) => lowerFilter.includes(col.name.toLowerCase()));
-				if (filteredColumns.length === 0) {
-					const available = board.columns.map((c) => c.name).join(", ");
-					return err(`No matching columns found.`, `Available: ${available}`);
+				// Filter columns
+				let filteredColumns = board.columns;
+				if (columnFilter && columnFilter.length > 0) {
+					const lowerFilter = (columnFilter as string[]).map((n) => n.toLowerCase());
+					filteredColumns = filteredColumns.filter((col) =>
+						lowerFilter.includes(col.name.toLowerCase())
+					);
+					if (filteredColumns.length === 0) {
+						const available = board.columns.map((c) => c.name).join(", ");
+						return err(`No matching columns found.`, `Available: ${available}`);
+					}
 				}
-			}
-			if (excludeDone) {
-				filteredColumns = filteredColumns.filter((col) => !hasRole(col, "done") && !hasRole(col, "parking"));
-			}
+				if (excludeDone) {
+					filteredColumns = filteredColumns.filter(
+						(col) => !hasRole(col, "done") && !hasRole(col, "parking")
+					);
+				}
 
-			const totalCardCount = filteredColumns.reduce((sum, col) => sum + col.cards.length, 0);
+				const totalCardCount = filteredColumns.reduce((sum, col) => sum + col.cards.length, 0);
 
-			// Pre-compute milestone progress for summary mode
-			const milestoneProgress = new Map<string, { done: number; total: number }>();
-			if (summaryMode) {
-				for (const col of filteredColumns) {
-					for (const card of col.cards) {
-						if (card.milestone) {
-							const entry = milestoneProgress.get(card.milestone.id) ?? { done: 0, total: 0 };
-							entry.total++;
-							if (hasRole(col, "done")) entry.done++;
-							milestoneProgress.set(card.milestone.id, entry);
+				// Pre-compute milestone progress for summary mode
+				const milestoneProgress = new Map<string, { done: number; total: number }>();
+				if (summaryMode) {
+					for (const col of filteredColumns) {
+						for (const card of col.cards) {
+							if (card.milestone) {
+								const entry = milestoneProgress.get(card.milestone.id) ?? { done: 0, total: 0 };
+								entry.total++;
+								if (hasRole(col, "done")) entry.done++;
+								milestoneProgress.set(card.milestone.id, entry);
+							}
 						}
 					}
 				}
-			}
 
-			const result = {
-				id: board.id,
-				name: board.name,
-				project: { id: board.project.id, name: board.project.name },
-				...(!summaryMode && totalCardCount > 50 && {
-					_hint: `Board has ${totalCardCount} cards. Consider summary: true to reduce payload.`,
-				}),
-				columns: filteredColumns.map((col) => ({
-					id: col.id,
-					name: col.name,
-					description: summaryMode ? undefined : col.description,
-					isParking: col.isParking,
-					cards: col.cards.map((card) => {
-						if (summaryMode) {
-							const msProgress = card.milestone ? milestoneProgress.get(card.milestone.id) : null;
+				const result = {
+					id: board.id,
+					name: board.name,
+					project: { id: board.project.id, name: board.project.name },
+					...(!summaryMode &&
+						totalCardCount > 50 && {
+							_hint: `Board has ${totalCardCount} cards. Consider summary: true to reduce payload.`,
+						}),
+					columns: filteredColumns.map((col) => ({
+						id: col.id,
+						name: col.name,
+						description: summaryMode ? undefined : col.description,
+						isParking: col.isParking,
+						cards: col.cards.map((card) => {
+							if (summaryMode) {
+								const msProgress = card.milestone ? milestoneProgress.get(card.milestone.id) : null;
+								return {
+									number: card.number,
+									ref: `#${card.number}`,
+									title: card.title,
+									priority: card.priority,
+									tags: JSON.parse(card.tags),
+									milestone: card.milestone?.name ?? null,
+									...(msProgress && {
+										milestoneProgress: `${Math.round((msProgress.done / msProgress.total) * 100)}%`,
+									}),
+									checklist: {
+										total: card.checklists.length,
+										done: card.checklists.filter((c) => c.completed).length,
+									},
+									assignee: card.assignee,
+								};
+							}
 							return {
+								id: card.id,
 								number: card.number,
 								ref: `#${card.number}`,
 								title: card.title,
+								description: card.description,
 								priority: card.priority,
 								tags: JSON.parse(card.tags),
-								milestone: card.milestone?.name ?? null,
-								...(msProgress && { milestoneProgress: `${Math.round((msProgress.done / msProgress.total) * 100)}%` }),
-								checklist: { total: card.checklists.length, done: card.checklists.filter((c) => c.completed).length },
 								assignee: card.assignee,
+								createdBy: card.createdBy,
+								version: card.version,
+								lastEditedBy: card.lastEditedBy,
+								milestone: card.milestone
+									? { id: card.milestone.id, name: card.milestone.name }
+									: null,
+								checklist: {
+									total: card.checklists.length,
+									done: card.checklists.filter((c) => c.completed).length,
+									items: card.checklists.map((c) => ({
+										id: c.id,
+										text: c.text,
+										completed: c.completed,
+									})),
+								},
+								commentCount: card._count.comments,
+								...(card.metadata &&
+									card.metadata !== "{}" && { metadata: JSON.parse(card.metadata) }),
 							};
-						}
-						return {
-							id: card.id,
-							number: card.number,
-							ref: `#${card.number}`,
-							title: card.title,
-							description: card.description,
-							priority: card.priority,
-							tags: JSON.parse(card.tags),
-							assignee: card.assignee,
-							createdBy: card.createdBy,
-							version: card.version,
-							lastEditedBy: card.lastEditedBy,
-							milestone: card.milestone ? { id: card.milestone.id, name: card.milestone.name } : null,
-							checklist: {
-								total: card.checklists.length,
-								done: card.checklists.filter((c) => c.completed).length,
-								items: card.checklists.map((c) => ({
-									id: c.id,
-									text: c.text,
-									completed: c.completed,
-								})),
-							},
-							commentCount: card._count.comments,
-							...(card.metadata && card.metadata !== "{}" && { metadata: JSON.parse(card.metadata) }),
-						};
-					}),
-				})),
-			};
+						}),
+					})),
+				};
 
-			return ok(result, format as "json" | "toon");
-		});
-	})
+				return ok(result, format as "json" | "toon");
+			});
+		}
+	)
 );
 
 server.registerTool(
@@ -292,80 +324,96 @@ server.registerTool(
 			tags: z.array(z.string()).default([]).describe("e.g. ['bug', 'feature:auth']"),
 			assignee: z.enum(["HUMAN", "AGENT"]).optional(),
 			milestoneName: z.string().optional().describe("Auto-creates if new"),
-			metadata: z.record(z.string(), z.unknown()).optional().describe("Agent-writable JSON metadata (not rendered in UI)"),
+			metadata: z
+				.record(z.string(), z.unknown())
+				.optional()
+				.describe("Agent-writable JSON metadata (not rendered in UI)"),
 		},
 	},
-	wrapEssentialHandler("createCard", async ({ boardId, columnName, title, description, priority, tags, assignee, milestoneName, metadata }) => {
-		return safeExecute(async () => {
-			const column = await db.column.findFirst({
-				where: { boardId, name: { equals: columnName } },
-			});
-			if (!column) {
-				const columns = await db.column.findMany({ where: { boardId }, select: { name: true } });
-				return err(
-					`Column "${columnName}" not found.`,
-					`Available: ${columns.map((c) => c.name).join(", ")}`
-				);
-			}
+	wrapEssentialHandler(
+		"createCard",
+		async ({
+			boardId,
+			columnName,
+			title,
+			description,
+			priority,
+			tags,
+			assignee,
+			milestoneName,
+			metadata,
+		}) => {
+			return safeExecute(async () => {
+				const column = await db.column.findFirst({
+					where: { boardId, name: { equals: columnName } },
+				});
+				if (!column) {
+					const columns = await db.column.findMany({ where: { boardId }, select: { name: true } });
+					return err(
+						`Column "${columnName}" not found.`,
+						`Available: ${columns.map((c) => c.name).join(", ")}`
+					);
+				}
 
-			const board = await db.board.findUnique({
-				where: { id: boardId },
-				select: { projectId: true },
-			});
-			if (!board) return err("Board not found.");
+				const board = await db.board.findUnique({
+					where: { id: boardId },
+					select: { projectId: true },
+				});
+				if (!board) return err("Board not found.");
 
-			const maxPosition = await db.card.aggregate({
-				where: { columnId: column.id },
-				_max: { position: true },
-			});
-			const project = await db.project.update({
-				where: { id: board.projectId },
-				data: { nextCardNumber: { increment: 1 } },
-			});
-			const cardNumber = project.nextCardNumber - 1;
+				const maxPosition = await db.card.aggregate({
+					where: { columnId: column.id },
+					_max: { position: true },
+				});
+				const project = await db.project.update({
+					where: { id: board.projectId },
+					data: { nextCardNumber: { increment: 1 } },
+				});
+				const cardNumber = project.nextCardNumber - 1;
 
-			let milestoneId: string | undefined;
-			if (milestoneName) {
-				milestoneId = await resolveOrCreateMilestone(board.projectId, milestoneName);
-			}
+				let milestoneId: string | undefined;
+				if (milestoneName) {
+					milestoneId = await resolveOrCreateMilestone(board.projectId, milestoneName);
+				}
 
-			const card = await db.card.create({
-				data: {
-					columnId: column.id,
-					projectId: board.projectId,
+				const card = await db.card.create({
+					data: {
+						columnId: column.id,
+						projectId: board.projectId,
+						number: cardNumber,
+						title,
+						description,
+						priority,
+						tags: JSON.stringify(tags),
+						assignee,
+						milestoneId,
+						metadata: metadata ? JSON.stringify(metadata) : undefined,
+						createdBy: "AGENT",
+						lastEditedBy: AGENT_NAME,
+						position: (maxPosition._max.position ?? -1) + 1,
+					},
+				});
+
+				await db.activity.create({
+					data: {
+						cardId: card.id,
+						action: "created",
+						details: `Card #${cardNumber} "${title}" created in ${columnName}`,
+						actorType: "AGENT",
+						actorName: AGENT_NAME,
+					},
+				});
+
+				return ok({
+					id: card.id,
 					number: cardNumber,
-					title,
-					description,
-					priority,
-					tags: JSON.stringify(tags),
-					assignee,
-					milestoneId,
-					metadata: metadata ? JSON.stringify(metadata) : undefined,
-					createdBy: "AGENT",
-					lastEditedBy: AGENT_NAME,
-					position: (maxPosition._max.position ?? -1) + 1,
-				},
+					ref: `#${cardNumber}`,
+					title: card.title,
+					column: columnName,
+				});
 			});
-
-			await db.activity.create({
-				data: {
-					cardId: card.id,
-					action: "created",
-					details: `Card #${cardNumber} "${title}" created in ${columnName}`,
-					actorType: "AGENT",
-					actorName: AGENT_NAME,
-				},
-			});
-
-			return ok({
-				id: card.id,
-				number: cardNumber,
-				ref: `#${cardNumber}`,
-				title: card.title,
-				column: columnName,
-			});
-		});
-	})
+		}
+	)
 );
 
 server.registerTool(
@@ -375,7 +423,10 @@ server.registerTool(
 		description: "Update card fields. Omitted fields unchanged.",
 		inputSchema: {
 			cardId: z.string().describe("Card UUID or #number"),
-			boardId: z.string().optional().describe("Board UUID — scopes #number resolution to this board's project"),
+			boardId: z
+				.string()
+				.optional()
+				.describe("Board UUID — scopes #number resolution to this board's project"),
 			title: z.string().optional(),
 			description: z.string().optional().describe("Markdown"),
 			priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).optional(),
@@ -386,100 +437,123 @@ server.registerTool(
 				.nullable()
 				.optional()
 				.describe("null to unassign; auto-creates if new"),
-			metadata: z.record(z.string(), z.unknown()).optional().describe("Agent-writable JSON metadata (merged with existing; set key to null to delete)"),
+			metadata: z
+				.record(z.string(), z.unknown())
+				.optional()
+				.describe("Agent-writable JSON metadata (merged with existing; set key to null to delete)"),
 			intent: z
 				.string()
 				.max(120, "intent must be ≤ 120 chars")
 				.optional()
 				.describe("Optional short rationale — when present, surfaces in the activity strip"),
-			version: z.number().int().optional().describe("Expected version for optimistic locking — pass to detect conflicts"),
+			version: z
+				.number()
+				.int()
+				.optional()
+				.describe("Expected version for optimistic locking — pass to detect conflicts"),
 		},
 		annotations: { idempotentHint: true },
 	},
-	wrapEssentialHandler("updateCard", async ({ cardId: cardRef, boardId, title, description, priority, tags, assignee, milestoneName, metadata, intent, version }) => {
-		return safeExecute(async () => {
-			const projectId = boardId ? await getProjectIdForBoard(boardId as string) : undefined;
-			const resolved = await resolveCardRef(cardRef, projectId);
-			if (!resolved.ok) return err(resolved.message);
-			const cardId = resolved.id;
+	wrapEssentialHandler(
+		"updateCard",
+		async ({
+			cardId: cardRef,
+			boardId,
+			title,
+			description,
+			priority,
+			tags,
+			assignee,
+			milestoneName,
+			metadata,
+			intent,
+			version,
+		}) => {
+			return safeExecute(async () => {
+				const projectId = boardId ? await getProjectIdForBoard(boardId as string) : undefined;
+				const resolved = await resolveCardRef(cardRef, projectId);
+				if (!resolved.ok) return err(resolved.message);
+				const cardId = resolved.id;
 
-			const existing = await db.card.findUnique({ where: { id: cardId } });
-			if (!existing) return err("Card not found.");
+				const existing = await db.card.findUnique({ where: { id: cardId } });
+				if (!existing) return err("Card not found.");
 
-			const conflict = checkVersionConflict(version, existing.version, "card");
-			if (conflict) return conflict;
+				const conflict = checkVersionConflict(version, existing.version, "card");
+				if (conflict) return conflict;
 
-			let milestoneId: string | null | undefined;
-			if (milestoneName !== undefined) {
-				milestoneId = milestoneName
-					? await resolveOrCreateMilestone(existing.projectId, milestoneName)
-					: null;
-			}
-
-			// Merge metadata: combine with existing, remove keys set to null
-			let mergedMetadata: string | undefined;
-			if (metadata) {
-				const existingMeta = JSON.parse(existing.metadata || "{}");
-				const merged = { ...existingMeta, ...(metadata as Record<string, unknown>) };
-				for (const [key, value] of Object.entries(merged)) {
-					if (value === null) delete merged[key];
+				let milestoneId: string | null | undefined;
+				if (milestoneName !== undefined) {
+					milestoneId = milestoneName
+						? await resolveOrCreateMilestone(existing.projectId, milestoneName)
+						: null;
 				}
-				mergedMetadata = JSON.stringify(merged);
-			}
 
-			const card = await db.card.update({
-				where: { id: cardId },
-				data: {
-					title,
-					description,
-					priority,
-					tags: tags ? JSON.stringify(tags) : undefined,
-					assignee,
-					milestoneId: milestoneId !== undefined ? milestoneId : undefined,
-					metadata: mergedMetadata,
-					version: { increment: 1 },
-					lastEditedBy: AGENT_NAME,
-				},
-				include: { milestone: { select: { name: true } } },
-			});
+				// Merge metadata: combine with existing, remove keys set to null
+				let mergedMetadata: string | undefined;
+				if (metadata) {
+					const existingMeta = JSON.parse(existing.metadata || "{}");
+					const merged = { ...existingMeta, ...(metadata as Record<string, unknown>) };
+					for (const [key, value] of Object.entries(merged)) {
+						if (value === null) delete merged[key];
+					}
+					mergedMetadata = JSON.stringify(merged);
+				}
 
-			if (intent) {
-				await db.activity.create({
+				const card = await db.card.update({
+					where: { id: cardId },
 					data: {
-						cardId,
-						action: "updated",
-						intent: intent as string,
-						actorType: "AGENT",
-						actorName: AGENT_NAME,
+						title,
+						description,
+						priority,
+						tags: tags ? JSON.stringify(tags) : undefined,
+						assignee,
+						milestoneId: milestoneId !== undefined ? milestoneId : undefined,
+						metadata: mergedMetadata,
+						version: { increment: 1 },
+						lastEditedBy: AGENT_NAME,
 					},
+					include: { milestone: { select: { name: true } } },
 				});
-			}
 
-			return ok({
-				id: card.id,
-				ref: `#${card.number}`,
-				title: card.title,
-				updated: true,
-				version: card.version,
-				lastEditedBy: card.lastEditedBy,
-				fields: {
-					priority: card.priority,
-					tags: JSON.parse(card.tags),
-					assignee: card.assignee,
-					milestone: card.milestone?.name ?? null,
-					metadata: JSON.parse(card.metadata),
-				},
-				...(resolved.warning && { _warning: resolved.warning }),
+				if (intent) {
+					await db.activity.create({
+						data: {
+							cardId,
+							action: "updated",
+							intent: intent as string,
+							actorType: "AGENT",
+							actorName: AGENT_NAME,
+						},
+					});
+				}
+
+				return ok({
+					id: card.id,
+					ref: `#${card.number}`,
+					title: card.title,
+					updated: true,
+					version: card.version,
+					lastEditedBy: card.lastEditedBy,
+					fields: {
+						priority: card.priority,
+						tags: JSON.parse(card.tags),
+						assignee: card.assignee,
+						milestone: card.milestone?.name ?? null,
+						metadata: JSON.parse(card.metadata),
+					},
+					...(resolved.warning && { _warning: resolved.warning }),
+				});
 			});
-		});
-	})
+		}
+	)
 );
 
 server.registerTool(
 	"moveCard",
 	{
 		title: "Move Card",
-		description: "Move a card to a column. Position 0 = top; default = bottom. Agents must pass a short `intent` describing why.",
+		description:
+			"Move a card to a column. Position 0 = top; default = bottom. Agents must pass a short `intent` describing why.",
 		inputSchema: {
 			cardId: z.string().describe("Card UUID or #number"),
 			columnName: z.string().describe("Target column (e.g. 'In Progress', 'Done')"),
@@ -488,85 +562,91 @@ server.registerTool(
 				.min(1, "intent is required — explain why you're moving this card")
 				.max(120, "intent must be ≤ 120 chars")
 				.describe(
-					"Short rationale for the move (e.g. 'promoting to In Progress: starting auth implementation')",
+					"Short rationale for the move (e.g. 'promoting to In Progress: starting auth implementation')"
 				),
-			boardId: z.string().optional().describe("Board UUID — scopes #number resolution to this board's project"),
+			boardId: z
+				.string()
+				.optional()
+				.describe("Board UUID — scopes #number resolution to this board's project"),
 			position: z.number().int().min(0).optional().describe("0 = top, omit = bottom"),
 		},
 	},
-	wrapEssentialHandler("moveCard", async ({ cardId: cardRef, columnName, intent, boardId, position }) => {
-		return safeExecute(async () => {
-			const projectId = boardId ? await getProjectIdForBoard(boardId as string) : undefined;
-			const resolved = await resolveCardRef(cardRef, projectId);
-			if (!resolved.ok) return err(resolved.message);
-			const cardId = resolved.id;
+	wrapEssentialHandler(
+		"moveCard",
+		async ({ cardId: cardRef, columnName, intent, boardId, position }) => {
+			return safeExecute(async () => {
+				const projectId = boardId ? await getProjectIdForBoard(boardId as string) : undefined;
+				const resolved = await resolveCardRef(cardRef, projectId);
+				if (!resolved.ok) return err(resolved.message);
+				const cardId = resolved.id;
 
-			const card = await db.card.findUnique({
-				where: { id: cardId },
-				include: { column: { include: { board: true } } },
-			});
-			if (!card) return err("Card not found.");
-
-			const targetColumn = await db.column.findFirst({
-				where: { boardId: card.column.boardId, name: { equals: columnName } },
-			});
-			if (!targetColumn) {
-				const cols = await db.column.findMany({
-					where: { boardId: card.column.boardId },
-					select: { name: true },
+				const card = await db.card.findUnique({
+					where: { id: cardId },
+					include: { column: { include: { board: true } } },
 				});
-				return err(
-					`Column "${columnName}" not found.`,
-					`Available: ${cols.map((c) => c.name).join(", ")}`
+				if (!card) return err("Card not found.");
+
+				const targetColumn = await db.column.findFirst({
+					where: { boardId: card.column.boardId, name: { equals: columnName } },
+				});
+				if (!targetColumn) {
+					const cols = await db.column.findMany({
+						where: { boardId: card.column.boardId },
+						select: { name: true },
+					});
+					return err(
+						`Column "${columnName}" not found.`,
+						`Available: ${cols.map((c) => c.name).join(", ")}`
+					);
+				}
+
+				const cardsInTarget = await db.card.findMany({
+					where: { columnId: targetColumn.id },
+					orderBy: { position: "asc" },
+				});
+
+				const filtered = cardsInTarget.filter((c) => c.id !== cardId);
+				const insertAt =
+					position !== undefined ? Math.min(position, filtered.length) : filtered.length;
+				filtered.splice(insertAt, 0, card);
+
+				const updates = filtered.map((c, i) =>
+					db.card.update({
+						where: { id: c.id },
+						data: {
+							columnId: targetColumn.id,
+							position: i,
+							...(c.id === cardId && { lastEditedBy: AGENT_NAME }),
+						},
+					})
 				);
-			}
+				await db.$transaction(updates);
 
-			const cardsInTarget = await db.card.findMany({
-				where: { columnId: targetColumn.id },
-				orderBy: { position: "asc" },
-			});
+				const fromCol = card.column.name;
+				if (fromCol !== columnName) {
+					await db.activity.create({
+						data: {
+							cardId,
+							action: "moved",
+							details: `Moved from "${fromCol}" to "${columnName}"`,
+							intent: intent as string,
+							actorType: "AGENT",
+							actorName: AGENT_NAME,
+						},
+					});
+				}
 
-			const filtered = cardsInTarget.filter((c) => c.id !== cardId);
-			const insertAt =
-				position !== undefined ? Math.min(position, filtered.length) : filtered.length;
-			filtered.splice(insertAt, 0, card);
-
-			const updates = filtered.map((c, i) =>
-				db.card.update({
-					where: { id: c.id },
-					data: {
-						columnId: targetColumn.id,
-						position: i,
-						...(c.id === cardId && { lastEditedBy: AGENT_NAME }),
-					},
-				})
-			);
-			await db.$transaction(updates);
-
-			const fromCol = card.column.name;
-			if (fromCol !== columnName) {
-				await db.activity.create({
-					data: {
-						cardId,
-						action: "moved",
-						details: `Moved from "${fromCol}" to "${columnName}"`,
-						intent: intent as string,
-						actorType: "AGENT",
-						actorName: AGENT_NAME,
-					},
+				return ok({
+					id: cardId,
+					ref: `#${card.number}`,
+					title: card.title,
+					from: fromCol,
+					to: columnName,
+					...(resolved.warning && { _warning: resolved.warning }),
 				});
-			}
-
-			return ok({
-				id: cardId,
-				ref: `#${card.number}`,
-				title: card.title,
-				from: fromCol,
-				to: columnName,
-				...(resolved.warning && { _warning: resolved.warning }),
 			});
-		});
-	})
+		}
+	)
 );
 
 server.registerTool(
@@ -576,7 +656,10 @@ server.registerTool(
 		description: "Add a comment to a card.",
 		inputSchema: {
 			cardId: z.string().describe("Card UUID or #number"),
-			boardId: z.string().optional().describe("Board UUID — scopes #number resolution to this board's project"),
+			boardId: z
+				.string()
+				.optional()
+				.describe("Board UUID — scopes #number resolution to this board's project"),
 			content: z.string().describe("Comment text (markdown)"),
 		},
 	},
@@ -594,7 +677,12 @@ server.registerTool(
 				data: { cardId, content, authorType: "AGENT", authorName: AGENT_NAME },
 			});
 
-			return ok({ id: comment.id, ref: `#${card.number}`, created: true, ...(resolved.warning && { _warning: resolved.warning }) });
+			return ok({
+				id: comment.id,
+				ref: `#${card.number}`,
+				created: true,
+				...(resolved.warning && { _warning: resolved.warning }),
+			});
 		});
 	})
 );
@@ -628,7 +716,9 @@ server.registerTool(
 				number: card.number,
 				ref: `#${card.number}`,
 				title: card.title,
-				description: card.description ? card.description.slice(0, 200) + (card.description.length > 200 ? "…" : "") : "",
+				description: card.description
+					? card.description.slice(0, 200) + (card.description.length > 200 ? "…" : "")
+					: "",
 				priority: card.priority,
 				tags: JSON.parse(card.tags) as string[],
 				column: card.column.name,
@@ -654,7 +744,10 @@ server.registerTool(
 			"Roadmap view: cards grouped by milestone and horizon. Includes blockedBy refs, assignee breakdown, and progress per milestone. Horizons: In Progress/Review=Now, Up Next=Next, Backlog=Later, Done=Done.",
 		inputSchema: {
 			boardId: z.string().describe("Board UUID"),
-			format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
+			format: z
+				.enum(["json", "toon"])
+				.default("toon")
+				.describe("Default 'toon'; use 'json' for raw"),
 		},
 		annotations: { readOnlyHint: true },
 	},
@@ -674,7 +767,10 @@ server.registerTool(
 								include: {
 									milestone: { select: { id: true, name: true } },
 									checklists: { select: { completed: true } },
-									relationsTo: { where: { type: "blocks" }, select: { fromCard: { select: { number: true } } } },
+									relationsTo: {
+										where: { type: "blocks" },
+										select: { fromCard: { select: { number: true } } },
+									},
 								},
 							},
 						},
@@ -699,7 +795,7 @@ server.registerTool(
 					checklistDone: card.checklists.filter((c) => c.completed).length,
 					checklistTotal: card.checklists.length,
 					blockedBy: (card.relationsTo as { fromCard: { number: number } }[]).map(
-						(r) => `#${r.fromCard.number}`,
+						(r) => `#${r.fromCard.number}`
 					),
 				}))
 			);
@@ -722,7 +818,9 @@ server.registerTool(
 				})),
 				groups: Array.from(milestoneMap.entries()).map(([name, cards]) => {
 					const done = cards.filter((c) => c.horizon === "done").length;
-					const blocked = cards.filter((c) => c.blockedBy.length > 0 && c.horizon !== "done").length;
+					const blocked = cards.filter(
+						(c) => c.blockedBy.length > 0 && c.horizon !== "done"
+					).length;
 					return {
 						milestone: name,
 						total: cards.length,
@@ -794,34 +892,46 @@ server.registerTool(
 		const options: Array<{ action: string; description: string }> = [];
 		if (offerSampleProject) {
 			options.push(
-				{ action: "runTool({ tool: 'seedTutorial' })", description: "Create tutorial project with 17 example cards" },
+				{
+					action: "runTool({ tool: 'seedTutorial' })",
+					description: "Create tutorial project with 17 example cards",
+				},
 				{ action: "onboarding prompt (quickstart)", description: "Set up your own project" },
-				{ action: "onboarding prompt (tutorial)", description: "Step-by-step guided walkthrough" },
+				{ action: "onboarding prompt (tutorial)", description: "Step-by-step guided walkthrough" }
 			);
 		}
 		if (state === "returning") {
-			options.push(
-				{ action: "Use MCP prompt 'resume-session' with { boardId } — or call briefMe({ boardId }) for a lightweight session primer", description: "Continue where you left off" },
-			);
+			options.push({
+				action:
+					"Use MCP prompt 'resume-session' with { boardId } — or call briefMe({ boardId }) for a lightweight session primer",
+				description: "Continue where you left off",
+			});
 		} else if (state === "existing") {
-			options.push(
-				{ action: "Use MCP prompt 'resume-session' with { boardId } — or call briefMe({ boardId }) for a lightweight session primer", description: "Start working on a board" },
-			);
+			options.push({
+				action:
+					"Use MCP prompt 'resume-session' with { boardId } — or call briefMe({ boardId }) for a lightweight session primer",
+				description: "Start working on a board",
+			});
 		}
 
 		// Check staleness across all projects
-		const allWarnings = (
-			await Promise.all(projects.map((p) => checkStaleness(p.id)))
-		).flat();
+		const allWarnings = (await Promise.all(projects.map((p) => checkStaleness(p.id)))).flat();
 		const stalenessWarnings = allWarnings.length > 0 ? formatStalenessWarnings(allWarnings) : null;
 
 		return ok({
 			state,
-			stats: { projects: projectCount, boards: boardCount, cards: cardCount, handoffs: handoffCount },
+			stats: {
+				projects: projectCount,
+				boards: boardCount,
+				cards: cardCount,
+				handoffs: handoffCount,
+			},
 			toolArchitecture: {
-				essential: "11 tools are always visible: getBoard, createCard, updateCard, moveCard, addComment, searchCards, getRoadmap, briefMe, checkOnboarding, getTools, runTool.",
+				essential:
+					"11 tools are always visible: getBoard, createCard, updateCard, moveCard, addComment, searchCards, getRoadmap, briefMe, checkOnboarding, getTools, runTool.",
 				extended: `${getRegistrySize()} additional tools are behind getTools/runTool. Call getTools() to see categories, getTools({ category }) to list tools, runTool({ tool, params }) to execute.`,
-				prompts: "8 MCP prompts are available (resume-session, end-session, onboarding, deep-dive, sprint-review, plan-work, setup-project, holistic-review). Prompts are invoked via the MCP prompts/get protocol, not via runTool.",
+				prompts:
+					"8 MCP prompts are available (resume-session, end-session, onboarding, deep-dive, sprint-review, plan-work, setup-project, holistic-review). Prompts are invoked via the MCP prompts/get protocol, not via runTool.",
 			},
 			offerSampleProject,
 			projects: projects.map((p) => ({
@@ -849,8 +959,14 @@ server.registerTool(
 		description:
 			"One-shot session primer: last handoff + diff since it, top 3 work-next candidates, blockers, open decisions, staleness, one-line pulse. Call this first at session start instead of getBoard — ~300-500 tokens vs. full board. With no args, auto-detects the project from the current git repo (after scripts/connect.sh). Pass boardId to override. TOON by default.",
 		inputSchema: {
-			boardId: z.string().optional().describe("Board UUID (optional — auto-detected from cwd when omitted)"),
-			format: z.enum(["json", "toon"]).default("toon").describe("Default 'toon'; use 'json' for raw"),
+			boardId: z
+				.string()
+				.optional()
+				.describe("Board UUID (optional — auto-detected from cwd when omitted)"),
+			format: z
+				.enum(["json", "toon"])
+				.default("toon")
+				.describe("Default 'toon'; use 'json' for raw"),
 		},
 		annotations: { readOnlyHint: true },
 	},
@@ -893,16 +1009,27 @@ server.registerTool(
 
 			if (!board) return err("Board not found.", "Use checkOnboarding to discover boards.");
 
-			const [lastHandoff, openDecisions, stalenessWarnings, blockerEntries] = await Promise.all([
-				getLatestHandoff(db, boardId),
-				db.decision.findMany({
-					where: { projectId: board.project.id, status: "proposed" },
-					orderBy: { createdAt: "desc" },
-					select: { id: true, title: true, card: { select: { number: true } } },
-				}),
-				checkStaleness(board.project.id),
-				getBlockersShared(db, boardId),
-			]);
+			const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+			const [lastHandoff, openDecisions, stalenessWarnings, blockerEntries, recentAgentActivity] =
+				await Promise.all([
+					getLatestHandoff(db, boardId),
+					db.decision.findMany({
+						where: { projectId: board.project.id, status: "proposed" },
+						orderBy: { createdAt: "desc" },
+						select: { id: true, title: true, card: { select: { number: true } } },
+					}),
+					checkStaleness(board.project.id),
+					getBlockersShared(db, boardId),
+					db.activity.findMany({
+						where: {
+							actorType: "AGENT",
+							actorName: AGENT_NAME,
+							createdAt: { gte: twentyFourHoursAgo },
+							card: { column: { boardId } },
+						},
+						select: { id: true, intent: true },
+					}),
+				]);
 
 			const allCards = board.columns.flatMap((col) =>
 				col.cards.map((card) => ({ card, column: col }))
@@ -944,12 +1071,12 @@ server.registerTool(
 
 			const handoff = lastHandoff
 				? {
-					agentName: lastHandoff.agentName,
-					createdAt: lastHandoff.createdAt,
-					summary: lastHandoff.summary,
-					nextSteps: JSON.parse(lastHandoff.nextSteps) as string[],
-					blockers: JSON.parse(lastHandoff.blockers) as string[],
-				}
+						agentName: lastHandoff.agentName,
+						createdAt: lastHandoff.createdAt,
+						summary: lastHandoff.summary,
+						nextSteps: JSON.parse(lastHandoff.nextSteps) as string[],
+						blockers: JSON.parse(lastHandoff.blockers) as string[],
+					}
 				: null;
 
 			const blockers = blockerEntries.map((b) => ({
@@ -964,19 +1091,30 @@ server.registerTool(
 				card: d.card ? `#${d.card.number}` : null,
 			}));
 
-			return ok({
-				pulse,
-				...(autoResolved ? { resolvedFromCwd: { ...autoResolved, boardId } } : {}),
-				handoff,
-				diff,
-				topWork,
-				blockers,
-				openDecisions: decisions,
-				stale: formatStalenessWarnings(stalenessWarnings),
-				_hint: lastHandoff
-					? "Continue via handoff.nextSteps or pick from topWork. Use runTool('getCardContext', { cardId }) for deep work."
-					: "No prior handoff — pick from topWork. Call end-session before wrapping to save context.",
-			}, format as "json" | "toon");
+			const writesWithIntent = recentAgentActivity.filter((a) => a.intent !== null).length;
+			const totalAgentWrites = recentAgentActivity.length;
+			const intentReminder =
+				totalAgentWrites >= 3 && writesWithIntent === 0
+					? `No recent intent observed on ${totalAgentWrites} writes in the last 24h — pass a short \`intent\` on moveCard/updateCard so the human sees *why* live. See AGENTS.md § Intent on Writes.`
+					: null;
+
+			return ok(
+				{
+					pulse,
+					...(autoResolved ? { resolvedFromCwd: { ...autoResolved, boardId } } : {}),
+					handoff,
+					diff,
+					topWork,
+					blockers,
+					openDecisions: decisions,
+					stale: formatStalenessWarnings(stalenessWarnings),
+					...(intentReminder ? { intentReminder } : {}),
+					_hint: lastHandoff
+						? "Continue via handoff.nextSteps or pick from topWork. Use runTool('getCardContext', { cardId }) for deep work."
+						: "No prior handoff — pick from topWork. Call end-session before wrapping to save context.",
+				},
+				format as "json" | "toon"
+			);
 		});
 	})
 );
@@ -1015,7 +1153,9 @@ server.registerTool(
 			params: z
 				.record(z.string(), z.unknown())
 				.default({})
-				.describe("Tool parameters — use getTools({ tool: 'toolName' }) to see required params and their types"),
+				.describe(
+					"Tool parameters — use getTools({ tool: 'toolName' }) to see required params and their types"
+				),
 		},
 	},
 	async ({ tool, params }) => {
