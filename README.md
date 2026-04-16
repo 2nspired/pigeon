@@ -236,7 +236,7 @@ The tracker uses an **Essential + Catalog** pattern: 9 essential tools are alway
 | `cards` | 5 | `bulkCreateCards`, `bulkMoveCards`, `bulkUpdateCards`, `createCardFromTemplate`, `deleteCard` |
 | `checklist` | 3 | `addChecklistItem`, `bulkAddChecklistItems`, `toggleChecklistItem` |
 | `comments` | 1 | `listComments` |
-| `context` | 6 | `getCardContext`, `getMilestoneContext`, `getTagContext`, `listFacts`, `queryKnowledge`, `saveFact` |
+| `context` | 8 | `getCardContext`, `getMilestoneContext`, `getTagContext`, `listClaims`, `listFacts`, `queryKnowledge`, `saveClaim`, `saveFact` |
 | `decisions` | 3 | `getDecisions`, `recordDecision`, `updateDecision` |
 | `discovery` | 13 | `auditBoard`, `getBoard`, `getCard`, `getRoadmap`, `getStats`, `getToolUsageStats`, `getWorkNextSuggestion`, `listBoards`, `listProjects`, `queryCards`, `renderStatus`, `searchCards`, `updateProjectPrompt` |
 | `git` | 3 | `getCommitSummary`, `getGitLog`, `syncGitActivity` |

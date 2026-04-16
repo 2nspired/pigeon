@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 
 // Populate the registry by importing every tool module. Order matches server.ts.
 import "../src/mcp/extended-tools.js";
+import "../src/mcp/tools/claim-tools.js";
 import "../src/mcp/tools/context-tools.js";
 import "../src/mcp/tools/decision-tools.js";
 import "../src/mcp/tools/discovery-tools.js";
