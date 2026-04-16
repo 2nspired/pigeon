@@ -145,6 +145,11 @@ export function ActivityStrip({ boardId, selectedCardId, onCardClick }: Activity
 								<span className="line-clamp-1 text-2xs text-muted-foreground">
 									{activity.details ?? activity.action}
 								</span>
+								{activity.intent && (
+									<span className="line-clamp-1 text-2xs italic text-violet-600 dark:text-violet-400">
+										“{activity.intent}”
+									</span>
+								)}
 								<span className="truncate text-2xs text-muted-foreground/70">
 									#{activity.card.number} {activity.card.title}
 								</span>

@@ -1,11 +1,12 @@
 "use client";
 
-import { Ban, Bot, CheckSquare, Clock, MessageSquare, Sparkles, User } from "lucide-react";
+import { Ban, Bot, CheckSquare, Clock, MessageSquare, Sparkles, User, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import type { Priority } from "@/lib/schemas/card-schemas";
 import { PRIORITY_BORDER, STATUS_TEXT } from "@/lib/priority-colors";
+import type { Priority } from "@/lib/schemas/card-schemas";
 import { formatScore, scoreColor } from "@/lib/work-next-score";
+import { useIntentBanner } from "./intent-banner-context";
 
 type BoardCardProps = {
 	card: {
@@ -49,7 +50,7 @@ function formatRelativeTime(ms: number): string {
 
 function getAuthorshipPill(
 	lastEditedBy: string | null,
-	updatedAt: Date,
+	updatedAt: Date
 ): { isHuman: boolean; name: string; relative: string; tooltip: string } | null {
 	if (!lastEditedBy) return null;
 	const updated = new Date(updatedAt);
@@ -74,13 +75,14 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 	const ageDays = getAgeDays(card.updatedAt);
 	const aging = getAgeIndicator(ageDays);
 	const authorship = getAuthorshipPill(card.lastEditedBy, card.updatedAt);
+	const { banner, dismiss } = useIntentBanner(card.id);
 
 	return (
 		<div
 			role="button"
 			tabIndex={0}
 			data-card-id={card.id}
-			className={`cursor-pointer rounded-lg border bg-card p-3 shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-ring/20 ${priority !== "NONE" ? `border-l-[3px] ${PRIORITY_BORDER[priority]}` : ""}`}
+			className={`relative cursor-pointer rounded-lg border bg-card p-3 shadow-sm transition-all hover:shadow-md hover:ring-1 hover:ring-ring/20 ${priority !== "NONE" ? `border-l-[3px] ${PRIORITY_BORDER[priority]}` : ""}`}
 			onClick={onClick}
 			onKeyDown={(e) => {
 				if (e.key === "Enter" || e.key === " ") {
@@ -89,6 +91,28 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 				}
 			}}
 		>
+			{banner && (
+				<button
+					type="button"
+					className="mb-2 flex w-full items-start gap-1.5 rounded-md border border-violet-500/30 bg-violet-500/10 px-2 py-1 text-left text-2xs text-violet-700 dark:text-violet-300"
+					onClick={(e) => {
+						e.stopPropagation();
+						dismiss();
+					}}
+					title="Click to dismiss"
+				>
+					{banner.actorType === "AGENT" ? (
+						<Bot className="mt-0.5 h-3 w-3 shrink-0" />
+					) : (
+						<User className="mt-0.5 h-3 w-3 shrink-0" />
+					)}
+					<span className="line-clamp-2 flex-1 italic">
+						{banner.actorName ?? (banner.actorType === "AGENT" ? "Agent" : "Human")}: “
+						{banner.intent}”
+					</span>
+					<X className="mt-0.5 h-3 w-3 shrink-0 opacity-60" />
+				</button>
+			)}
 			<div className="space-y-2">
 				<div className="flex items-start justify-between gap-2">
 					<span className="text-sm font-normal leading-tight">{card.title}</span>
@@ -128,7 +152,10 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 				{tags.length > 0 && (
 					<div className="flex flex-wrap gap-1">
 						{tags.slice(0, 3).map((tag) => (
-							<span key={tag} className="rounded-full border border-border px-1.5 text-[0.625rem] leading-4 text-muted-foreground">
+							<span
+								key={tag}
+								className="rounded-full border border-border px-1.5 text-[0.625rem] leading-4 text-muted-foreground"
+							>
 								{tag}
 							</span>
 						))}
@@ -140,22 +167,34 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 					</div>
 				)}
 
-				{(checklistTotal > 0 || card._count.comments > 0 || card.assignee || aging || blockedByCount > 0) && (
+				{(checklistTotal > 0 ||
+					card._count.comments > 0 ||
+					card.assignee ||
+					aging ||
+					blockedByCount > 0) && (
 					<div className="flex items-center gap-3 text-xs text-muted-foreground">
 						{blockedByCount > 0 && (
-							<span className={`flex items-center gap-0.5 ${STATUS_TEXT.blocked}`} title={`Blocked by ${blockedByCount} card${blockedByCount > 1 ? "s" : ""}`}>
+							<span
+								className={`flex items-center gap-0.5 ${STATUS_TEXT.blocked}`}
+								title={`Blocked by ${blockedByCount} card${blockedByCount > 1 ? "s" : ""}`}
+							>
 								<Ban className="h-3 w-3" />
 								{blockedByCount}
 							</span>
 						)}
 						{aging && (
-							<span className={`flex items-center gap-0.5 ${aging.className}`} title={`Last updated ${ageDays} days ago`}>
+							<span
+								className={`flex items-center gap-0.5 ${aging.className}`}
+								title={`Last updated ${ageDays} days ago`}
+							>
 								<Clock className="h-3 w-3" />
 								{aging.label}
 							</span>
 						)}
 						{checklistTotal > 0 && (
-							<span className={`flex items-center gap-1 ${checklistDone === checklistTotal ? STATUS_TEXT.done : ""}`}>
+							<span
+								className={`flex items-center gap-1 ${checklistDone === checklistTotal ? STATUS_TEXT.done : ""}`}
+							>
 								<CheckSquare className="h-3 w-3" />
 								{checklistDone}/{checklistTotal}
 							</span>

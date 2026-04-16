@@ -17,19 +17,20 @@ import { Lightbulb } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { EmptyState } from "@/components/ui/empty-state";
+import type { BoardView as BoardViewType } from "@/lib/board-views";
 import { hasRole } from "@/lib/column-roles";
 import { computeWorkNextScore } from "@/lib/work-next-score";
 import type { RouterOutputs } from "@/trpc/react";
 import { api } from "@/trpc/react";
+import { ActivityStrip } from "./activity-strip";
 import { BoardCard } from "./board-card";
 import { BoardColumn } from "./board-column";
 import { BoardPulse } from "./board-pulse";
-import { type BoardFilters, type SortMode, BoardToolbar } from "./board-toolbar";
-import type { BoardView as BoardViewType } from "@/lib/board-views";
+import { type BoardFilters, BoardToolbar, type SortMode } from "./board-toolbar";
 import { CardCreateInline } from "./card-create-inline";
 import { CardDetailSheet } from "./card-detail-sheet";
-import { ActivityStrip } from "./activity-strip";
 import { AddColumnButton } from "./column-header";
+import { IntentBannerProvider } from "./intent-banner-context";
 import { SortableCard } from "./sortable-card";
 
 type FullBoard = RouterOutputs["board"]["getFull"];
@@ -113,9 +114,7 @@ export function BoardView({
 				// Find target column and insert card
 				const targetCol = columns.find((c) => c.id === data.columnId);
 				if (targetCol && previous) {
-					const card = previous.columns
-						.flatMap((c) => c.cards)
-						.find((c) => c.id === id);
+					const card = previous.columns.flatMap((c) => c.cards).find((c) => c.id === id);
 					if (card) {
 						const updatedCard = { ...card, columnId: data.columnId, updatedAt: new Date() };
 						targetCol.cards.splice(data.position, 0, updatedCard);
@@ -278,79 +277,81 @@ export function BoardView({
 	};
 
 	return (
-		<DndContext
-			sensors={sensors}
-			collisionDetection={kanbanCollision}
-			onDragStart={handleDragStart}
-			onDragEnd={handleDragEnd}
-		>
-			<div className="relative flex flex-1 flex-col overflow-hidden">
-				<BoardToolbar
-					boardId={board.id}
-					filters={filters}
-					onFiltersChange={onFiltersChange}
-					sortMode={sortMode}
-					onSortModeChange={onSortModeChange}
-					hiddenRoles={hiddenRoles}
-					onHiddenRolesChange={onHiddenRolesChange}
-					activeViewId={activeViewId}
-					onViewChange={onViewChange}
-					availableTags={availableTags}
-					totalCards={totalCards}
-					visibleCards={visibleCards}
-				/>
+		<IntentBannerProvider boardId={board.id}>
+			<DndContext
+				sensors={sensors}
+				collisionDetection={kanbanCollision}
+				onDragStart={handleDragStart}
+				onDragEnd={handleDragEnd}
+			>
+				<div className="relative flex flex-1 flex-col overflow-hidden">
+					<BoardToolbar
+						boardId={board.id}
+						filters={filters}
+						onFiltersChange={onFiltersChange}
+						sortMode={sortMode}
+						onSortModeChange={onSortModeChange}
+						hiddenRoles={hiddenRoles}
+						onHiddenRolesChange={onHiddenRolesChange}
+						activeViewId={activeViewId}
+						onViewChange={onViewChange}
+						availableTags={availableTags}
+						totalCards={totalCards}
+						visibleCards={visibleCards}
+					/>
 
-				<BoardPulse boardId={board.id} />
+					<BoardPulse boardId={board.id} />
 
-				{/* Columns */}
-				<div className="flex flex-1 gap-4 overflow-x-auto p-4">
-					{sortedColumns.map((column) => (
-						<BoardColumn
-							key={column.id}
-							column={column}
-							boardId={board.id}
-							sortMode={sortMode}
-							onCardClick={setSelectedCardId}
-						/>
-					))}
-					<div className="flex shrink-0 items-start pt-1">
-						<AddColumnButton boardId={board.id} />
-					</div>
-				</div>
-
-				{totalCards === 0 && (
-					<div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-						<div className="pointer-events-auto rounded-lg border bg-card/95 px-8 py-6 shadow-lg backdrop-blur-sm">
-							<EmptyState
-								icon={Lightbulb}
-								title="This board is empty"
-								description="Click the + at the bottom of any column to create your first card, or use an AI agent with the MCP tools to populate the board."
-								className="py-0"
+					{/* Columns */}
+					<div className="flex flex-1 gap-4 overflow-x-auto p-4">
+						{sortedColumns.map((column) => (
+							<BoardColumn
+								key={column.id}
+								column={column}
+								boardId={board.id}
+								sortMode={sortMode}
+								onCardClick={setSelectedCardId}
 							/>
+						))}
+						<div className="flex shrink-0 items-start pt-1">
+							<AddColumnButton boardId={board.id} />
 						</div>
 					</div>
-				)}
 
-				<CardDetailSheet
-					cardId={selectedCardId}
-					boardId={board.id}
-					onClose={() => setSelectedCardId(null)}
-				/>
+					{totalCards === 0 && (
+						<div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+							<div className="pointer-events-auto rounded-lg border bg-card/95 px-8 py-6 shadow-lg backdrop-blur-sm">
+								<EmptyState
+									icon={Lightbulb}
+									title="This board is empty"
+									description="Click the + at the bottom of any column to create your first card, or use an AI agent with the MCP tools to populate the board."
+									className="py-0"
+								/>
+							</div>
+						</div>
+					)}
 
-				<ActivityStrip
-					boardId={board.id}
-					selectedCardId={selectedCardId}
-					onCardClick={setSelectedCardId}
-				/>
-			</div>
+					<CardDetailSheet
+						cardId={selectedCardId}
+						boardId={board.id}
+						onClose={() => setSelectedCardId(null)}
+					/>
 
-			<DragOverlay>
-				{activeCard && (
-					<div className="w-72 rotate-2 opacity-90">
-						<BoardCard card={activeCard} onClick={() => {}} />
-					</div>
-				)}
-			</DragOverlay>
-		</DndContext>
+					<ActivityStrip
+						boardId={board.id}
+						selectedCardId={selectedCardId}
+						onCardClick={setSelectedCardId}
+					/>
+				</div>
+
+				<DragOverlay>
+					{activeCard && (
+						<div className="w-72 rotate-2 opacity-90">
+							<BoardCard card={activeCard} onClick={() => {}} />
+						</div>
+					)}
+				</DragOverlay>
+			</DndContext>
+		</IntentBannerProvider>
 	);
 }
