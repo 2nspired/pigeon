@@ -148,7 +148,6 @@ registerExtendedTool("getBoard", {
 							tags: JSON.parse(card.tags),
 							assignee: card.assignee,
 							createdBy: card.createdBy,
-							version: card.version,
 							lastEditedBy: card.lastEditedBy,
 							milestone: card.milestone
 								? { id: card.milestone.id, name: card.milestone.name }

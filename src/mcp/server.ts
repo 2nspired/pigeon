@@ -25,7 +25,6 @@ import { executeTool, getRegistrySize, getToolCatalog } from "./tool-registry.js
 import { toToon } from "./toon.js";
 import {
 	AGENT_NAME,
-	checkVersionConflict,
 	detectFeatures,
 	err,
 	getProjectIdForBoard,
@@ -284,11 +283,6 @@ server.registerTool(
 				.max(120, "intent must be ≤ 120 chars")
 				.optional()
 				.describe("Optional short rationale — when present, surfaces in the activity strip"),
-			version: z
-				.number()
-				.int()
-				.optional()
-				.describe("Expected version for optimistic locking — pass to detect conflicts"),
 		},
 		annotations: { idempotentHint: true },
 	},
@@ -305,7 +299,6 @@ server.registerTool(
 			milestoneName,
 			metadata,
 			intent,
-			version,
 		}) => {
 			return safeExecute(async () => {
 				const projectId = boardId ? await getProjectIdForBoard(boardId as string) : undefined;
@@ -315,9 +308,6 @@ server.registerTool(
 
 				const existing = await db.card.findUnique({ where: { id: cardId } });
 				if (!existing) return err("Card not found.");
-
-				const conflict = checkVersionConflict(version, existing.version, "card");
-				if (conflict) return conflict;
 
 				let milestoneId: string | null | undefined;
 				if (milestoneName !== undefined) {
@@ -347,7 +337,6 @@ server.registerTool(
 						assignee,
 						milestoneId: milestoneId !== undefined ? milestoneId : undefined,
 						metadata: mergedMetadata,
-						version: { increment: 1 },
 						lastEditedBy: AGENT_NAME,
 					},
 					include: { milestone: { select: { name: true } } },
@@ -370,7 +359,6 @@ server.registerTool(
 					ref: `#${card.number}`,
 					title: card.title,
 					updated: true,
-					version: card.version,
 					lastEditedBy: card.lastEditedBy,
 					fields: {
 						priority: card.priority,

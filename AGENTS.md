@@ -155,15 +155,11 @@ Record latency, memory usage, build times, bundle sizes, etc.
 
 The card detail sheet in the UI shows a collapsible "Commit Summary" section for any card with linked commits.
 
-## Conflict Resolution
+## Last-Write-Wins
 
-When multiple agents (or an agent and a human) edit the same entity concurrently, optimistic locking prevents silent overwrites.
+This is a single-user local tool — concurrent edits on the same entity are rare, and the UI re-reads on every change. Writes use last-write-wins: no version field, no conflict errors.
 
-**How it works:** Card, Decision, PersistentContextEntry, and CodeFact have a `version` field. When updating, pass the `version` you read — if another writer incremented it since your read, the update fails with a clear conflict error. Re-read the entity to get the current state and retry.
-
-**`lastEditedBy`** — Card tracks which agent last modified it. This is stamped automatically via `AGENT_NAME` on creates, updates, and moves.
-
-**When to pass `version`:** Always pass it when updating entities that might be edited by another agent or the human in parallel. If you're the only writer, it's optional but still good practice.
+**`lastEditedBy`** — Card tracks which agent last modified it. This is stamped automatically via `AGENT_NAME` on creates, updates, and moves. Check it before editing if you suspect the human or another agent just touched the card.
 
 ## Decision Supersession
 
