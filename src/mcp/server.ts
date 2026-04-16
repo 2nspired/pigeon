@@ -13,7 +13,12 @@ import { computeWorkNextScore } from "../lib/work-next-score.js";
 import { db } from "./db.js";
 import { initFts5 } from "./fts.js";
 import { wrapEssentialHandler } from "./instrumentation.js";
-import { ESSENTIAL_TOOLS, MCP_SERVER_VERSION } from "./manifest.js";
+import {
+	ESSENTIAL_TOOLS,
+	getCommitSha,
+	getCurrentHeadSha,
+	MCP_SERVER_VERSION,
+} from "./manifest.js";
 import { registerResources } from "./resources.js";
 import { checkStaleness, formatStalenessWarnings } from "./staleness.js";
 import { executeTool, getRegistrySize, getToolCatalog } from "./tool-registry.js";
@@ -774,9 +779,16 @@ server.registerTool(
 					? `No recent intent observed on ${totalAgentWrites} writes in the last 24h — pass a short \`intent\` on moveCard/updateCard so the human sees *why* live. See AGENTS.md § Intent on Writes.`
 					: null;
 
+			const [bootSha, headSha] = await Promise.all([getCommitSha(), getCurrentHeadSha()]);
+			const versionMismatch =
+				bootSha && headSha && bootSha !== headSha
+					? `Server is running commit ${bootSha.slice(0, 7)} but repo HEAD is ${headSha.slice(0, 7)} — restart the MCP server to pick up newer code.`
+					: null;
+
 			return ok(
 				{
 					_serverVersion: MCP_SERVER_VERSION,
+					...(versionMismatch ? { _versionMismatch: versionMismatch } : {}),
 					pulse,
 					...(autoResolved ? { resolvedFromCwd: { ...autoResolved, boardId } } : {}),
 					handoff,
@@ -1591,8 +1603,10 @@ async function main() {
 
 	const transport = new StdioServerTransport();
 	await server.connect(transport);
+	const sha = await getCommitSha();
+	const shaShort = sha ? sha.slice(0, 7) : "unknown";
 	console.error(
-		`Project Tracker MCP v${MCP_SERVER_VERSION} — ${ESSENTIAL_TOOLS.length} essential tools + ${getRegistrySize()} extended tools via getTools/runTool`
+		`Project Tracker MCP v${MCP_SERVER_VERSION} — ${ESSENTIAL_TOOLS.length} essentials + ${getRegistrySize()} extended, schema v${SCHEMA_VERSION}, commit ${shaShort}`
 	);
 }
 

@@ -35,18 +35,36 @@ export const ESSENTIAL_TOOLS: Array<{ name: string; description: string }> = [
 
 let cachedCommitSha: string | null | undefined;
 
-export async function getCommitSha(): Promise<string | null> {
-	if (cachedCommitSha !== undefined) return cachedCommitSha;
+async function readHeadSha(): Promise<string | null> {
 	try {
 		const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], {
 			cwd: process.cwd(),
 			timeout: 2000,
 		});
-		cachedCommitSha = stdout.trim();
+		return stdout.trim();
 	} catch {
-		cachedCommitSha = null;
+		return null;
 	}
+}
+
+/**
+ * Commit SHA of the running server build — captured at first call and
+ * frozen for the process lifetime. Use this for boot logs and any
+ * "what build is talking to me" checks.
+ */
+export async function getCommitSha(): Promise<string | null> {
+	if (cachedCommitSha !== undefined) return cachedCommitSha;
+	cachedCommitSha = await readHeadSha();
 	return cachedCommitSha;
+}
+
+/**
+ * Current HEAD SHA, read fresh every call. Comparing against getCommitSha()
+ * detects drift between a long-lived server process and a repo that has
+ * moved forward (user pulled or committed while the server was running).
+ */
+export async function getCurrentHeadSha(): Promise<string | null> {
+	return readHeadSha();
 }
 
 export type ServerManifest = {
