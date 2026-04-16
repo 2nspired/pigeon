@@ -387,11 +387,16 @@ server.registerTool(
 				.optional()
 				.describe("null to unassign; auto-creates if new"),
 			metadata: z.record(z.string(), z.unknown()).optional().describe("Agent-writable JSON metadata (merged with existing; set key to null to delete)"),
+			intent: z
+				.string()
+				.max(120, "intent must be ≤ 120 chars")
+				.optional()
+				.describe("Optional short rationale — when present, surfaces in the activity strip"),
 			version: z.number().int().optional().describe("Expected version for optimistic locking — pass to detect conflicts"),
 		},
 		annotations: { idempotentHint: true },
 	},
-	wrapEssentialHandler("updateCard", async ({ cardId: cardRef, boardId, title, description, priority, tags, assignee, milestoneName, metadata, version }) => {
+	wrapEssentialHandler("updateCard", async ({ cardId: cardRef, boardId, title, description, priority, tags, assignee, milestoneName, metadata, intent, version }) => {
 		return safeExecute(async () => {
 			const projectId = boardId ? await getProjectIdForBoard(boardId as string) : undefined;
 			const resolved = await resolveCardRef(cardRef, projectId);
@@ -438,6 +443,18 @@ server.registerTool(
 				include: { milestone: { select: { name: true } } },
 			});
 
+			if (intent) {
+				await db.activity.create({
+					data: {
+						cardId,
+						action: "updated",
+						intent: intent as string,
+						actorType: "AGENT",
+						actorName: AGENT_NAME,
+					},
+				});
+			}
+
 			return ok({
 				id: card.id,
 				ref: `#${card.number}`,
@@ -462,15 +479,22 @@ server.registerTool(
 	"moveCard",
 	{
 		title: "Move Card",
-		description: "Move a card to a column. Position 0 = top; default = bottom.",
+		description: "Move a card to a column. Position 0 = top; default = bottom. Agents must pass a short `intent` describing why.",
 		inputSchema: {
 			cardId: z.string().describe("Card UUID or #number"),
 			columnName: z.string().describe("Target column (e.g. 'In Progress', 'Done')"),
+			intent: z
+				.string()
+				.min(1, "intent is required — explain why you're moving this card")
+				.max(120, "intent must be ≤ 120 chars")
+				.describe(
+					"Short rationale for the move (e.g. 'promoting to In Progress: starting auth implementation')",
+				),
 			boardId: z.string().optional().describe("Board UUID — scopes #number resolution to this board's project"),
 			position: z.number().int().min(0).optional().describe("0 = top, omit = bottom"),
 		},
 	},
-	wrapEssentialHandler("moveCard", async ({ cardId: cardRef, columnName, boardId, position }) => {
+	wrapEssentialHandler("moveCard", async ({ cardId: cardRef, columnName, intent, boardId, position }) => {
 		return safeExecute(async () => {
 			const projectId = boardId ? await getProjectIdForBoard(boardId as string) : undefined;
 			const resolved = await resolveCardRef(cardRef, projectId);
@@ -526,6 +550,7 @@ server.registerTool(
 						cardId,
 						action: "moved",
 						details: `Moved from "${fromCol}" to "${columnName}"`,
+						intent: intent as string,
 						actorType: "AGENT",
 						actorName: AGENT_NAME,
 					},

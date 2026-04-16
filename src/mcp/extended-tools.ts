@@ -220,9 +220,14 @@ registerExtendedTool("getStats", {
 
 registerExtendedTool("deleteCard", {
 	category: "cards",
-	description: "Permanently delete a card and all its data. Cannot be undone.",
+	description: "Permanently delete a card and all its data. Cannot be undone. Agents must pass `intent` explaining why.",
 	parameters: z.object({
 		cardId: z.string().describe("Card UUID or #number"),
+		intent: z
+			.string()
+			.min(1, "intent is required — explain why you're deleting this card")
+			.max(120, "intent must be ≤ 120 chars")
+			.describe("Short rationale for the deletion (e.g. 'duplicate of #41')"),
 		boardId: z.string().optional().describe("Board UUID — scopes #number resolution to this board's project"),
 	}),
 	annotations: { destructiveHint: true },

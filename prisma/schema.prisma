@@ -184,6 +184,10 @@ model Activity {
   cardId    String   @map("card_id")
   action    String
   details   String?
+  // Short agent-written rationale for the action (e.g. "promoting to In Progress:
+  // starting auth implementation"). Required on AGENT moves and deletes so that
+  // every destructive or state-changing write surfaces its reasoning.
+  intent    String?
   actorType String   @default("HUMAN") @map("actor_type")
   actorName String?  @map("actor_name")
   createdAt DateTime @default(now()) @map("created_at")
