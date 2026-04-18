@@ -1,9 +1,39 @@
 import type { Note } from "prisma/generated/client";
-import type { CreateNoteInput, ListNoteFilter, UpdateNoteInput } from "@/lib/schemas/note-schemas";
+import type { z } from "zod";
+import {
+	type CreateNoteInput,
+	type ListNoteFilter,
+	type NoteKind,
+	noteMetadataByKind,
+	type UpdateNoteInput,
+} from "@/lib/schemas/note-schemas";
 import { db } from "@/server/db";
 import type { ServiceResult } from "@/server/services/types/service-result";
 
 type NoteWithProject = Note & { project: { id: string; name: string } | null };
+
+function zodMessage(error: z.ZodError): string {
+	const first = error.issues[0];
+	if (!first) return "validation failed";
+	const path = first.path.length ? first.path.join(".") : "(root)";
+	return `${path}: ${first.message}`;
+}
+
+// RFC amendment #2: Zod validation of metadata at the service boundary.
+function validateMetadata(kind: NoteKind, metadataInput: unknown): ServiceResult<string> {
+	const schema = noteMetadataByKind[kind];
+	const result = schema.safeParse(metadataInput ?? {});
+	if (!result.success) {
+		return {
+			success: false,
+			error: {
+				code: "VALIDATION_FAILED",
+				message: `metadata.${zodMessage(result.error)}`,
+			},
+		};
+	}
+	return { success: true, data: JSON.stringify(result.data) };
+}
 
 async function list(
 	projectId?: string | null,
@@ -32,12 +62,16 @@ async function list(
 
 async function create(data: CreateNoteInput): Promise<ServiceResult<NoteWithProject>> {
 	try {
-		const { tags, metadata, ...rest } = data;
+		const { tags, metadata, kind, ...rest } = data;
+		const validatedMeta = validateMetadata(kind as NoteKind, metadata);
+		if (!validatedMeta.success) return validatedMeta;
+
 		const note = await db.note.create({
 			data: {
 				...rest,
+				kind,
 				tags: JSON.stringify(tags ?? []),
-				metadata: JSON.stringify(metadata ?? {}),
+				metadata: validatedMeta.data,
 			},
 			include: { project: { select: { id: true, name: true } } },
 		});
@@ -57,13 +91,24 @@ async function update(
 		if (!existing) {
 			return { success: false, error: { code: "NOT_FOUND", message: "Note not found." } };
 		}
-		const { tags, metadata, ...rest } = data;
+		const { tags, metadata, kind, ...rest } = data;
+
+		let metadataJson: string | undefined;
+		if (metadata !== undefined || kind !== undefined) {
+			const effectiveKind = (kind ?? existing.kind) as NoteKind;
+			const metaInput = metadata ?? (JSON.parse(existing.metadata || "{}") as unknown);
+			const validatedMeta = validateMetadata(effectiveKind, metaInput);
+			if (!validatedMeta.success) return validatedMeta;
+			metadataJson = validatedMeta.data;
+		}
+
 		const note = await db.note.update({
 			where: { id: noteId },
 			data: {
 				...rest,
+				...(kind !== undefined && { kind }),
 				...(tags !== undefined && { tags: JSON.stringify(tags) }),
-				...(metadata !== undefined && { metadata: JSON.stringify(metadata) }),
+				...(metadataJson !== undefined && { metadata: metadataJson }),
 			},
 			include: { project: { select: { id: true, name: true } } },
 		});
@@ -88,9 +133,49 @@ async function deleteNote(noteId: string): Promise<ServiceResult<Note>> {
 	}
 }
 
+async function listHandoffs(
+	boardId: string,
+	limit = 10
+): Promise<ServiceResult<NoteWithProject[]>> {
+	try {
+		const notes = await db.note.findMany({
+			where: { kind: "handoff", boardId },
+			orderBy: { createdAt: "desc" },
+			take: limit,
+			include: { project: { select: { id: true, name: true } } },
+		});
+		return { success: true, data: notes };
+	} catch (error) {
+		console.error("[NOTE_SERVICE] listHandoffs error:", error);
+		return {
+			success: false,
+			error: { code: "LIST_FAILED", message: "Failed to fetch handoffs." },
+		};
+	}
+}
+
+async function getLatestHandoff(boardId: string): Promise<ServiceResult<NoteWithProject | null>> {
+	try {
+		const note = await db.note.findFirst({
+			where: { kind: "handoff", boardId },
+			orderBy: { createdAt: "desc" },
+			include: { project: { select: { id: true, name: true } } },
+		});
+		return { success: true, data: note };
+	} catch (error) {
+		console.error("[NOTE_SERVICE] getLatestHandoff error:", error);
+		return {
+			success: false,
+			error: { code: "FETCH_FAILED", message: "Failed to fetch latest handoff." },
+		};
+	}
+}
+
 export const noteService = {
 	list,
 	create,
 	update,
 	delete: deleteNote,
+	listHandoffs,
+	getLatestHandoff,
 };
