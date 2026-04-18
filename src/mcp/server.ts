@@ -522,7 +522,7 @@ server.registerTool(
 			db.project.count(),
 			db.board.count(),
 			db.card.count(),
-			db.sessionHandoff.count(),
+			db.note.count({ where: { kind: "handoff" } }),
 			db.project.findMany({
 				orderBy: { createdAt: "desc" },
 				include: {
@@ -957,7 +957,7 @@ server.registerTool(
 					handoff: {
 						id: handoff.id,
 						boardId: handoff.boardId,
-						agentName: handoff.agentName,
+						agentName: handoff.author,
 						createdAt: handoff.createdAt,
 					},
 					board: { id: boardId, project: projectName, name: boardName },

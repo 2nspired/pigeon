@@ -1,132 +1,34 @@
 import type { Claim } from "prisma/generated/client";
 import { z } from "zod";
+import { createClaimService, type NormalizedClaim } from "@/server/services/claim-service";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { err, ok, safeExecute } from "../utils.js";
 
-// ─── Unified Fact Tools ──────────────────────────────────────────
+// ─── Unified Fact Tools — legacy aliases ─────────────────────────
 //
-// Post-cutover (commit 5 of docs/IMPL-NOTE-CLAIM-CUTOVER.md) listFacts
-// reads from Claim and maps back to the legacy shape so existing
-// agents keep working. saveFact still writes legacy tables until
-// commit 6 aliases the write path to saveClaim.
+// Post-cutover (commits 5–6 of docs/IMPL-NOTE-CLAIM-CUTOVER.md)
+// saveFact and listFacts are thin wrappers over claim-service /
+// Claim reads. Existing agents keep working; prefer saveClaim /
+// listClaims for new code. The aliases are slated for removal in the
+// next minor MCP version.
+
+const claimService = createClaimService(db);
 
 const FACT_TYPES = ["context", "code", "measurement"] as const;
 const VALID_SURFACES = ["ambient", "indexed", "surfaced"] as const;
 
-// ─── Legacy-shape normalizers (writer path) ───────────────────────
-
-type ContextRow = {
-	id: string;
-	projectId: string;
-	claim: string;
-	rationale: string;
-	application: string;
-	details: string;
-	author: string;
-	audience: string;
-	citedFiles: string;
-	recordedAtSha: string | null;
-	surface: string;
-	createdAt: Date;
-	updatedAt: Date;
-};
-
-type CodeRow = {
-	id: string;
-	projectId: string;
-	path: string;
-	symbol: string | null;
-	fact: string;
-	author: string;
-	recordedAtSha: string | null;
-	needsRecheck: boolean;
-	lastVerifiedAt: Date | null;
-	createdAt: Date;
-	updatedAt: Date;
-};
-
-type MeasurementRow = {
-	id: string;
-	projectId: string;
-	value: number;
-	unit: string;
-	description: string;
-	env: string;
-	path: string | null;
-	symbol: string | null;
-	author: string;
-	recordedAt: Date;
-	ttl: number | null;
-	needsRecheck: boolean;
-	createdAt: Date;
-	updatedAt: Date;
-};
-
-function normalizeContext(e: ContextRow) {
-	return {
-		id: e.id,
-		type: "context" as const,
-		projectId: e.projectId,
-		content: e.claim,
-		author: e.author,
-		rationale: e.rationale,
-		application: e.application,
-		details: JSON.parse(e.details) as string[],
-		audience: e.audience,
-		citedFiles: JSON.parse(e.citedFiles) as string[],
-		recordedAtSha: e.recordedAtSha,
-		surface: e.surface,
-		createdAt: e.createdAt,
-		updatedAt: e.updatedAt,
-	};
-}
-
-function normalizeCode(f: CodeRow) {
-	return {
-		id: f.id,
-		type: "code" as const,
-		projectId: f.projectId,
-		content: f.fact,
-		path: f.path,
-		symbol: f.symbol,
-		author: f.author,
-		recordedAtSha: f.recordedAtSha,
-		needsRecheck: f.needsRecheck,
-		lastVerifiedAt: f.lastVerifiedAt,
-		createdAt: f.createdAt,
-		updatedAt: f.updatedAt,
-	};
-}
-
-function normalizeMeasurement(m: MeasurementRow) {
-	return {
-		id: m.id,
-		type: "measurement" as const,
-		projectId: m.projectId,
-		content: m.description,
-		value: m.value,
-		unit: m.unit,
-		env: JSON.parse(m.env) as Record<string, unknown>,
-		path: m.path,
-		symbol: m.symbol,
-		author: m.author,
-		recordedAt: m.recordedAt,
-		ttl: m.ttl,
-		needsRecheck: m.needsRecheck,
-		createdAt: m.createdAt,
-		updatedAt: m.updatedAt,
-	};
-}
-
 // ─── Claim → legacy fact shape (reader path) ──────────────────────
 
-function claimToFact(c: Claim) {
-	const evidence = JSON.parse(c.evidence) as {
-		files?: string[];
-		symbols?: string[];
-	};
-	const payload = JSON.parse(c.payload) as Record<string, unknown>;
+function claimToFact(c: Claim | NormalizedClaim) {
+	const evidence =
+		(typeof c.evidence === "string"
+			? (JSON.parse(c.evidence) as { files?: string[]; symbols?: string[] })
+			: (c.evidence as { files?: string[]; symbols?: string[] })) ?? {};
+	const payload =
+		typeof c.payload === "string"
+			? (JSON.parse(c.payload) as Record<string, unknown>)
+			: ((c.payload as Record<string, unknown>) ?? {});
 	const files = evidence.files ?? [];
 	const symbols = evidence.symbols ?? [];
 
@@ -242,7 +144,7 @@ Types:
 	handler: (params) =>
 		safeExecute(async () => {
 			const { type, projectId, content, author, path, symbol, recordedAtSha, factId } = params as {
-				type: string;
+				type: "context" | "code" | "measurement";
 				projectId: string;
 				content: string;
 				author: string;
@@ -255,99 +157,96 @@ Types:
 			const project = await db.project.findUnique({ where: { id: projectId } });
 			if (!project) return err("Project not found.", "Use listProjects to find a valid projectId.");
 
-			// ── Context ───────────────────────────────
-			if (type === "context") {
-				const data = {
-					projectId,
-					claim: content,
-					rationale: (params.rationale as string) ?? "",
-					application: (params.application as string) ?? "",
-					details: JSON.stringify((params.details as string[]) ?? []),
-					author: author ?? "AGENT",
-					audience: (params.audience as string) ?? "all",
-					citedFiles: JSON.stringify((params.citedFiles as string[]) ?? []),
-					recordedAtSha: recordedAtSha ?? null,
-					surface: (params.surface as string) ?? "indexed",
-				};
-
-				if (factId) {
-					const existing = await db.persistentContextEntry.findUnique({ where: { id: factId } });
-					if (!existing) return err("Context entry not found.", "Check the factId and try again.");
-					const updated = await db.persistentContextEntry.update({
-						where: { id: factId },
-						data,
-					});
-					return ok(normalizeContext(updated));
+			// Translate legacy saveFact args to a claim-service input per kind.
+			const buildClaimInput = ():
+				| {
+						statement: string;
+						body?: string;
+						evidence: Record<string, unknown>;
+						payload: Record<string, unknown>;
+						expiresAt?: Date | null;
+				  }
+				| { error: string; hint?: string } => {
+				if (type === "context") {
+					const details = (params.details as string[] | undefined) ?? [];
+					const rationale = (params.rationale as string | undefined) ?? "";
+					const body = details.length
+						? [rationale, ...details.map((d) => `- ${d}`)].filter(Boolean).join("\n")
+						: rationale;
+					const payload: Record<string, unknown> = {};
+					if (params.application !== undefined) payload.application = params.application;
+					if (params.audience !== undefined) payload.audience = params.audience;
+					else payload.audience = "all";
+					if (params.surface !== undefined) payload.surface = params.surface;
+					else payload.surface = "indexed";
+					const evidence: Record<string, unknown> = {};
+					const citedFiles = (params.citedFiles as string[] | undefined) ?? [];
+					if (citedFiles.length) evidence.files = citedFiles;
+					return { statement: content, body, evidence, payload };
 				}
-
-				const created = await db.persistentContextEntry.create({ data });
-				return ok(normalizeContext(created));
-			}
-
-			// ── Code ──────────────────────────────────
-			if (type === "code") {
-				if (!path)
-					return err(
-						"path is required for code facts.",
-						"Provide the file path relative to the repo root."
-					);
-
-				const data = {
-					projectId,
-					path,
-					fact: content,
-					symbol: symbol ?? null,
-					author: author ?? "AGENT",
-					recordedAtSha: recordedAtSha ?? null,
-					needsRecheck: false,
-				};
-
-				if (factId) {
-					const existing = await db.codeFact.findUnique({ where: { id: factId } });
-					if (!existing) return err("Code fact not found.", "Check the factId and try again.");
-					const updated = await db.codeFact.update({
-						where: { id: factId },
-						data: { ...data, lastVerifiedAt: new Date() },
-					});
-					return ok(normalizeCode(updated));
+				if (type === "code") {
+					if (!path)
+						return {
+							error: "path is required for code facts.",
+							hint: "Provide the file path relative to the repo root.",
+						};
+					const evidence: Record<string, unknown> = { files: [path] };
+					if (symbol) evidence.symbols = [symbol];
+					return { statement: content, evidence, payload: {} };
 				}
-
-				const created = await db.codeFact.create({ data });
-				return ok(normalizeCode(created));
-			}
-
-			// ── Measurement ───────────────────────────
-			if (type === "measurement") {
+				// measurement
 				const value = params.value as number | undefined;
 				const unit = params.unit as string | undefined;
-				if (value == null || !unit) return err("value and unit are required for measurements.");
-
-				const data = {
-					projectId,
+				if (value == null || !unit)
+					return { error: "value and unit are required for measurements." };
+				const evidence: Record<string, unknown> = {};
+				if (path) evidence.files = [path];
+				if (symbol) evidence.symbols = [symbol];
+				const payload: Record<string, unknown> = {
 					value,
 					unit,
-					description: content,
-					env: JSON.stringify((params.env as Record<string, string>) ?? {}),
-					path: path ?? null,
-					symbol: symbol ?? null,
-					author: author ?? "AGENT",
-					recordedAt: params.recordedAt ? new Date(params.recordedAt as string) : new Date(),
-					ttl: (params.ttl as number) ?? null,
-					needsRecheck: false,
+					env: (params.env as Record<string, string> | undefined) ?? {},
 				};
+				const ttl = params.ttl as number | undefined;
+				const expiresAt = ttl ? new Date(Date.now() + ttl * 86400_000) : null;
+				return { statement: content, evidence, payload, expiresAt };
+			};
 
-				if (factId) {
-					const existing = await db.measurementFact.findUnique({ where: { id: factId } });
-					if (!existing) return err("Measurement not found.", "Check the factId and try again.");
-					const updated = await db.measurementFact.update({ where: { id: factId }, data });
-					return ok(normalizeMeasurement(updated));
-				}
+			const built = buildClaimInput();
+			if ("error" in built) return err(built.error, built.hint);
 
-				const created = await db.measurementFact.create({ data });
-				return ok(normalizeMeasurement(created));
+			if (factId) {
+				const existing = await db.claim.findUnique({ where: { id: factId } });
+				if (!existing || existing.kind !== type)
+					return err(`${type} fact not found.`, "Check the factId and try again.");
+				const result = await claimService.update(factId, {
+					kind: type,
+					statement: built.statement,
+					body: built.body,
+					evidence: built.evidence,
+					payload: built.payload,
+					author: author ?? "AGENT",
+					recordedAtSha: recordedAtSha ?? null,
+					verifiedAt: new Date(),
+					...(built.expiresAt !== undefined && { expiresAt: built.expiresAt }),
+				});
+				if (!result.success) return err(result.error.message);
+				return ok(claimToFact(result.data));
 			}
 
-			return err(`Invalid type "${type}".`, "Use: context, code, or measurement.");
+			const result = await claimService.create({
+				projectId,
+				kind: type,
+				statement: built.statement,
+				body: built.body,
+				evidence: built.evidence,
+				payload: built.payload,
+				author: author ?? "AGENT",
+				recordedAtSha: recordedAtSha ?? null,
+				...(built.expiresAt !== undefined && { expiresAt: built.expiresAt }),
+			});
+			if (!result.success) return err(result.error.message);
+			return ok(claimToFact(result.data));
 		}),
 });
 

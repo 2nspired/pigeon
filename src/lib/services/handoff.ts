@@ -1,14 +1,12 @@
 /**
  * Shared handoff (session continuity) logic.
  *
- * Post-cutover (commit 5 of docs/IMPL-NOTE-CLAIM-CUTOVER.md) readers
- * pull from Note(kind="handoff"). `saveHandoff` still writes the
- * legacy SessionHandoff table until commit 6 aliases the write path;
- * callers must not assume write-then-read round-trips through the new
- * table until that lands.
+ * Post-cutover (commits 5–6 of docs/IMPL-NOTE-CLAIM-CUTOVER.md)
+ * handoffs round-trip through Note(kind="handoff"). The legacy
+ * SessionHandoff table is left in place until commit 8 drops it.
  */
 
-import type { Note, PrismaClient, SessionHandoff } from "prisma/generated/client";
+import type { Note, PrismaClient } from "prisma/generated/client";
 
 export type ParsedHandoff = {
 	id: string;
@@ -57,16 +55,26 @@ export async function saveHandoff(
 		blockers: string[];
 		summary: string;
 	}
-): Promise<SessionHandoff> {
-	return db.sessionHandoff.create({
+): Promise<Note> {
+	const board = await db.board.findUnique({
+		where: { id: input.boardId },
+		select: { projectId: true },
+	});
+	return db.note.create({
 		data: {
+			kind: "handoff",
+			title: `Handoff by ${input.agentName}`,
+			content: input.summary,
+			author: input.agentName,
 			boardId: input.boardId,
-			agentName: input.agentName,
-			workingOn: JSON.stringify(input.workingOn),
-			findings: JSON.stringify(input.findings),
-			nextSteps: JSON.stringify(input.nextSteps),
-			blockers: JSON.stringify(input.blockers),
-			summary: input.summary,
+			projectId: board?.projectId ?? null,
+			tags: "[]",
+			metadata: JSON.stringify({
+				workingOn: input.workingOn,
+				findings: input.findings,
+				nextSteps: input.nextSteps,
+				blockers: input.blockers,
+			}),
 		},
 	});
 }
