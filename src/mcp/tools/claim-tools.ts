@@ -1,60 +1,19 @@
 import { z } from "zod";
+import { CLAIM_KINDS, CLAIM_STATUSES, claimEvidenceSchema } from "@/lib/schemas/claim-schemas";
+import { createClaimService } from "@/server/services/claim-service";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { AGENT_NAME, err, errWithToolHint, ok, resolveCardRef, safeExecute } from "../utils.js";
 
-// ─── RFC: Note + Claim primitives — Step 1 (parallel write surface) ─
+// ─── RFC Note+Claim — commit 3: service-backed writes ────────────
 //
-// These tools write to the new `claim` table but NO reader consults it
-// yet. saveFact / recordDecision / listFacts / getDecisions all keep
-// their current behavior. Dual-write lands in step 3, read cutover in
-// step 4. Until then, saveClaim is opt-in for agents who want to start
-// using the new shape.
+// saveClaim / listClaims now delegate to claim-service, which runs
+// per-kind Zod validation on evidence + payload at the service
+// boundary (RFC amendment #2). No reader switch yet — the old
+// fact/decision/handoff tools keep their current behavior until
+// commit 5. Legacy tool aliasing lands in commit 6.
 
-const CLAIM_KINDS = ["context", "code", "measurement", "decision"] as const;
-const CLAIM_STATUSES = ["active", "superseded", "retired"] as const;
-
-type ClaimRow = {
-	id: string;
-	projectId: string;
-	kind: string;
-	statement: string;
-	body: string;
-	evidence: string;
-	payload: string;
-	author: string;
-	cardId: string | null;
-	status: string;
-	supersedesId: string | null;
-	supersededById: string | null;
-	recordedAtSha: string | null;
-	verifiedAt: Date | null;
-	expiresAt: Date | null;
-	createdAt: Date;
-	updatedAt: Date;
-};
-
-function normalizeClaim(row: ClaimRow) {
-	return {
-		id: row.id,
-		projectId: row.projectId,
-		kind: row.kind,
-		statement: row.statement,
-		body: row.body,
-		evidence: JSON.parse(row.evidence) as Record<string, unknown>,
-		payload: JSON.parse(row.payload) as Record<string, unknown>,
-		author: row.author,
-		cardId: row.cardId,
-		status: row.status,
-		supersedesId: row.supersedesId,
-		supersededById: row.supersededById,
-		recordedAtSha: row.recordedAtSha,
-		verifiedAt: row.verifiedAt,
-		expiresAt: row.expiresAt,
-		createdAt: row.createdAt,
-		updatedAt: row.updatedAt,
-	};
-}
+const claimService = createClaimService(db);
 
 // ─── saveClaim ────────────────────────────────────────────────────
 
@@ -74,15 +33,7 @@ Kinds:
 		kind: z.enum(CLAIM_KINDS).describe("Claim kind"),
 		statement: z.string().min(1).describe("One-sentence assertion (shown in lists)"),
 		body: z.string().default("").describe("Markdown elaboration"),
-		evidence: z
-			.object({
-				files: z.array(z.string()).optional(),
-				symbols: z.array(z.string()).optional(),
-				urls: z.array(z.string()).optional(),
-				cardIds: z.array(z.string()).optional(),
-			})
-			.default({})
-			.describe("Citations — files, symbols, urls, cardIds"),
+		evidence: claimEvidenceSchema.default({}).describe("Citations — files, symbols, urls, cardIds"),
 		payload: z
 			.record(z.string(), z.unknown())
 			.default({})
@@ -139,7 +90,6 @@ Kinds:
 			const project = await db.project.findUnique({ where: { id: projectId } });
 			if (!project) return errWithToolHint("Project not found.", "listProjects", {});
 
-			// Resolve #N card refs to UUIDs within the project.
 			let resolvedCardId: string | null = null;
 			if (cardRef) {
 				const resolved = await resolveCardRef(cardRef, projectId);
@@ -147,68 +97,33 @@ Kinds:
 				resolvedCardId = resolved.id;
 			}
 
-			// Per-kind minimum validation — only reject obvious misuse.
-			if (kind === "code") {
-				const files = (evidence.files as string[] | undefined) ?? [];
-				const symbols = (evidence.symbols as string[] | undefined) ?? [];
-				if (files.length === 0 && symbols.length === 0) {
-					return err(
-						"code claims need at least one evidence.files[] or evidence.symbols[].",
-						"Pass the file path(s) or symbol name(s) the claim is about."
-					);
-				}
-			}
-			if (kind === "measurement") {
-				const value = payload.value;
-				const unit = payload.unit;
-				if (typeof value !== "number" || typeof unit !== "string" || unit.length === 0) {
-					return err(
-						"measurement claims need payload.value (number) and payload.unit (string).",
-						"Example: payload: { value: 42, unit: 'ms', env: {...} }"
-					);
-				}
-			}
-
-			const data = {
-				projectId,
+			const shared = {
 				kind,
 				statement,
-				body: body ?? "",
-				evidence: JSON.stringify(evidence ?? {}),
-				payload: JSON.stringify(payload ?? {}),
-				author: author ?? AGENT_NAME,
+				body,
+				evidence,
+				payload,
+				author,
 				cardId: resolvedCardId,
 				status,
 				recordedAtSha: recordedAtSha ?? null,
-				verifiedAt: verifiedAt ? new Date(verifiedAt) : new Date(),
+				verifiedAt: verifiedAt ? new Date(verifiedAt) : undefined,
 				expiresAt: expiresAt ? new Date(expiresAt) : null,
 			};
 
-			// Update path
 			if (claimId) {
-				const existing = await db.claim.findUnique({ where: { id: claimId } });
-				if (!existing) return err("Claim not found.", "Check the claimId.");
-				const updated = await db.claim.update({ where: { id: claimId }, data });
-				return ok(normalizeClaim(updated));
+				const result = await claimService.update(claimId, shared);
+				if (!result.success) return err(result.error.message);
+				return ok(result.data);
 			}
 
-			// Create path — handle supersedes in a transaction so cross-linking is atomic.
-			if (supersedesId) {
-				const old = await db.claim.findUnique({ where: { id: supersedesId } });
-				if (!old) return err("Superseded claim not found.", "Check the supersedesId.");
-				const created = await db.$transaction(async (tx) => {
-					const newRow = await tx.claim.create({ data: { ...data, supersedesId } });
-					await tx.claim.update({
-						where: { id: supersedesId },
-						data: { status: "superseded", supersededById: newRow.id },
-					});
-					return newRow;
-				});
-				return ok(normalizeClaim(created));
-			}
-
-			const created = await db.claim.create({ data });
-			return ok(normalizeClaim(created));
+			const result = await claimService.create({
+				projectId,
+				...shared,
+				...(supersedesId && { supersedesId }),
+			});
+			if (!result.success) return err(result.error.message);
+			return ok(result.data);
 		}),
 });
 
@@ -249,9 +164,9 @@ registerExtendedTool("listClaims", {
 			};
 
 			if (claimId) {
-				const row = await db.claim.findUnique({ where: { id: claimId } });
-				if (!row) return err("Claim not found.", "Check the claimId.");
-				return ok({ claims: [normalizeClaim(row)], total: 1 });
+				const result = await claimService.getById(claimId);
+				if (!result.success) return err(result.error.message);
+				return ok({ claims: [result.data], total: 1 });
 			}
 
 			const project = await db.project.findUnique({ where: { id: projectId } });
@@ -264,18 +179,14 @@ registerExtendedTool("listClaims", {
 				resolvedCardId = resolved.id;
 			}
 
-			const where: Record<string, unknown> = { projectId };
-			if (kind) where.kind = kind;
-			if (resolvedCardId) where.cardId = resolvedCardId;
-			if (status) where.status = status;
-			if (author) where.author = author;
-
-			const rows = await db.claim.findMany({
-				where,
-				orderBy: { updatedAt: "desc" },
-				take: limit,
+			const result = await claimService.list(projectId, {
+				...(kind && { kind }),
+				...(resolvedCardId && { cardId: resolvedCardId }),
+				...(status && { status }),
+				...(author && { author }),
+				limit,
 			});
-
-			return ok({ claims: rows.map(normalizeClaim), total: rows.length });
+			if (!result.success) return err(result.error.message);
+			return ok({ claims: result.data, total: result.data.length });
 		}),
 });
