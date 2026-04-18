@@ -38,3 +38,27 @@ export const listNoteFilterSchema = z.object({
 export type CreateNoteInput = z.infer<typeof createNoteSchema>;
 export type UpdateNoteInput = z.infer<typeof updateNoteSchema>;
 export type ListNoteFilter = z.infer<typeof listNoteFilterSchema>;
+
+// ─── Per-kind metadata schemas (RFC amendment #2) ──────────────────
+// The top-level create/update schemas accept generic metadata; the
+// service layer narrows to the kind-specific shape before persisting.
+
+export const generalMetadataSchema = z.object({}).strict();
+
+export const handoffMetadataSchema = z
+	.object({
+		workingOn: z.array(z.string()).default([]),
+		findings: z.array(z.string()).default([]),
+		nextSteps: z.array(z.string()).default([]),
+		blockers: z.array(z.string()).default([]),
+	})
+	.strict();
+
+export const noteMetadataByKind = {
+	general: generalMetadataSchema,
+	handoff: handoffMetadataSchema,
+} as const;
+
+export type NoteKind = (typeof NOTE_KINDS)[number];
+export type GeneralMetadata = z.infer<typeof generalMetadataSchema>;
+export type HandoffMetadata = z.infer<typeof handoffMetadataSchema>;
