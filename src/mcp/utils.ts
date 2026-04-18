@@ -1,8 +1,34 @@
 import { db } from "./db.js";
 import { toToon } from "./toon.js";
 
-// Agent identity — set via AGENT_NAME env var in MCP config
-export const AGENT_NAME = process.env.AGENT_NAME || "Agent";
+// Agent identity — resolution order:
+//   1. AGENT_NAME env var (explicit override, set via MCP config)
+//   2. MCP client name from initialize handshake (server.ts wires this)
+//   3. Literal "Agent" (final fallback — means neither source populated)
+// This is a live `let` so ES-module importers see updates after the client
+// handshake completes. Zod .default() call sites must use a thunk to avoid
+// snapshotting the pre-handshake value.
+export let AGENT_NAME = process.env.AGENT_NAME || "Agent";
+
+type AgentNameSource = "env" | "client" | "default";
+const envProvided = Boolean(process.env.AGENT_NAME);
+let resolvedSource: AgentNameSource = envProvided ? "env" : "default";
+
+/**
+ * Called once after the MCP initialize handshake. Updates AGENT_NAME from
+ * the client's declared name unless an AGENT_NAME env var was already set.
+ */
+export function resolveAgentNameFromClient(clientName: string | undefined): void {
+	if (envProvided) return;
+	if (clientName && clientName.trim()) {
+		AGENT_NAME = clientName.trim();
+		resolvedSource = "client";
+	}
+}
+
+export function getAgentNameSource(): AgentNameSource {
+	return resolvedSource;
+}
 
 // ─── Schema Version ────────────────────────────────────────────────
 

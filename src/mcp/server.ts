@@ -28,8 +28,10 @@ import {
 	AGENT_NAME,
 	detectFeatures,
 	err,
+	getAgentNameSource,
 	getProjectIdForBoard,
 	ok,
+	resolveAgentNameFromClient,
 	resolveCardRef,
 	resolveOrCreateMilestone,
 	SCHEMA_VERSION,
@@ -1714,6 +1716,19 @@ registerResources(server);
 async function main() {
 	// Initialize FTS5 virtual table for cross-source knowledge search
 	await initFts5().catch((e) => console.error("FTS5 init failed (non-fatal):", e));
+
+	// Populate AGENT_NAME from client handshake when the env var wasn't set.
+	server.server.oninitialized = () => {
+		resolveAgentNameFromClient(server.server.getClientVersion()?.name);
+		const source = getAgentNameSource();
+		if (source === "default") {
+			console.error(
+				"Warning: AGENT_NAME env var not set and MCP client provided no name — activity rows will be labeled 'Agent'."
+			);
+		} else {
+			console.error(`Agent identity: ${AGENT_NAME} (from ${source})`);
+		}
+	};
 
 	const transport = new StdioServerTransport();
 	await server.connect(transport);

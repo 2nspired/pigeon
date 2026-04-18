@@ -87,7 +87,10 @@ Kinds:
 			.record(z.string(), z.unknown())
 			.default({})
 			.describe("Kind-specific structured data — see description"),
-		author: z.string().default(AGENT_NAME).describe("AGENT_NAME or HUMAN"),
+		author: z
+			.string()
+			.default(() => AGENT_NAME)
+			.describe("AGENT_NAME or HUMAN"),
 		cardId: z.string().optional().describe("Card UUID or #number — optional anchor"),
 		status: z.enum(CLAIM_STATUSES).default("active"),
 		supersedesId: z

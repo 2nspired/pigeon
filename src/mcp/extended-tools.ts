@@ -1063,7 +1063,10 @@ registerExtendedTool("createNote", {
 		tags: z.array(z.string()).default([]),
 		projectId: z.string().optional().describe("Project UUID, omit for global"),
 		kind: z.enum(NOTE_KINDS).default("general"),
-		author: z.string().default(AGENT_NAME).describe("AGENT_NAME or HUMAN"),
+		author: z
+			.string()
+			.default(() => AGENT_NAME)
+			.describe("AGENT_NAME or HUMAN"),
 		cardId: z.string().optional().describe("Card UUID or #number (requires projectId for #N form)"),
 		boardId: z
 			.string()

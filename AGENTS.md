@@ -270,12 +270,22 @@ Do this as part of your end-of-work flow, not after every small commit.
 Run the connect script from the target project's directory:
 
 ```bash
-# Default agent name ("Claude")
+# Auto-detects agent name from the MCP client handshake (e.g. "claude-code")
 /path/to/project-tracker/scripts/connect.sh
 
-# Custom agent name
-AGENT_NAME=Codex /path/to/project-tracker/scripts/connect.sh
+# Override the auto-detected name with a friendlier label
+AGENT_NAME=Claude /path/to/project-tracker/scripts/connect.sh
 ```
+
+**Agent identity resolution.** Activity rows, `lastEditedBy`, and handoffs
+stamp `AGENT_NAME` on each write. Resolution order at server start:
+
+1. `AGENT_NAME` env var from the project's `.mcp.json` (explicit override)
+2. Client name from the MCP initialize handshake (e.g. `claude-code`, `codex`)
+3. Literal `"Agent"` — only if the client declared no name
+
+Setting `AGENT_NAME` is optional; set it only when you want a custom label
+(e.g. `"Claude"` instead of `"claude-code"`).
 
 Then add to the project's agent instructions file (`CLAUDE.md`, `AGENTS.md`, etc.):
 
