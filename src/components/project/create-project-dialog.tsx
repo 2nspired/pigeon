@@ -26,6 +26,7 @@ export function CreateProjectDialog() {
 	const [name, setName] = useState("");
 	const [description, setDescription] = useState("");
 	const [color, setColor] = useState<ProjectColor>("slate");
+	const [repoPath, setRepoPath] = useState("");
 
 	const utils = api.useUtils();
 
@@ -36,6 +37,7 @@ export function CreateProjectDialog() {
 			setName("");
 			setDescription("");
 			setColor("slate");
+			setRepoPath("");
 			toast.success("Project created");
 		},
 		onError: (error) => {
@@ -46,10 +48,12 @@ export function CreateProjectDialog() {
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!name.trim()) return;
+		const trimmedPath = repoPath.trim();
 		createProject.mutate({
 			name: name.trim(),
 			description: description.trim() || undefined,
 			color,
+			repoPath: trimmedPath === "" ? null : trimmedPath,
 		});
 	};
 
@@ -107,6 +111,20 @@ export function CreateProjectDialog() {
 									/>
 								))}
 							</div>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="repo-path">Repo path (optional)</Label>
+							<Input
+								id="repo-path"
+								value={repoPath}
+								onChange={(e) => setRepoPath(e.target.value)}
+								placeholder="/Users/you/Projects/my-repo"
+								spellCheck={false}
+							/>
+							<p className="text-xs text-muted-foreground">
+								Absolute path to the git repo. Lets <code>briefMe</code> auto-detect this project
+								when an agent runs inside it.
+							</p>
 						</div>
 					</div>
 					<DialogFooter className="mt-6">

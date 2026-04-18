@@ -81,12 +81,27 @@ async function create(data: CreateProjectInput): Promise<ServiceResult<Project>>
 			slug = `${slug}-${Date.now().toString(36)}`;
 		}
 
+		const repoPath = data.repoPath?.trim() || null;
+		if (repoPath) {
+			const collision = await db.project.findUnique({ where: { repoPath } });
+			if (collision) {
+				return {
+					success: false,
+					error: {
+						code: "REPO_PATH_TAKEN",
+						message: `Repo path is already bound to project "${collision.name}".`,
+					},
+				};
+			}
+		}
+
 		const project = await db.project.create({
 			data: {
 				name: data.name,
 				description: data.description,
 				color: data.color,
 				slug,
+				repoPath,
 			},
 		});
 		return { success: true, data: project };
