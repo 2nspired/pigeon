@@ -87,6 +87,24 @@ registerExtendedTool("recordDecision", {
 		}),
 });
 
+// Map the new 3-value Claim status back to the legacy 4-value Decision
+// enum so existing agents keep seeing familiar strings. "active" claims
+// are reported as "accepted" — in the cutover, proposed/accepted legacy
+// rows both collapsed into "active", so "accepted" is the safer default.
+const STATUS_CLAIM_TO_LEGACY: Record<string, string> = {
+	active: "accepted",
+	superseded: "superseded",
+	retired: "rejected",
+};
+
+// Inverse for accepting a legacy status filter on read.
+const STATUS_LEGACY_TO_CLAIM: Record<string, string> = {
+	proposed: "active",
+	accepted: "active",
+	superseded: "superseded",
+	rejected: "retired",
+};
+
 registerExtendedTool("getDecisions", {
 	category: "decisions",
 	description: "List decisions for a project, optionally filtered by card or status.",
@@ -105,30 +123,40 @@ registerExtendedTool("getDecisions", {
 				resolvedCardId = resolved.id;
 			}
 
-			const where: Record<string, unknown> = { projectId: projectId as string };
+			const where: Record<string, unknown> = {
+				projectId: projectId as string,
+				kind: "decision",
+			};
 			if (resolvedCardId) where.cardId = resolvedCardId;
-			if (status) where.status = status as string;
+			if (status) where.status = STATUS_LEGACY_TO_CLAIM[status as string] ?? status;
 
-			const decisions = await db.decision.findMany({
+			const claims = await db.claim.findMany({
 				where,
 				orderBy: { createdAt: "desc" },
 				include: { card: { select: { id: true, number: true, title: true } } },
 			});
 
 			return ok(
-				decisions.map((d) => ({
-					id: d.id,
-					title: d.title,
-					status: d.status,
-					decision: d.decision,
-					alternatives: JSON.parse(d.alternatives) as string[],
-					rationale: d.rationale,
-					author: d.author,
-					supersedes: d.supersedes,
-					supersededBy: d.supersededBy,
-					card: d.card ? { ref: `#${d.card.number}`, title: d.card.title } : null,
-					createdAt: d.createdAt,
-				}))
+				claims.map((c) => {
+					const payload = JSON.parse(c.payload) as { alternatives?: string[] };
+					// Body was stored as "decision\n\nrationale" during the
+					// backfill; split on the first blank line to reconstruct
+					// the legacy shape for readers.
+					const [decisionText, ...rationaleLines] = c.body.split(/\n{2,}/);
+					return {
+						id: c.id,
+						title: c.statement,
+						status: STATUS_CLAIM_TO_LEGACY[c.status] ?? c.status,
+						decision: decisionText ?? c.body,
+						alternatives: payload.alternatives ?? [],
+						rationale: rationaleLines.join("\n\n"),
+						author: c.author,
+						supersedes: c.supersedesId,
+						supersededBy: c.supersededById,
+						card: c.card ? { ref: `#${c.card.number}`, title: c.card.title } : null,
+						createdAt: c.createdAt,
+					};
+				})
 			);
 		}),
 });

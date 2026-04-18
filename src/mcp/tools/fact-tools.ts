@@ -1,3 +1,4 @@
+import type { Claim } from "prisma/generated/client";
 import { z } from "zod";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
@@ -5,14 +6,15 @@ import { err, ok, safeExecute } from "../utils.js";
 
 // ─── Unified Fact Tools ──────────────────────────────────────────
 //
-// Consolidates three separate fact stores (context entries, code
-// facts, measurements) into a single CRUD surface.  The underlying
-// Prisma tables remain unchanged — this is a tool-layer merge only.
+// Post-cutover (commit 5 of docs/IMPL-NOTE-CLAIM-CUTOVER.md) listFacts
+// reads from Claim and maps back to the legacy shape so existing
+// agents keep working. saveFact still writes legacy tables until
+// commit 6 aliases the write path to saveClaim.
 
 const FACT_TYPES = ["context", "code", "measurement"] as const;
 const VALID_SURFACES = ["ambient", "indexed", "surfaced"] as const;
 
-// ─── Normalizers ──────────────────────────────────────────────────
+// ─── Legacy-shape normalizers (writer path) ───────────────────────
 
 type ContextRow = {
 	id: string;
@@ -116,6 +118,73 @@ function normalizeMeasurement(m: MeasurementRow) {
 		updatedAt: m.updatedAt,
 	};
 }
+
+// ─── Claim → legacy fact shape (reader path) ──────────────────────
+
+function claimToFact(c: Claim) {
+	const evidence = JSON.parse(c.evidence) as {
+		files?: string[];
+		symbols?: string[];
+	};
+	const payload = JSON.parse(c.payload) as Record<string, unknown>;
+	const files = evidence.files ?? [];
+	const symbols = evidence.symbols ?? [];
+
+	if (c.kind === "context") {
+		return {
+			id: c.id,
+			type: "context" as const,
+			projectId: c.projectId,
+			content: c.statement,
+			author: c.author,
+			rationale: c.body,
+			application: (payload.application as string) ?? "",
+			details: [] as string[],
+			audience: (payload.audience as string) ?? "all",
+			citedFiles: files,
+			recordedAtSha: c.recordedAtSha,
+			surface: (payload.surface as string) ?? "indexed",
+			createdAt: c.createdAt,
+			updatedAt: c.updatedAt,
+		};
+	}
+	if (c.kind === "code") {
+		return {
+			id: c.id,
+			type: "code" as const,
+			projectId: c.projectId,
+			content: c.statement,
+			path: files[0] ?? "",
+			symbol: symbols[0] ?? null,
+			author: c.author,
+			recordedAtSha: c.recordedAtSha,
+			needsRecheck: false,
+			lastVerifiedAt: c.verifiedAt,
+			createdAt: c.createdAt,
+			updatedAt: c.updatedAt,
+		};
+	}
+	// measurement
+	return {
+		id: c.id,
+		type: "measurement" as const,
+		projectId: c.projectId,
+		content: c.statement,
+		value: (payload.value as number) ?? 0,
+		unit: (payload.unit as string) ?? "",
+		env: (payload.env as Record<string, unknown>) ?? {},
+		path: files[0] ?? null,
+		symbol: symbols[0] ?? null,
+		author: c.author,
+		recordedAt: c.createdAt,
+		ttl: null as number | null,
+		needsRecheck: false,
+		createdAt: c.createdAt,
+		updatedAt: c.updatedAt,
+	};
+}
+
+type LegacyFact = ReturnType<typeof claimToFact>;
 
 // ─── saveFact ─────────────────────────────────────────────────────
 
@@ -287,10 +356,10 @@ Types:
 registerExtendedTool("listFacts", {
 	category: "context",
 	description:
-		"List facts for a project. Omit type to list all types. Filter by path, surface, or recheck status. Pass factId for single-fact lookup.",
+		"List facts for a project. Omit type to list all types. Filter by path or surface. Pass factId for single-fact lookup. (Reads from the unified Claim table — prefer listClaims for new code.)",
 	parameters: z.object({
 		projectId: z.string().describe("Project UUID"),
-		factId: z.string().optional().describe("Fetch a single fact by UUID (searches all types)"),
+		factId: z.string().optional().describe("Fetch a single fact by UUID"),
 		type: z.enum(FACT_TYPES).optional().describe("Filter by fact type"),
 		path: z.string().optional().describe("Filter by exact file path (code/measurement)"),
 		pathPrefix: z.string().optional().describe("Filter by path prefix (e.g. 'src/mcp/')"),
@@ -298,7 +367,7 @@ registerExtendedTool("listFacts", {
 		needsRecheck: z
 			.boolean()
 			.optional()
-			.describe("Filter code/measurement facts flagged for recheck"),
+			.describe("(deprecated — no longer tracked; filter ignored)"),
 		author: z.string().optional().describe("Filter by author (AGENT or HUMAN)"),
 		limit: z.number().int().min(1).max(200).default(50).describe("Max facts per type"),
 	}),
@@ -312,7 +381,6 @@ registerExtendedTool("listFacts", {
 				path,
 				pathPrefix,
 				surface,
-				needsRecheck,
 				author,
 				limit,
 			} = params as {
@@ -322,72 +390,43 @@ registerExtendedTool("listFacts", {
 				path?: string;
 				pathPrefix?: string;
 				surface?: string;
-				needsRecheck?: boolean;
 				author?: string;
 				limit: number;
 			};
 
-			// Single-fact lookup by ID
 			if (singleId) {
-				const entry = await db.persistentContextEntry.findUnique({ where: { id: singleId } });
-				if (entry) return ok({ facts: [normalizeContext(entry)], total: 1 });
-				const codeFact = await db.codeFact.findUnique({ where: { id: singleId } });
-				if (codeFact) return ok({ facts: [normalizeCode(codeFact)], total: 1 });
-				const measurement = await db.measurementFact.findUnique({ where: { id: singleId } });
-				if (measurement) return ok({ facts: [normalizeMeasurement(measurement)], total: 1 });
-				return err("Fact not found.", "Check the factId and try again.");
+				const claim = await db.claim.findUnique({ where: { id: singleId } });
+				if (!claim || !FACT_TYPES.includes(claim.kind as (typeof FACT_TYPES)[number])) {
+					return err("Fact not found.", "Check the factId and try again.");
+				}
+				return ok({ facts: [claimToFact(claim)], total: 1 });
 			}
 
 			const project = await db.project.findUnique({ where: { id: projectId } });
 			if (!project) return err("Project not found.", "Use listProjects to find a valid projectId.");
 
-			const results: Array<
-				| ReturnType<typeof normalizeContext>
-				| ReturnType<typeof normalizeCode>
-				| ReturnType<typeof normalizeMeasurement>
-			> = [];
+			const kinds = type ? [type] : (FACT_TYPES as readonly string[]);
+			const results: LegacyFact[] = [];
 
-			// Context entries
-			if (!type || type === "context") {
-				const where: Record<string, unknown> = { projectId };
-				if (surface) where.surface = surface;
+			for (const kind of kinds) {
+				const where: Record<string, unknown> = { projectId, kind };
 				if (author) where.author = author;
-				const entries = await db.persistentContextEntry.findMany({
+				const claims = await db.claim.findMany({
 					where,
 					orderBy: { updatedAt: "desc" },
 					take: limit,
 				});
-				results.push(...entries.map(normalizeContext));
-			}
 
-			// Code facts
-			if (!type || type === "code") {
-				const where: Record<string, unknown> = { projectId };
-				if (path) where.path = path;
-				if (pathPrefix) where.path = { startsWith: pathPrefix };
-				if (needsRecheck === true) where.needsRecheck = true;
-				if (author) where.author = author;
-				const facts = await db.codeFact.findMany({
-					where,
-					orderBy: { updatedAt: "desc" },
-					take: limit,
-				});
-				results.push(...facts.map(normalizeCode));
-			}
-
-			// Measurements
-			if (!type || type === "measurement") {
-				const where: Record<string, unknown> = { projectId };
-				if (path) where.path = path;
-				if (pathPrefix) where.path = { startsWith: pathPrefix };
-				if (needsRecheck === true) where.needsRecheck = true;
-				if (author) where.author = author;
-				const measurements = await db.measurementFact.findMany({
-					where,
-					orderBy: { updatedAt: "desc" },
-					take: limit,
-				});
-				results.push(...measurements.map(normalizeMeasurement));
+				for (const c of claims) {
+					const fact = claimToFact(c);
+					if (fact.type === "context" && surface && fact.surface !== surface) continue;
+					if ((fact.type === "code" || fact.type === "measurement") && (path || pathPrefix)) {
+						const filePath = fact.path ?? "";
+						if (path && filePath !== path) continue;
+						if (pathPrefix && !filePath.startsWith(pathPrefix)) continue;
+					}
+					results.push(fact);
+				}
 			}
 
 			return ok({ facts: results, total: results.length });
