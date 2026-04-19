@@ -46,12 +46,6 @@ async function getById(cardId: string): Promise<
 				type: string;
 				fromCard: { id: string; number: number; title: string };
 			}>;
-			decisions: Array<{
-				id: string;
-				title: string;
-				status: string;
-				decision: string;
-			}>;
 			gitLinks: Array<{
 				id: string;
 				commitHash: string;
@@ -72,7 +66,6 @@ async function getById(cardId: string): Promise<
 				activities: { orderBy: { createdAt: "desc" } },
 				relationsFrom: { include: { toCard: { select: { id: true, number: true, title: true } } } },
 				relationsTo: { include: { fromCard: { select: { id: true, number: true, title: true } } } },
-				decisions: { select: { id: true, title: true, status: true, decision: true }, orderBy: { createdAt: "desc" } },
 				gitLinks: { orderBy: { commitDate: "desc" }, take: 20 },
 			},
 		});
@@ -231,7 +224,7 @@ async function move(cardId: string, data: MoveCardInput): Promise<ServiceResult<
 					position: i,
 					...(c.id === cardId && { lastEditedBy: "HUMAN" }),
 				},
-			}),
+			})
 		);
 
 		await db.$transaction(updates);
@@ -252,7 +245,14 @@ async function move(cardId: string, data: MoveCardInput): Promise<ServiceResult<
 
 		// Return the card with updated position/column without an extra query
 		const finalPosition = filtered.findIndex((c) => c.id === cardId);
-		return { success: true, data: { ...existing, columnId: data.columnId, position: finalPosition >= 0 ? finalPosition : data.position } };
+		return {
+			success: true,
+			data: {
+				...existing,
+				columnId: data.columnId,
+				position: finalPosition >= 0 ? finalPosition : data.position,
+			},
+		};
 	} catch (error) {
 		console.error("[CARD_SERVICE] move error:", error);
 		return { success: false, error: { code: "MOVE_FAILED", message: "Failed to move card." } };
@@ -274,15 +274,21 @@ async function deleteCard(cardId: string): Promise<ServiceResult<Card>> {
 	}
 }
 
-async function listAll(filters?: {
-	priority?: string;
-	tag?: string;
-	search?: string;
-}): Promise<ServiceResult<Array<Card & {
-	column: { name: string; role: string | null; board: { name: string; id: string; project: { name: string; id: string } } };
-	milestone: { id: string; name: string } | null;
-	checklists: Array<{ completed: boolean }>;
-}>>> {
+async function listAll(filters?: { priority?: string; tag?: string; search?: string }): Promise<
+	ServiceResult<
+		Array<
+			Card & {
+				column: {
+					name: string;
+					role: string | null;
+					board: { name: string; id: string; project: { name: string; id: string } };
+				};
+				milestone: { id: string; name: string } | null;
+				checklists: Array<{ completed: boolean }>;
+			}
+		>
+	>
+> {
 	try {
 		const where: Record<string, unknown> = {};
 

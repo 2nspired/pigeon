@@ -8,6 +8,35 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+## [3.0.0] — 2026-04-19
+
+Destructive tail of the Note+Claim cutover (#86). Five legacy tables drop; the unified `Claim` + extended `Note` are the only knowledge surfaces left. No wire-shape changes to MCP tools or tRPC routers — adapters were landed in earlier commits.
+
+### Migration — REQUIRED before `db:push`
+
+Run the backfill once more before applying the 3.0.0 schema, even if you ran it on 2.4.0:
+
+```bash
+npx tsx scripts/migrate-notes-claims.mts
+npm run db:push   # drops the 5 legacy tables
+```
+
+The backfill is idempotent — rows already migrated are skipped. The script now reads legacy tables via raw SQL so it survives the drop.
+
+### Removed
+
+- `SessionHandoff` table — replaced by `Note(kind="handoff")`. (#86)
+- `Decision` table — replaced by `Claim(kind="decision")`. (#86)
+- `PersistentContextEntry` table — replaced by `Claim(kind="context")`. (#86)
+- `CodeFact` table — replaced by `Claim(kind="code")`. (#86)
+- `MeasurementFact` table — replaced by `Claim(kind="measurement")`. (#86)
+
+### Changed
+
+- `SCHEMA_VERSION` 8 → 9.
+- `MCP_SERVER_VERSION` 2.5.0 → 3.0.0.
+- `getCard` MCP tool now reads decisions from `Claim` (same response shape — `{id, title, status}`).
+
 ### Added
 
 - `docs/VERSIONING.md`, `docs/UPDATING.md`, this CHANGELOG. (#101)
@@ -63,7 +92,8 @@ Earlier history is captured in the git log. Highlights:
 
 Reconstructed entries below this point are best-effort; treat git log as authoritative.
 
-[Unreleased]: https://github.com/2nspired/project-tracker/compare/v2.5.0...HEAD
+[Unreleased]: https://github.com/2nspired/project-tracker/compare/v3.0.0...HEAD
+[3.0.0]: https://github.com/2nspired/project-tracker/releases/tag/v3.0.0
 [2.5.0]: https://github.com/2nspired/project-tracker/releases/tag/v2.5.0
 [2.4.0]: https://github.com/2nspired/project-tracker/releases/tag/v2.4.0
 [2.3.0]: https://github.com/2nspired/project-tracker/releases/tag/v2.3.0

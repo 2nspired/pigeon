@@ -131,13 +131,15 @@ registerExtendedTool("getCard", {
 					relationsTo: {
 						include: { fromCard: { select: { id: true, number: true, title: true } } },
 					},
-					decisions: {
-						select: { id: true, title: true, status: true },
-						orderBy: { createdAt: "desc" },
-					},
 				},
 			});
 			if (!card) return err("Card not found.");
+
+			const decisions = await db.claim.findMany({
+				where: { cardId: card.id, kind: "decision" },
+				select: { id: true, statement: true, status: true },
+				orderBy: { createdAt: "desc" },
+			});
 
 			// Build relation groups
 			const blocks = card.relationsFrom
@@ -195,7 +197,11 @@ registerExtendedTool("getCard", {
 					updatedAt: card.updatedAt,
 					lastEditedBy: card.lastEditedBy,
 					relations: { blocks, blockedBy, relatedTo },
-					decisions: card.decisions,
+					decisions: decisions.map((d) => ({
+						id: d.id,
+						title: d.statement,
+						status: d.status,
+					})),
 					checklist: card.checklists.map((c) => ({
 						id: c.id,
 						text: c.text,
@@ -1068,16 +1074,11 @@ registerExtendedTool("createNote", {
 			.default(() => AGENT_NAME)
 			.describe("AGENT_NAME or HUMAN"),
 		cardId: z.string().optional().describe("Card UUID or #number (requires projectId for #N form)"),
-		boardId: z
-			.string()
-			.optional()
-			.describe("Board UUID — required for handoff kind (step 3)"),
+		boardId: z.string().optional().describe("Board UUID — required for handoff kind (step 3)"),
 		metadata: z
 			.record(z.string(), z.unknown())
 			.default({})
-			.describe(
-				"Kind-specific metadata (handoff: workingOn/findings/nextSteps/blockers)"
-			),
+			.describe("Kind-specific metadata (handoff: workingOn/findings/nextSteps/blockers)"),
 		expiresAt: z.string().optional().describe("ISO datetime — optional TTL"),
 	}),
 	handler: (params) =>
