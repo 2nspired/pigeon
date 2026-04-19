@@ -27,12 +27,8 @@ model Project {
   cards          Card[]
   notes          Note[]
   milestones     Milestone[]
-  decisions      Decision[]
   gitLinks       GitLink[]
-  contextEntries PersistentContextEntry[]
-  codeFacts         CodeFact[]
-  measurementFacts  MeasurementFact[]
-  claims            Claim[]
+  claims         Claim[]
 
   @@map("project")
 }
@@ -78,11 +74,10 @@ model Board {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  project           Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   columns           Column[]
-  handoffs          SessionHandoff[]
   notes             Note[]
-  defaultForProject Project?         @relation("DefaultBoard")
+  defaultForProject Project? @relation("DefaultBoard")
 
   @@index([projectId])
   @@map("board")
@@ -134,7 +129,6 @@ model Card {
   cardLabels    CardLabel[]
   relationsFrom CardRelation[]  @relation("RelationFrom")
   relationsTo   CardRelation[]  @relation("RelationTo")
-  decisions     Decision[]
   gitLinks      GitLink[]
   claims        Claim[]
   notes         Note[]
@@ -257,46 +251,6 @@ model CardRelation {
   @@map("card_relation")
 }
 
-model SessionHandoff {
-  id        String   @id @default(uuid())
-  boardId   String   @map("board_id")
-  agentName String   @map("agent_name")
-  workingOn String   @default("[]") @map("working_on") // JSON array
-  findings  String   @default("[]") // JSON array
-  nextSteps String   @default("[]") @map("next_steps") // JSON array
-  blockers  String   @default("[]") // JSON array
-  summary   String   @default("")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
-
-  @@index([boardId, createdAt])
-  @@map("session_handoff")
-}
-
-model Decision {
-  id           String   @id @default(uuid())
-  projectId    String   @map("project_id")
-  cardId       String?  @map("card_id")
-  title        String
-  status       String   @default("proposed") // proposed, accepted, rejected, superseded
-  decision     String
-  alternatives String   @default("[]") // JSON array
-  rationale    String   @default("")
-  author         String   @default("AGENT")
-  supersedes     String?  @map("supersedes")    // ID of the old decision this one replaces
-  supersededBy   String?  @map("superseded_by") // ID of the new decision that replaced this one
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  card    Card?   @relation(fields: [cardId], references: [id], onDelete: SetNull)
-
-  @@index([projectId])
-  @@index([cardId])
-  @@map("decision")
-}
-
 model GitLink {
   id         String   @id @default(uuid())
   projectId  String   @map("project_id")
@@ -317,77 +271,7 @@ model GitLink {
   @@map("git_link")
 }
 
-model PersistentContextEntry {
-  id            String   @id @default(uuid())
-  projectId     String   @map("project_id")
-  claim         String   // The fact or assertion
-  rationale     String   @default("") // Why this matters
-  application   String   @default("") // How to apply this knowledge
-  details       String   @default("[]") // JSON string[] — supporting details
-  author        String   @default("AGENT") // Who recorded this (AGENT or HUMAN)
-  audience      String   @default("all") // Who should see it (all, agent, human)
-  citedFiles    String   @default("[]") @map("cited_files") // JSON string[] — file paths this fact references
-  recordedAtSha String?  @map("recorded_at_sha") // Git SHA when this was recorded
-  surface       String   @default("indexed") // ambient | indexed | surfaced
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  @@index([projectId])
-  @@index([surface])
-  @@index([projectId, surface])
-  @@map("persistent_context_entry")
-}
-
-model CodeFact {
-  id             String   @id @default(uuid())
-  projectId      String   @map("project_id")
-  path           String   // File path (relative to repo root)
-  symbol         String?  // Optional symbol name (function, class, etc.)
-  fact           String   // The factual assertion about this code
-  author         String   @default("AGENT") // Who recorded this (AGENT or HUMAN)
-  recordedAtSha  String?  @map("recorded_at_sha") // Git SHA when recorded
-  needsRecheck   Boolean  @default(false) @map("needs_recheck") // Advisory flag
-  lastVerifiedAt DateTime? @map("last_verified_at") // Last time someone confirmed this is still true
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  @@index([projectId])
-  @@index([projectId, path])
-  @@index([needsRecheck])
-  @@map("code_fact")
-}
-
-model MeasurementFact {
-  id           String    @id @default(uuid())
-  projectId    String    @map("project_id")
-  value        Float                          // The measured value
-  unit         String                         // e.g. "seconds", "ms", "MB"
-  description  String                         // What was measured
-  env          String    @default("{}")       // JSON key-value pairs of dependencies
-  path         String?                        // Optional file path (relative to repo root)
-  symbol       String?                        // Optional function/symbol name
-  author       String    @default("AGENT")
-  recordedAt   DateTime  @default(now()) @map("recorded_at")
-  ttl          Int?                           // Optional TTL in days
-  needsRecheck Boolean   @default(false) @map("needs_recheck")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  @@index([projectId])
-  @@index([needsRecheck])
-  @@map("measurement_fact")
-}
-
-// ─── RFC: Note + Claim primitives (docs/RFC-NOTE-CLAIM-PRIMITIVES.md) ─
-// Step 1 parallel write surface. Old tables (persistent_context_entry,
-// code_fact, measurement_fact, decision) remain in use until the
-// dual-write + cutover steps land.
+// ─── Unified knowledge primitive (docs/RFC-NOTE-CLAIM-PRIMITIVES.md) ─
 
 model Claim {
   id             String    @id @default(uuid())
