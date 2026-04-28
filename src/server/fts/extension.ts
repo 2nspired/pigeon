@@ -22,7 +22,7 @@
  */
 
 import { Prisma, type PrismaClient } from "prisma/generated/client";
-import { indexCard, indexClaim, indexComment, indexNote, removeFromIndex } from "./index.js";
+import { indexCard, indexClaim, indexComment, indexNote, removeFromIndex } from ".";
 
 function logFtsError(op: string, err: unknown): void {
 	console.warn(`[fts] live-sync ${op} failed (write succeeded):`, err);
