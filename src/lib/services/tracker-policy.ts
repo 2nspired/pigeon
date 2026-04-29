@@ -147,3 +147,16 @@ function formatZodError(error: z.ZodError): string {
 		})
 		.join("; ");
 }
+
+/**
+ * Returns the column-specific policy prompt from `policy.columns[columnName]`,
+ * or undefined when policy is null or the column has no prompt entry. Pure
+ * lookup — kept here so getCardContext (and any future caller) can stay thin.
+ */
+export function getColumnPrompt(
+	policy: TrackerPolicy | null,
+	columnName: string
+): string | undefined {
+	if (!policy) return undefined;
+	return policy.columns[columnName]?.prompt;
+}

@@ -2,7 +2,11 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { loadTrackerPolicy } from "@/lib/services/tracker-policy";
+import {
+	getColumnPrompt,
+	loadTrackerPolicy,
+	type TrackerPolicy,
+} from "@/lib/services/tracker-policy";
 
 describe("loadTrackerPolicy", () => {
 	let dir: string;
@@ -206,5 +210,31 @@ Body content.
 		expect(result.policy?.prompt).toBe("Body content.");
 		expect(result.policy?.schema_version).toBe(1);
 		expect(result.policy_error).toBeUndefined();
+	});
+});
+
+describe("getColumnPrompt", () => {
+	// RFC #111 card #124 — getCardContext surfaces this for the card's column.
+	const policy: TrackerPolicy = {
+		prompt: "",
+		intent_required_on: [],
+		schema_version: 1,
+		columns: {
+			"In Progress": { prompt: "Link commits via syncGitActivity every chunk." },
+		},
+	};
+
+	it("returns the prompt when card's column has a policy entry (In Progress)", () => {
+		expect(getColumnPrompt(policy, "In Progress")).toBe(
+			"Link commits via syncGitActivity every chunk."
+		);
+	});
+
+	it("returns undefined when card's column has no policy entry (Done)", () => {
+		expect(getColumnPrompt(policy, "Done")).toBeUndefined();
+	});
+
+	it("returns undefined when policy is null (no tracker.md)", () => {
+		expect(getColumnPrompt(null, "In Progress")).toBeUndefined();
 	});
 });

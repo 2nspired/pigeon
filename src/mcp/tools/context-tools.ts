@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getHorizon } from "../../lib/column-roles.js";
+import { getColumnPrompt, loadTrackerPolicy } from "../../lib/services/tracker-policy.js";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { err, errWithToolHint, ok, resolveCardRef, safeExecute } from "../utils.js";
@@ -26,7 +27,11 @@ registerExtendedTool("getCardContext", {
 
 			const board = await db.board.findUnique({
 				where: { id: boardId },
-				select: { id: true, projectId: true },
+				select: {
+					id: true,
+					projectId: true,
+					project: { select: { repoPath: true, projectPrompt: true } },
+				},
 			});
 			if (!board)
 				return err("Board not found.", "Use listProjects → listBoards to find a valid boardId.");
@@ -126,6 +131,16 @@ registerExtendedTool("getCardContext", {
 				.filter((r) => r.type === "blocks")
 				.map((r) => ({ ref: `#${r.fromCard.number}`, title: r.fromCard.title }));
 
+			// RFC #111 (#124): surface the column-specific policy prompt from
+			// tracker.md when the card's current column matches an entry in
+			// `columns.<name>.prompt`. Key omitted entirely when not present so
+			// the response stays lean.
+			const policyResult = await loadTrackerPolicy({
+				repoPath: board.project.repoPath,
+				projectPrompt: board.project.projectPrompt,
+			});
+			const columnPrompt = getColumnPrompt(policyResult.policy, card.column.name);
+
 			return ok(
 				{
 					scope: "card",
@@ -152,6 +167,7 @@ registerExtendedTool("getCardContext", {
 						date: g.commitDate,
 					})),
 					relatedCards,
+					...(columnPrompt !== undefined ? { policy: { columnPrompt } } : {}),
 				},
 				format
 			);
