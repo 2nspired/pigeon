@@ -19,21 +19,40 @@ describe("loadTrackerPolicy", () => {
 		await rm(dir, { recursive: true, force: true });
 	});
 
-	it("returns policy: null with no warning when tracker.md is absent", async () => {
+	it("returns policy: null with deprecation warning when tracker.md is absent but projectPrompt has content", async () => {
 		const result = await loadTrackerPolicy({
 			repoPath: dir,
 			projectPrompt: "stale db value",
 		});
 		expect(result.policy).toBeNull();
+		expect(result.warnings).toHaveLength(1);
+		expect(result.warnings[0]).toMatch(/DEPRECATED.*v5\.0\.0/);
+		expect(result.warnings[0]).toMatch(/migrateProjectPrompt/);
+		expect(result.policy_error).toBeUndefined();
+	});
+
+	it("returns policy: null with no warning when tracker.md is absent and projectPrompt is null", async () => {
+		const result = await loadTrackerPolicy({ repoPath: dir, projectPrompt: null });
+		expect(result.policy).toBeNull();
 		expect(result.warnings).toEqual([]);
 		expect(result.policy_error).toBeUndefined();
 	});
 
-	it("returns policy: null with no warning when repoPath is null", async () => {
+	it("returns policy: null with no warning when repoPath is null and projectPrompt is null", async () => {
 		const result = await loadTrackerPolicy({ repoPath: null, projectPrompt: null });
 		expect(result.policy).toBeNull();
 		expect(result.warnings).toEqual([]);
 		expect(result.policy_error).toBeUndefined();
+	});
+
+	it("returns policy: null with deprecation warning when repoPath is null but projectPrompt has content", async () => {
+		const result = await loadTrackerPolicy({
+			repoPath: null,
+			projectPrompt: "stale db value",
+		});
+		expect(result.policy).toBeNull();
+		expect(result.warnings).toHaveLength(1);
+		expect(result.warnings[0]).toMatch(/DEPRECATED.*v5\.0\.0/);
 	});
 
 	it("parses front matter and exposes body as prompt when file present", async () => {
@@ -70,7 +89,7 @@ Run briefMe first. Prefer pinned over scored.
 		expect(result.policy_error).toBeUndefined();
 	});
 
-	it("emits conflict warning when both tracker.md body and projectPrompt are populated", async () => {
+	it("emits deprecation warning when both tracker.md body and projectPrompt are populated", async () => {
 		const md = `---
 schema_version: 1
 ---
@@ -85,11 +104,11 @@ Body content here.
 		});
 		expect(result.policy?.prompt).toBe("Body content here.");
 		expect(result.warnings).toHaveLength(1);
-		expect(result.warnings[0]).toMatch(/both tracker\.md and a non-empty projectPrompt/);
+		expect(result.warnings[0]).toMatch(/DEPRECATED.*v5\.0\.0/);
 		expect(result.warnings[0]).toMatch(/migrateProjectPrompt/);
 	});
 
-	it("does not warn when tracker.md body is empty even if projectPrompt exists", async () => {
+	it("emits deprecation warning when tracker.md body is empty but projectPrompt has content", async () => {
 		const md = `---
 schema_version: 1
 ---
@@ -102,6 +121,23 @@ schema_version: 1
 			projectPrompt: "still in DB",
 		});
 		expect(result.policy?.prompt).toBe("");
+		expect(result.warnings).toHaveLength(1);
+		expect(result.warnings[0]).toMatch(/DEPRECATED.*v5\.0\.0/);
+	});
+
+	it("does not warn when tracker.md is present and projectPrompt is null", async () => {
+		const md = `---
+schema_version: 1
+---
+
+Body content here.
+`;
+		await writeFile(join(dir, "tracker.md"), md, "utf8");
+
+		const result = await loadTrackerPolicy({
+			repoPath: dir,
+			projectPrompt: null,
+		});
 		expect(result.warnings).toEqual([]);
 	});
 
