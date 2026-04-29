@@ -57,11 +57,11 @@ export const teachingProject = {
 		{
 			title: "Understanding Columns",
 			description: [
-				"**What:** Columns represent workflow stages. The default board has four main columns — **Backlog → Up Next → In Progress → Done** — plus a **Parking Lot** for unscheduled ideas.",
-				"**Why it matters:** `briefMe` ranks top work as In Progress → Up Next → scored Backlog, so column placement directly drives what an agent picks up first. Column position is the cheapest way to signal intent.",
-				"**Try it (UI):** Look at the board — each column header shows how many cards are in that stage.",
-				"**Try it (agent):** `briefMe()` then inspect `topWork[]` — the ordering mirrors the column flow. Cards in In Progress come first.",
-				"**Outcome:** You understand the four-stage workflow; your agent knows where to look for its next action.",
+				"**What:** Columns represent workflow stages. The default board has three main columns — **Backlog → In Progress → Done** — plus a **Parking Lot** for unscheduled ideas.",
+				"**Why it matters:** `briefMe` ranks top work as In Progress → top-of-Backlog (pinned) → scored Backlog. The top 3 positions in Backlog are treated as your hand-curated priority queue — drag a card to the top to signal *I want this next*. No separate column needed.",
+				"**Try it (UI):** Look at the board — each column header shows how many cards are in that stage. Drag a Backlog card up or down to change its priority order.",
+				"**Try it (agent):** `briefMe()` then inspect `topWork[]` — cards have `source: 'active' | 'pinned' | 'scored'`. Pinned cards (top 3 of Backlog) surface ahead of scored ones.",
+				"**Outcome:** You understand the three-stage workflow and how Backlog position acts as the priority signal.",
 			].join("\n\n"),
 			column: "Done",
 			priority: "NONE",
@@ -102,7 +102,7 @@ export const teachingProject = {
 			title: "Set Card Priorities",
 			description: [
 				"**What:** Priorities help you focus on what matters most. Levels: None, Low, Medium, High, Urgent.",
-				"**Why it matters:** `briefMe`'s work-ranking score weights priority heavily. A HIGH card in Backlog can still beat a LOW card in Up Next — so priority is the knob you use to tell your agent what actually matters.",
+				"**Why it matters:** `briefMe`'s work-ranking score weights priority heavily. Within a tier, a HIGH card outranks a LOW card — so priority is the knob you use to tell your agent which work matters most. Backlog *position* is the manual override (top 3 are pinned regardless of score).",
 				"**Try it (UI):** Open this card's details and change its priority. Notice how the priority badge appears on the board.",
 				'**Try it (agent):** `updateCard({ cardId: "#5", priority: "URGENT", intent: "Reprioritizing for demo" })`.',
 				"**Outcome:** The badge updates on the board and the card's rank in the next `briefMe` call reflects the change.",
@@ -141,7 +141,10 @@ export const teachingProject = {
 			createdBy: "AGENT",
 		},
 
-		// ── Up Next (5) ─────────────────────────────────────────────────
+		// ── Backlog top — pinned (5) ────────────────────────────────────
+		// These five sit at the top of Backlog. The first 3 surface as
+		// `source: "pinned"` in briefMe.topWork — they're the agent's
+		// recommended next-up after the In Progress cards.
 		{
 			title: "Connect Related Cards",
 			description: [
@@ -151,7 +154,7 @@ export const teachingProject = {
 				"**Try it (agent):** `briefMe()` and look at `blockers[]` — this card appears there until #9 is moved to Done.",
 				"**Outcome:** Dependencies are visible on the board and the agent's work queue respects them automatically.",
 			].join("\n\n"),
-			column: "Up Next",
+			column: "Backlog",
 			priority: "MEDIUM",
 			tags: ["tutorial", "relations"],
 			createdBy: "AGENT",
@@ -165,7 +168,7 @@ export const teachingProject = {
 				'**Try it (agent):** `moveCard({ cardId: "#9", columnName: "Done", intent: "Unblocking #8" })`, then call `briefMe()` again — #8 should no longer appear in `blockers[]`.',
 				"**Outcome:** #8 becomes unblocked and rises in the work ranking on your next `briefMe` call.",
 			].join("\n\n"),
-			column: "Up Next",
+			column: "Backlog",
 			priority: "HIGH",
 			tags: ["tutorial", "relations"],
 			createdBy: "AGENT",
@@ -179,7 +182,7 @@ export const teachingProject = {
 				'**Try it (agent):** `updateCard({ cardId: "#10", tags: ["tutorial", "organization", "feature:tags", "demo"] })`. Tags are replaced wholesale, not merged — include existing tags you want to keep.',
 				"**Outcome:** The new tag shows on the card and is filterable from the board's tag filter.",
 			].join("\n\n"),
-			column: "Up Next",
+			column: "Backlog",
 			priority: "LOW",
 			tags: ["tutorial", "organization", "feature:tags"],
 			createdBy: "AGENT",
@@ -193,7 +196,7 @@ export const teachingProject = {
 				'**Try it (agent):** `runTool({ tool: "getMilestoneContext", params: { boardId, milestoneName: "Getting Started" } })` — returns cards grouped by horizon with a completion percentage.',
 				"**Outcome:** You can report milestone status in one call instead of walking the board card-by-card.",
 			].join("\n\n"),
-			column: "Up Next",
+			column: "Backlog",
 			priority: "MEDIUM",
 			tags: ["tutorial", "planning"],
 			createdBy: "AGENT",
@@ -207,7 +210,7 @@ export const teachingProject = {
 				'**Try it (agent):** `addComment({ cardId: "#12", content: "Walked the tutorial — all MCP calls worked as documented." })`.',
 				"**Outcome:** The comment appears under the card with your author label, and any future `getCardContext` call will include it.",
 			].join("\n\n"),
-			column: "Up Next",
+			column: "Backlog",
 			priority: "MEDIUM",
 			tags: ["tutorial", "collaboration"],
 			createdBy: "AGENT",

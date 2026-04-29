@@ -14,7 +14,7 @@ The response is small (~300-500 tokens) and includes:
 
 - **handoff** — last session's summary, findings, next steps, blockers
 - **diff** — what's changed on the board since that handoff
-- **topWork** — three highest-leverage cards (Up Next first, then scored Backlog)
+- **topWork** — three highest-leverage cards. Each has a `source`: `active` (In Progress) → `pinned` (top 3 of Backlog, human-prioritized by drag order) → `scored` (rest of Backlog by score)
 - **blockers** — cards waiting on something
 - **recentDecisions** — active architectural decisions on still-active cards (drops once the card ships)
 - **pulse** — one-line board health summary

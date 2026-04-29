@@ -28,13 +28,6 @@ const HORIZON_CONFIG: Record<
 		bgClass: "bg-card",
 		textClass: "text-blue-500",
 	},
-	next: {
-		label: "Next",
-		description: "Queued for soon",
-		borderColor: "border-l-amber-400",
-		bgClass: "bg-card/80",
-		textClass: "text-amber-500",
-	},
 	later: {
 		label: "Later",
 		description: "Backlog & ideas",

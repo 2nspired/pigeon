@@ -1,18 +1,21 @@
 /**
  * Column role → horizon mapping, shared across server, MCP, and UI.
  *
- * Roles: backlog, todo, active, review, done, parking
- * Horizons: now (active work), next (queued), later (backlog/parking), done
+ * Roles: backlog, active, review, done, parking
+ * Horizons: now (active work), later (backlog/parking), done
  *
  * Falls back to name-based matching for columns without a role (pre-migration).
+ *
+ * The legacy `todo` role (Up Next column) was removed in #97 — top-of-Backlog
+ * by position now serves as the human-prioritized "pinned" surface. Existing
+ * boards are migrated by `scripts/migrate-remove-up-next.ts`.
  */
 
-export type Horizon = "now" | "next" | "later" | "done";
+export type Horizon = "now" | "later" | "done";
 
 const ROLE_TO_HORIZON: Record<string, Horizon> = {
 	active: "now",
 	review: "now",
-	todo: "next",
 	done: "done",
 	backlog: "later",
 	parking: "later",
@@ -27,7 +30,6 @@ export function getHorizon(column: { role?: string | null; name: string }): Hori
 	const lower = column.name.toLowerCase();
 	if (lower === "done") return "done";
 	if (lower === "in progress" || lower === "review") return "now";
-	if (lower === "to do") return "next";
 	return "later";
 }
 
@@ -40,7 +42,6 @@ export function hasRole(column: { role?: string | null; name: string }, role: st
 		case "done": return lower === "done";
 		case "active": return lower === "in progress";
 		case "review": return lower === "review";
-		case "todo": return lower === "to do";
 		case "backlog": return lower === "backlog";
 		case "parking": return lower === "parking lot" || lower === "parking";
 		default: return false;

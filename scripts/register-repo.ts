@@ -77,10 +77,9 @@ async function main() {
 						columns: {
 							create: [
 								{ name: "Backlog", position: 0, role: "backlog" },
-								{ name: "Up Next", position: 1, role: "todo" },
-								{ name: "In Progress", position: 2, role: "active" },
-								{ name: "Done", position: 3, role: "done" },
-								{ name: "Parking Lot", position: 4, role: "parking", isParking: true },
+								{ name: "In Progress", position: 1, role: "active" },
+								{ name: "Done", position: 2, role: "done" },
+								{ name: "Parking Lot", position: 3, role: "parking", isParking: true },
 							],
 						},
 					},

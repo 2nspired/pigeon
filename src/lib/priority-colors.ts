@@ -55,7 +55,6 @@ export const STATUS_BORDER: Record<string, string> = {
 /** Roadmap horizon colors */
 export const HORIZON_DOT: Record<string, string> = {
 	now: "bg-blue-500",
-	next: "bg-amber-400",
 	later: "bg-muted-foreground/30",
 	done: "bg-emerald-500",
 };

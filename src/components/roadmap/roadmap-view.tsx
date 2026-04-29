@@ -53,13 +53,11 @@ function computePrimaryHorizon(cards: RoadmapCard[]): Horizon {
 
 	// Priority: if any card is "now", milestone is "now"
 	if (active.some((c) => c.horizon === "now")) return "now";
-	if (active.some((c) => c.horizon === "next")) return "next";
 	return "later";
 }
 
 function groupByMilestoneAndHorizon(cards: RoadmapCard[], milestoneOrder: string[]): {
 	now: MilestoneGroup[];
-	next: MilestoneGroup[];
 	later: MilestoneGroup[];
 	done: MilestoneGroup[];
 } {
@@ -108,7 +106,6 @@ function groupByMilestoneAndHorizon(cards: RoadmapCard[], milestoneOrder: string
 
 	return {
 		now: groups.filter((g) => g.primaryHorizon === "now").sort(sortByOrder),
-		next: groups.filter((g) => g.primaryHorizon === "next").sort(sortByOrder),
 		later: groups.filter((g) => g.primaryHorizon === "later").sort(sortByOrder),
 		done: groups.filter((g) => g.primaryHorizon === "done").sort(sortByOrder),
 	};
@@ -205,7 +202,6 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 					const reordered = arrayMove(group, activeIndex, overIndex);
 					const allMilestoneIds = [
 						...horizonGroups.now,
-						...horizonGroups.next,
 						...horizonGroups.later,
 						...horizonGroups.done,
 					]
@@ -222,7 +218,7 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 
 					// Reconstruct full order: iterate through horizons in order
 					const fullOrder: string[] = [];
-					for (const h of ["now", "next", "later", "done"] as Horizon[]) {
+					for (const h of ["now", "later", "done"] as Horizon[]) {
 						const milestones =
 							h === horizon
 								? reordered
@@ -250,7 +246,6 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 	const activeMilestone = activeDragId
 		? [
 				...horizonGroups.now,
-				...horizonGroups.next,
 				...horizonGroups.later,
 				...horizonGroups.done,
 			].find((m) => (m.id ?? "__ungrouped__") === activeDragId)
@@ -329,13 +324,6 @@ export function RoadmapView({ board }: { board: FullBoard }) {
 					<HorizonBand
 						horizon="now"
 						milestones={horizonGroups.now}
-						density={density}
-						boardId={board.id}
-						onCardClick={handleCardClick}
-					/>
-					<HorizonBand
-						horizon="next"
-						milestones={horizonGroups.next}
 						density={density}
 						boardId={board.id}
 						onCardClick={handleCardClick}
