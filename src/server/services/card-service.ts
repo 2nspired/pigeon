@@ -1,9 +1,57 @@
-import type { Card } from "prisma/generated/client";
+import type { Card, PrismaClient } from "prisma/generated/client";
 import type { CreateCardInput, MoveCardInput, UpdateCardInput } from "@/lib/schemas/card-schemas";
 import { slugify as slugifyTag } from "@/lib/slugify";
 import { db } from "@/server/db";
 import { findStaleInProgress } from "@/server/services/stale-cards";
+import { tagService } from "@/server/services/tag-service";
 import type { ServiceResult } from "@/server/services/types/service-result";
+
+// Resolve a list of free-form tag labels into canonical (tagId, label) pairs
+// using tagService.resolveOrCreate. Used when the legacy `tags: string[]`
+// input flows through the web UI's tRPC card.update — the service mirrors
+// what the MCP write paths do (Phase 4) so the CardTag junction stays the
+// canonical source of truth across both surfaces.
+async function resolveLegacyTagsForWeb(
+	prisma: PrismaClient,
+	projectId: string,
+	inputs: string[]
+): Promise<{ tagIds: string[]; labels: string[] }> {
+	const tagIds: string[] = [];
+	const labels: string[] = [];
+	const seen = new Set<string>();
+	for (const inputLabel of inputs) {
+		const result = await tagService.resolveOrCreate(projectId, inputLabel);
+		if (!result.success) continue; // skip empty-slug inputs silently
+		if (seen.has(result.data.id)) continue; // dedupe within the input array
+		seen.add(result.data.id);
+		tagIds.push(result.data.id);
+		labels.push(result.data.label);
+	}
+	return { tagIds, labels };
+}
+
+// Idempotent CardTag junction sync. Replaces all rows for the card with the
+// given tagIds — full desired-state input, transactional. Mirrors the MCP
+// helper in src/mcp/taxonomy-utils.ts; kept inline here so card-service.ts
+// has no MCP-layer dependency.
+async function syncCardTagsTx(
+	tx: Pick<PrismaClient, "cardTag">,
+	cardId: string,
+	tagIds: string[]
+): Promise<void> {
+	if (tagIds.length === 0) {
+		await tx.cardTag.deleteMany({ where: { cardId } });
+		return;
+	}
+	await tx.cardTag.deleteMany({ where: { cardId, tagId: { notIn: tagIds } } });
+	for (const tagId of tagIds) {
+		await tx.cardTag.upsert({
+			where: { cardId_tagId: { cardId, tagId } },
+			create: { cardId, tagId },
+			update: {},
+		});
+	}
+}
 
 async function listByColumn(columnId: string): Promise<ServiceResult<Card[]>> {
 	try {
@@ -105,6 +153,13 @@ async function create(data: CreateCardInput): Promise<ServiceResult<Card>> {
 		}
 		const projectId = column.board.projectId;
 
+		// Resolve legacy tag inputs into canonical (tagId, label) pairs BEFORE
+		// the transaction — resolveOrCreate has its own writes and shouldn't
+		// nest inside the card-create tx.
+		const { tagIds, labels } = data.tags?.length
+			? await resolveLegacyTagsForWeb(db, projectId, data.tags)
+			: { tagIds: [], labels: [] };
+
 		// Wrap position + number + create in a transaction to prevent race conditions
 		const card = await db.$transaction(async (tx) => {
 			const maxPosition = await tx.card.aggregate({
@@ -127,13 +182,19 @@ async function create(data: CreateCardInput): Promise<ServiceResult<Card>> {
 					title: data.title,
 					description: data.description,
 					priority: data.priority,
-					tags: JSON.stringify(data.tags),
+					// Sync the legacy JSON column with canonical labels so reads
+					// that haven't been migrated to the junction stay coherent.
+					tags: JSON.stringify(labels),
 					createdBy: data.createdBy,
 					dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
 					milestoneId: data.milestoneId ?? undefined,
 					position,
 				},
 			});
+
+			if (tagIds.length > 0) {
+				await syncCardTagsTx(tx as unknown as PrismaClient, created.id, tagIds);
+			}
 
 			await tx.activity.create({
 				data: {
@@ -162,7 +223,12 @@ async function update(cardId: string, data: UpdateCardInput): Promise<ServiceRes
 			return { success: false, error: { code: "NOT_FOUND", message: "Card not found." } };
 		}
 
-		const nextTags = data.tags ? JSON.stringify(data.tags) : undefined;
+		// Resolve tags up front (writes to Tag table happen here).
+		const tagsApplied = data.tags !== undefined;
+		const { tagIds, labels } = tagsApplied
+			? await resolveLegacyTagsForWeb(db, existing.projectId, data.tags ?? [])
+			: { tagIds: [], labels: [] };
+		const nextTags = tagsApplied ? JSON.stringify(labels) : undefined;
 		const nextDueDate =
 			data.dueDate !== undefined ? (data.dueDate ? new Date(data.dueDate) : null) : undefined;
 		const nextMilestoneId = data.milestoneId !== undefined ? data.milestoneId : undefined;
@@ -194,6 +260,9 @@ async function update(cardId: string, data: UpdateCardInput): Promise<ServiceRes
 					lastEditedBy: "HUMAN",
 				},
 			});
+			if (tagsApplied) {
+				await syncCardTagsTx(tx as unknown as PrismaClient, cardId, tagIds);
+			}
 			await tx.activity.create({
 				data: { cardId, action: "updated", actorType: "HUMAN" },
 			});
