@@ -1,5 +1,6 @@
 import type { Card } from "prisma/generated/client";
 import type { CreateCardInput, MoveCardInput, UpdateCardInput } from "@/lib/schemas/card-schemas";
+import { slugify as slugifyTag } from "@/lib/slugify";
 import { db } from "@/server/db";
 import { findStaleInProgress } from "@/server/services/stale-cards";
 import type { ServiceResult } from "@/server/services/types/service-result";
@@ -314,10 +315,14 @@ async function listAll(filters?: { priority?: string; tag?: string; search?: str
 				{ description: { contains: filters.search } },
 			];
 		}
-		// Filter tags in the DB using JSON string contains with quoted value
-		// e.g. tag "bug" matches `"bug"` in the JSON array string `["bug","ui"]`
+		// v4.2: filter through the CardTag junction by normalized slug. Pre-v4.2
+		// data (cards whose JSON `tags` column hasn't been migrated yet) won't
+		// match — the migrateTags MCP tool backfills the junction in one shot.
 		if (filters?.tag && filters.tag !== "ALL") {
-			where.tags = { contains: `"${filters.tag}"` };
+			const slug = slugifyTag(filters.tag);
+			if (slug) {
+				where.cardTags = { some: { tag: { slug } } };
+			}
 		}
 
 		const cards = await db.card.findMany({

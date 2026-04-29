@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { editDistance as nameDistance, slugify as slugifyName } from "@/lib/slugify";
+import { milestoneService } from "@/server/services/milestone-service";
 import { db } from "./db.js";
 import { registerExtendedTool } from "./tool-registry.js";
 import {
@@ -8,7 +10,6 @@ import {
 	syncCardTags,
 } from "./taxonomy-utils.js";
 import { toToon } from "./toon.js";
-import { milestoneService } from "@/server/services/milestone-service";
 import {
 	AGENT_NAME,
 	err,
@@ -1068,7 +1069,7 @@ registerExtendedTool("mergeMilestones", {
 registerExtendedTool("listMilestones", {
 	category: "milestones",
 	description:
-		"List milestones for a project with card counts, done/total breakdown, and completion percentage.",
+		"List milestones for a project with card counts, done/total breakdown, completion percentage, state, and v4.2 governance hints (singleton-after-days, possible-merge near-miss neighbours). Use the hints to drive a one-time triage pass with mergeMilestones / updateMilestone({ state: 'archived' }).",
 	parameters: z.object({
 		projectId: z.string().describe("Project UUID"),
 	}),
@@ -1085,20 +1086,62 @@ registerExtendedTool("listMilestones", {
 					},
 				},
 			});
+
+			// Pre-compute slugs for all milestones in the project so we can
+			// build the possibleMerge neighbour list in O(n²) without a DB
+			// round-trip per milestone. n is bounded by the per-project count
+			// (current high-water mark across the whole codebase: ~10).
+			const slugged = milestones.map((m) => ({
+				id: m.id,
+				name: m.name,
+				slug: slugifyName(m.name),
+				createdAt: m.createdAt,
+			}));
+			const SINGLETON_DAYS = 60;
+			const NOW = Date.now();
+
 			return ok(
-				milestones.map((m) => {
+				milestones.map((m, i) => {
 					const total = m._count.cards;
 					const done = m.cards.filter((c) => c.column.role === "done").length;
-					const { cards: _, ...rest } = m;
+					const ageDays = Math.floor((NOW - m.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+
+					const possibleMerge: Array<{ id: string; name: string; distance: number }> = [];
+					const mineSlug = slugged[i].slug;
+					if (mineSlug) {
+						for (let j = 0; j < slugged.length; j++) {
+							if (j === i) continue;
+							const other = slugged[j];
+							if (!other.slug) continue;
+							const distance = nameDistance(mineSlug, other.slug, 2);
+							if (distance <= 2) {
+								possibleMerge.push({ id: other.id, name: other.name, distance });
+							}
+						}
+						possibleMerge.sort((a, b) => a.distance - b.distance);
+					}
+
+					const governanceHints: Record<string, unknown> = {};
+					if (total === 1 && ageDays > SINGLETON_DAYS) {
+						governanceHints.singletonAfterDays = ageDays;
+					}
+					if (possibleMerge.length > 0) {
+						governanceHints.possibleMerge = possibleMerge;
+					}
+
 					return {
-						id: rest.id,
-						name: rest.name,
-						description: rest.description,
-						targetDate: rest.targetDate,
+						id: m.id,
+						name: m.name,
+						description: m.description,
+						targetDate: m.targetDate,
+						state: m.state,
 						cardCount: total,
 						done,
 						progress: total > 0 ? `${Math.round((done / total) * 100)}%` : "0%",
-						position: rest.position,
+						position: m.position,
+						...(Object.keys(governanceHints).length > 0 && {
+							_governanceHints: governanceHints,
+						}),
 					};
 				})
 			);
