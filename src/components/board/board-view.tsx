@@ -7,13 +7,15 @@ import {
 	type DragOverEvent,
 	DragOverlay,
 	type DragStartEvent,
+	KeyboardSensor,
 	PointerSensor,
 	pointerWithin,
 	rectIntersection,
+	TouchSensor,
 	useSensor,
 	useSensors,
 } from "@dnd-kit/core";
-import { arrayMove } from "@dnd-kit/sortable";
+import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { Lightbulb } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -149,6 +151,14 @@ export function BoardView({
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
 			activationConstraint: { distance: 5 },
+		}),
+		// Long-press on touch so a deliberate gesture is needed — keeps drag
+		// from hijacking vertical scrolls on mobile.
+		useSensor(TouchSensor, {
+			activationConstraint: { delay: 200, tolerance: 5 },
+		}),
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
 		})
 	);
 
