@@ -29,7 +29,7 @@ export const BUILT_IN_VIEWS: BoardView[] = [
 		name: "Review Mode",
 		filters: emptyFilters,
 		sortMode: "manual",
-		hiddenRoles: ["backlog", "todo", "parking"],
+		hiddenRoles: ["backlog", "parking"],
 		builtIn: true,
 	},
 	{

@@ -12,7 +12,9 @@ import { getLatestHandoff } from "@/lib/services/handoff";
 import { db } from "@/server/db";
 import { findStaleInProgress } from "@/server/services/stale-cards";
 
-export const API_STATE_SCHEMA_VERSION = "1.0";
+// 1.1 — dropped `up_next` count (#97 removed the Up Next column; top-3
+// Backlog now serves as pinned, not a separate stage).
+export const API_STATE_SCHEMA_VERSION = "1.1";
 
 const DEFAULT_GLOBAL_ACTIVITY_LIMIT = 10;
 const DEFAULT_BOARD_ACTIVITY_LIMIT = 50;
@@ -36,7 +38,6 @@ export type ApiStateBoard = {
 	counts: {
 		in_progress: number;
 		review: number;
-		up_next: number;
 		backlog: number;
 		blocked: number;
 		stale_in_progress: number;
@@ -99,7 +100,6 @@ async function buildBoardState(
 	const counts = {
 		in_progress: 0,
 		review: 0,
-		up_next: 0,
 		backlog: 0,
 		blocked: 0,
 		stale_in_progress: 0,
@@ -117,7 +117,6 @@ async function buildBoardState(
 				lastEditedBy: card.lastEditedBy,
 			});
 		} else if (hasRole(column, "review")) counts.review++;
-		else if (hasRole(column, "todo")) counts.up_next++;
 		else if (hasRole(column, "backlog")) counts.backlog++;
 		if (card.relationsTo.length > 0 && !hasRole(column, "done")) counts.blocked++;
 	}

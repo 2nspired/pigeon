@@ -23,7 +23,7 @@ registerExtendedTool("getBoard", {
 		columns: z
 			.array(z.string())
 			.optional()
-			.describe("Only include these columns by name (e.g. ['Backlog', 'Up Next', 'In Progress'])"),
+			.describe("Only include these columns by name (e.g. ['Backlog', 'In Progress'])"),
 		excludeDone: z
 			.boolean()
 			.default(false)
@@ -312,7 +312,6 @@ registerExtendedTool("getRoadmap", {
 						blocked,
 						progress: cards.length > 0 ? `${Math.round((done / cards.length) * 100)}%` : "0%",
 						now: cards.filter((c) => c.horizon === "now"),
-						next: cards.filter((c) => c.horizon === "next"),
 						later: cards.filter((c) => c.horizon === "later"),
 						done_cards: cards.filter((c) => c.horizon === "done"),
 					};

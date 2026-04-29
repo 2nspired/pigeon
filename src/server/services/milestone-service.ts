@@ -10,7 +10,7 @@ import type { ServiceResult } from "@/server/services/types/service-result";
 
 type MilestoneWithCounts = Milestone & {
 	_count: { cards: number };
-	cardsByStatus: { now: number; next: number; later: number; done: number };
+	cardsByStatus: { now: number; later: number; done: number };
 };
 
 async function list(projectId: string): Promise<ServiceResult<MilestoneWithCounts[]>> {
@@ -29,7 +29,7 @@ async function list(projectId: string): Promise<ServiceResult<MilestoneWithCount
 		});
 
 		const data = milestones.map((m) => {
-			const cardsByStatus = { now: 0, next: 0, later: 0, done: 0 };
+			const cardsByStatus = { now: 0, later: 0, done: 0 };
 			for (const card of m.cards) {
 				cardsByStatus[getHorizon(card.column)]++;
 			}

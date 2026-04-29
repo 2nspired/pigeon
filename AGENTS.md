@@ -190,16 +190,17 @@ The index auto-initializes on first query. It covers repo `*.md` files up to 100
 
 | Column | Purpose | When to move here |
 |---|---|---|
-| **Backlog** | Known work that hasn't been prioritized yet. Dumping ground for "we should do this eventually." | When identifying future work during planning or conversation |
-| **Up Next** | Prioritized and ready to pick up. This is the active work queue. | When the user or agent agrees this should happen next |
+| **Backlog** | All known work, ordered by priority. The **top 3 positions** are treated as human-pinned and surface ahead of score-ranked cards in `briefMe.topWork` (`source: "pinned"`). Drag a card to the top to signal "I want this next." | When identifying future work, OR when promoting a card to "this is what I want done next" — drag it to the top of Backlog |
 | **In Progress** | Actively being worked on right now. Limit to 2-3 cards to stay focused. | When you start writing code or doing real work on it |
 | **Review** | Code is written, needs human review, testing, or verification. Not present on all boards. | When the agent finishes implementation and wants the user to check |
 | **Done** | Shipped, merged, verified. No more work needed. | After human confirms it's good, or after merging |
 | **Parking Lot** | Ideas, maybes, "what if we..." — not committed to. Low-cost storage for thoughts that might become real work later. | When someone has an idea but it's not actionable yet |
 
+> **Note (#97):** The legacy "Up Next" column was removed. Its function (human-priority queue) is now expressed by **position in Backlog** — top 3 = pinned. This keeps columns as pure workflow stages and avoids duplicating the `priority` field.
+
 ## When to Use the Board
 
-**Start of conversation** — Call `getBoard` once to understand current state. For large boards (50+ cards), use `getBoard` with `summary: true` or `excludeDone: true` to reduce payload. You can also filter to specific columns with `columns: ["Backlog", "Up Next", "In Progress"]`. This replaces re-reading files and git logs to figure out where things stand. If there are checklist items or cards in "Up Next", that's your work queue.
+**Start of conversation** — Call `briefMe` for a session primer (handoff, top work, pulse). For deeper exploration, use `getBoard` with `summary: true` or `excludeDone: true` to reduce payload. You can also filter to specific columns with `columns: ["Backlog", "In Progress"]`. The first three Backlog cards are the agent's recommended next-up — `briefMe.topWork` flags them with `source: "pinned"`.
 
 **Planning phase** — Use `bulkCreateCards` (not individual createCard calls) to lay out planned work. Add checklist items for sub-tasks. This is where the user sees your plan before you start coding.
 
@@ -220,7 +221,7 @@ The index auto-initializes on first query. It covers repo `*.md` files up to 100
 
 | Information | Where it belongs |
 |---|---|
-| What needs to be done | Cards in Up Next / Backlog |
+| What needs to be done | Cards in Backlog (drag the most important to the top — top 3 surface as `pinned` in briefMe) |
 | Current work breakdown | Checklist items on the active card |
 | Architecture decisions | Comment on the relevant card |
 | "Why did we choose X?" | Comment on the card |
@@ -245,7 +246,7 @@ Do this as part of your end-of-work flow, not after every small commit.
 ### Reducing Token Usage
 - Use `getBoard` with `summary: true` for lightweight views (no descriptions or checklist items)
 - Use `getBoard` with `excludeDone: true` to skip Done/Parking columns — often the bulk of payload
-- Use `getBoard` with `columns: ["Up Next", "In Progress"]` to fetch only the columns you need
+- Use `getBoard` with `columns: ["Backlog", "In Progress"]` to fetch only the columns you need
 - One `getBoard` call at conversation start gives you everything — don't call it repeatedly
 
 ### Bulk Operations

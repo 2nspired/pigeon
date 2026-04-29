@@ -418,8 +418,6 @@ function BoardsTab({
 						const doneCards = doneCol?._count.cards ?? 0;
 						const inProgressCol = board.columns.find((c) => hasRole(c, "active"));
 						const inProgressCards = inProgressCol?._count.cards ?? 0;
-						const todoCol = board.columns.find((c) => hasRole(c, "todo"));
-						const todoCards = todoCol?._count.cards ?? 0;
 						const pct = totalCards > 0 ? Math.round((doneCards / totalCards) * 100) : 0;
 
 						return (
@@ -438,12 +436,6 @@ function BoardsTab({
 															<span className="flex items-center gap-1">
 																<span className="h-2 w-2 rounded-full bg-blue-500" />
 																{inProgressCards} in progress
-															</span>
-														)}
-														{todoCards > 0 && (
-															<span className="flex items-center gap-1">
-																<span className="h-2 w-2 rounded-full bg-amber-500" />
-																{todoCards} to do
 															</span>
 														)}
 														{doneCards > 0 && (

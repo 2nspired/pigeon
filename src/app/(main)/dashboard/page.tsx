@@ -56,13 +56,13 @@ export default function DashboardPage() {
 	// Compute all derived data
 	const { stats, focusCards, grouped } = useMemo(() => {
 		type CardItem = NonNullable<typeof cards>[number];
-		type MilestoneEntry = { name: string; cells: Array<"done" | "now" | "next" | "later"> };
+		type MilestoneEntry = { name: string; cells: Array<"done" | "now" | "later"> };
 		type ProjectStat = { name: string; id: string; done: number; total: number; milestones: MilestoneEntry[] };
 		type GroupEntry = { projectName: string; projectId: string; boardId: string; cards: CardItem[] };
 		if (!cards) return { stats: null, focusCards: [] as CardItem[], grouped: new Map<string, GroupEntry>() };
 
 		// Stats by horizon
-		const horizonCounts = { now: 0, next: 0, later: 0, done: 0 };
+		const horizonCounts = { now: 0, later: 0, done: 0 };
 		// Per-project stats (including milestones)
 		const projectStats = new Map<string, ProjectStat>();
 		// Per-project milestone maps
@@ -103,7 +103,7 @@ export default function DashboardPage() {
 		}
 
 		// Attach sorted milestones to each project
-		const cellOrder = { done: 0, now: 1, next: 2, later: 3 };
+		const cellOrder = { done: 0, now: 1, later: 2 };
 		for (const [pId, msMap] of projectMilestones) {
 			const ps = projectStats.get(pId)!;
 			ps.milestones = Array.from(msMap.values())
@@ -147,14 +147,10 @@ export default function DashboardPage() {
 			{stats && cards && cards.length > 0 && (
 				<div className="mb-6 space-y-4">
 					{/* Horizon counts */}
-					<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+					<div className="grid grid-cols-3 gap-3">
 						<div className="rounded-lg border bg-card p-3">
 							<div className="text-xs font-medium text-muted-foreground">Active</div>
 							<div className="mt-1 text-2xl font-bold">{stats.now}</div>
-						</div>
-						<div className="rounded-lg border bg-card p-3">
-							<div className="text-xs font-medium text-muted-foreground">Up Next</div>
-							<div className="mt-1 text-2xl font-bold">{stats.next}</div>
 						</div>
 						<div className="rounded-lg border bg-card p-3">
 							<div className="text-xs font-medium text-muted-foreground">Backlog</div>

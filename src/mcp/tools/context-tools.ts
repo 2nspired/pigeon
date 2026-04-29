@@ -163,7 +163,7 @@ registerExtendedTool("getCardContext", {
 registerExtendedTool("getMilestoneContext", {
 	category: "context",
 	description:
-		"Cards and progress for a milestone, grouped by horizon (now/next/later/done). Includes decisions.",
+		"Cards and progress for a milestone, grouped by horizon (now/later/done). Includes decisions.",
 	parameters: z.object({
 		boardId: z.string().describe("Board UUID"),
 		milestone: z.string().describe("Milestone name"),
@@ -228,7 +228,7 @@ registerExtendedTool("getMilestoneContext", {
 				checklist: string;
 				blockedBy?: Array<{ ref: string; title: string }>;
 			};
-			const grouped: Record<string, MilestoneCard[]> = { now: [], next: [], later: [], done: [] };
+			const grouped: Record<string, MilestoneCard[]> = { now: [], later: [], done: [] };
 			for (const c of cards) {
 				const horizon = getHorizon(c.column);
 				const done = c.checklists.filter((cl) => cl.completed).length;
@@ -255,7 +255,6 @@ registerExtendedTool("getMilestoneContext", {
 					progress:
 						cards.length > 0 ? `${Math.round((grouped.done.length / cards.length) * 100)}%` : "0%",
 					now: grouped.now,
-					next: grouped.next,
 					later: grouped.later,
 					doneCards: grouped.done,
 					decisions,

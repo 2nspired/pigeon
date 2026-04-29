@@ -318,7 +318,7 @@ registerExtendedTool("bulkCreateCards", {
 		boardId: z.string().describe("Board UUID"),
 		cards: z.array(
 			z.object({
-				columnName: z.string().describe("Column name (e.g. 'Up Next', 'Backlog')"),
+				columnName: z.string().describe("Column name (e.g. 'Backlog', 'In Progress')"),
 				title: z.string().describe("Card title"),
 				description: z.string().optional().describe("Markdown"),
 				priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).default("NONE"),
@@ -412,7 +412,7 @@ registerExtendedTool("createCardFromTemplate", {
 		"Create a card from a pre-filled template. Templates: Bug Report, Feature, Spike / Research, Tech Debt, Epic.",
 	parameters: z.object({
 		boardId: z.string().describe("Board UUID"),
-		columnName: z.string().describe("Column name (e.g. 'Up Next')"),
+		columnName: z.string().describe("Column name (e.g. 'Backlog')"),
 		template: z.enum(["Bug Report", "Feature", "Spike / Research", "Tech Debt", "Epic"]),
 		title: z.string().describe("Card title (auto-prefixed with template type)"),
 	}),
@@ -1286,7 +1286,7 @@ registerExtendedTool("listActivity", {
 registerExtendedTool("createProject", {
 	category: "setup",
 	description:
-		"Create a project with default board and columns (Backlog, Up Next, In Progress, Done, Parking Lot).",
+		"Create a project with default board and columns (Backlog, In Progress, Done, Parking Lot).",
 	parameters: z.object({
 		name: z.string(),
 		description: z.string().optional(),
@@ -1313,32 +1313,27 @@ registerExtendedTool("createProject", {
 								create: [
 									{
 										name: "Backlog",
-										description: "This hasn't been started",
+										description:
+											"Known work. Drag the most important to the top — top 3 surface as 'pinned' in briefMe.",
 										position: 0,
 										role: "backlog",
 									},
 									{
-										name: "Up Next",
-										description: "This is ready to be picked up",
-										position: 1,
-										role: "todo",
-									},
-									{
 										name: "In Progress",
 										description: "This is actively being worked on",
-										position: 2,
+										position: 1,
 										role: "active",
 									},
 									{
 										name: "Done",
 										description: "This has been completed",
-										position: 3,
+										position: 2,
 										role: "done",
 									},
 									{
 										name: "Parking Lot",
 										description: "Ideas and items to revisit later",
-										position: 4,
+										position: 3,
 										role: "parking",
 										isParking: true,
 									},

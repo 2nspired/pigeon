@@ -76,12 +76,11 @@ export function MilestoneCard({
 		daysUntilTarget !== null && daysUntilTarget <= 7 && pct < 0.8;
 	const isOverdue = daysUntilTarget !== null && daysUntilTarget < 0 && pct < 1;
 
-	// Sort cards: now → next → later → done
+	// Sort cards: now → later → done
 	const horizonOrder: Record<string, number> = {
 		now: 0,
-		next: 1,
-		later: 2,
-		done: 3,
+		later: 1,
+		done: 2,
 	};
 	const sortedCards = [...milestone.cards].sort(
 		(a, b) => horizonOrder[a.horizon] - horizonOrder[b.horizon],

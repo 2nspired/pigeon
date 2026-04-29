@@ -204,7 +204,7 @@ export function BoardListView({
 	}, [allCards, filters, sortMode]);
 
 	const groupedByColumn: ColumnGroupData[] = useMemo(() => {
-		const horizonOrder = { now: 0, next: 1, later: 2, done: 3 };
+		const horizonOrder = { now: 0, later: 1, done: 2 };
 		const groups = board.columns
 			.filter((col) => !col.isParking && !hiddenRoles.some((role) => hasRole(col, role)))
 			.map((col) => ({

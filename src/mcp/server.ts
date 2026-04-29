@@ -190,7 +190,7 @@ server.registerTool(
 		description: "Create a card. Uses column name (not ID); auto-creates milestone if name is new.",
 		inputSchema: {
 			boardId: z.string().describe("Board UUID"),
-			columnName: z.string().describe("Column name (e.g. 'Up Next', 'Backlog')"),
+			columnName: z.string().describe("Column name (e.g. 'Backlog', 'In Progress')"),
 			title: z.string().describe("Card title"),
 			description: z.string().optional().describe("Markdown description"),
 			priority: z.enum(["NONE", "LOW", "MEDIUM", "HIGH", "URGENT"]).default("NONE"),
@@ -697,6 +697,7 @@ server.registerTool(
 									id: true,
 									number: true,
 									title: true,
+									position: true,
 									priority: true,
 									updatedAt: true,
 									dueDate: true,
@@ -770,6 +771,10 @@ server.registerTool(
 
 			const diff = lastHandoff ? await computeBoardDiff(db, boardId, lastHandoff.createdAt) : null;
 
+			// Top N positions in Backlog are treated as human-pinned and surface
+			// ahead of score-ranked Backlog cards. Replaces the old "Up Next"
+			// column tier (#97).
+			const PIN_THRESHOLD = 3;
 			const scoredCards = openCards
 				.map(({ card, column }) => ({
 					ref: `#${card.number}`,
@@ -786,12 +791,12 @@ server.registerTool(
 					}),
 					source: hasRole(column, "active")
 						? ("active" as const)
-						: hasRole(column, "todo")
-							? ("todo" as const)
+						: hasRole(column, "backlog") && card.position < PIN_THRESHOLD
+							? ("pinned" as const)
 							: ("scored" as const),
 				}))
 				.filter((c) => c.score >= 0);
-			const tierRank = { active: 0, todo: 1, scored: 2 } as const;
+			const tierRank = { active: 0, pinned: 1, scored: 2 } as const;
 			const topWork = scoredCards
 				.sort((a, b) => tierRank[a.source] - tierRank[b.source] || b.score - a.score)
 				.slice(0, 3);
@@ -860,8 +865,8 @@ server.registerTool(
 				...(staleInProgress.length > 0 ? { staleInProgress } : {}),
 				...(intentReminder ? { intentReminder } : {}),
 				_hint: lastHandoff
-					? "Continue via handoff.nextSteps or pick from topWork (Up Next cards are human-prioritized — pick those before scored Backlog). Use runTool('getCardContext', { cardId }) for deep work. Run `listWorkflows({ boardId })` to see named recipes (sessionStart, sessionEnd, recordDecision, searchKnowledge)."
-					: "No prior handoff — pick from topWork (Up Next cards are human-prioritized — pick those before scored Backlog). Run `listWorkflows({ boardId })` for the full recipe set; call `endSession` before wrapping to save context.",
+					? "Continue via handoff.nextSteps or pick from topWork (cards with source='pinned' are human-prioritized — top of Backlog by drag order — pick those before source='scored'). Use runTool('getCardContext', { cardId }) for deep work. Run `listWorkflows({ boardId })` to see named recipes (sessionStart, sessionEnd, recordDecision, searchKnowledge)."
+					: "No prior handoff — pick from topWork (cards with source='pinned' are human-prioritized — top of Backlog by drag order — pick those before source='scored'). Run `listWorkflows({ boardId })` for the full recipe set; call `endSession` before wrapping to save context.",
 			};
 
 			try {
@@ -1262,7 +1267,9 @@ server.registerPrompt(
 		}
 
 		const inProgress = board.columns.find((c) => hasRole(c, "active"))?.cards ?? [];
-		const todo = board.columns.find((c) => hasRole(c, "todo"))?.cards ?? [];
+		// Top 3 positions in Backlog are treated as human-pinned (#97).
+		const backlogCards = board.columns.find((c) => hasRole(c, "backlog"))?.cards ?? [];
+		const pinned = backlogCards.slice(0, 3);
 		const blocked = board.columns.flatMap((c) => c.cards).filter((c) => c.relationsTo.length > 0);
 
 		// Detect available features
@@ -1319,10 +1326,9 @@ server.registerPrompt(
 			);
 		}
 
-		if (todo.length > 0) {
-			lines.push("", `## Ready (${todo.length})`);
-			for (const c of todo.slice(0, 5)) lines.push(`- #${c.number} ${c.title} (${c.priority})`);
-			if (todo.length > 5) lines.push(`  ...and ${todo.length - 5} more`);
+		if (pinned.length > 0) {
+			lines.push("", `## Pinned — top of Backlog (${pinned.length})`);
+			for (const c of pinned) lines.push(`- #${c.number} ${c.title} (${c.priority})`);
 		}
 
 		if (blocked.length > 0) {
@@ -1654,7 +1660,7 @@ server.registerPrompt(
 				"## Step 1: Create the project",
 				"",
 				`Use \`runTool('createProject', { name: "${projectName}", description: "..." })\``,
-				"This creates a default board with standard columns (Backlog, Up Next, In Progress, Review, Done, Parking Lot).",
+				"This creates a default board with standard columns (Backlog, In Progress, Review, Done, Parking Lot).",
 				""
 			);
 		}
@@ -1664,7 +1670,7 @@ server.registerPrompt(
 			"## Step 2: Populate the board",
 			"",
 			"Read the project's README, CLAUDE.md, and `git log --oneline -20` to understand state.",
-			"Then create cards: Completed→Done, Active→In Progress, Next→Up Next, Future→Backlog, Ideas→Parking Lot.",
+			"Then create cards: Completed→Done, Active→In Progress, Next/Future→Backlog (drag the most important to the top), Ideas→Parking Lot.",
 			"Use `runTool('bulkCreateCards', {...})` to batch-create.",
 			"",
 			"## Step 3: Add to the project's CLAUDE.md",
@@ -1864,7 +1870,7 @@ server.registerPrompt(
 			"",
 			'1. **Project name** — What are you building? (e.g. "My App", "Website Redesign")',
 			'2. **Board name** — Optional, defaults to "Main Board"',
-			"3. **Initial columns** — A board starts with: Backlog, Up Next, In Progress, Review, Done, Parking Lot",
+			"3. **Initial columns** — A board starts with: Backlog, In Progress, Review, Done, Parking Lot",
 			"",
 			"Once you tell me the project name, I'll:",
 			"- Create the project with `createProject`",
