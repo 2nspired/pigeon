@@ -8,6 +8,39 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+## [4.1.0] — 2026-04-29
+
+`briefMe` now emits a deprecation warning whenever a project still has content in the legacy `projectPrompt` DB column. The column will be removed in v5.0.0; this release is the migration window.
+
+### Why now
+
+`migrateProjectPrompt` shipped in v4.0.0 (#126) and writes a `tracker.md` from the current `projectPrompt` value. v4.0.0 didn't actively warn users that the column was on its way out — this release closes that gap so anyone still on the legacy path gets a clear nudge before v5.0.0 lands.
+
+### What changed
+
+- `loadTrackerPolicy` now returns a `DEPRECATED` warning in `result.warnings` whenever `projectPrompt` is non-empty, regardless of whether `tracker.md` exists. (Previously it only fired when *both* were populated — the "no `tracker.md` yet" case shipped silent.)
+- The warning surfaces as `_warnings[]` in `briefMe` output; agents already render this field, so no client-side change is needed.
+
+### Migration — recommended before upgrading to v5.0.0
+
+For each project with `projectPrompt` content:
+
+```
+# 1. Write the body to tracker.md (idempotent — aborts if file exists).
+mcp call migrateProjectPrompt { projectId: "<id>" }
+
+# 2. Review the new tracker.md, commit it.
+
+# 3. Clear the DB column. From the web UI, edit the project's prompt to empty;
+#    or via Prisma Studio, set Project.projectPrompt = null.
+```
+
+Once both steps are done, the deprecation warning stops firing for that project.
+
+### Other
+
+- `vitest.config.ts`: exclude `.claude/**` so leftover agent worktrees don't run duplicate tests.
+
 ## [4.0.0] — 2026-04-29
 
 The "Up Next" column is removed. Position-in-Backlog now expresses the human-priority queue: the top 3 cards in Backlog surface as `source: "pinned"` in `briefMe.topWork`, ahead of score-ranked cards. (#97)

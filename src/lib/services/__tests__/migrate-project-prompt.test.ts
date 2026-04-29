@@ -88,7 +88,7 @@ describe("migrateProjectPromptToFile", () => {
 		expect(load.policy_error).toBeUndefined();
 	});
 
-	it("emits a conflict warning via loadTrackerPolicy when DB still has projectPrompt", async () => {
+	it("emits a deprecation warning via loadTrackerPolicy when DB still has projectPrompt", async () => {
 		await migrateProjectPromptToFile({
 			repoPath: dir,
 			slug: "p",
@@ -100,6 +100,7 @@ describe("migrateProjectPromptToFile", () => {
 			projectPrompt: "stale db value",
 		});
 		expect(load.warnings.length).toBeGreaterThan(0);
-		expect(load.warnings[0]).toMatch(/migrateProjectPrompt|delete the DB value/);
+		expect(load.warnings[0]).toMatch(/DEPRECATED.*v5\.0\.0/);
+		expect(load.warnings[0]).toMatch(/migrateProjectPrompt/);
 	});
 });

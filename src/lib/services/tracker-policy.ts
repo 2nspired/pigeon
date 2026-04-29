@@ -46,15 +46,18 @@ export type LoadPolicyResult = {
 
 const FILENAME = "tracker.md";
 const FRONT_MATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
-const CONFLICT_WARNING =
-	"Project has both tracker.md and a non-empty projectPrompt. Using tracker.md. Run `migrateProjectPrompt` or delete the DB value to clear this warning.";
+const DEPRECATION_WARNING =
+	"DEPRECATED: the `projectPrompt` DB column will be removed in v5.0.0. Run `migrateProjectPrompt` to write tracker.md from the current value, then clear the DB column.";
 
 export async function loadTrackerPolicy(input: {
 	repoPath: string | null;
 	projectPrompt: string | null;
 }): Promise<LoadPolicyResult> {
 	const { repoPath, projectPrompt } = input;
-	if (!repoPath) return { policy: null, warnings: [] };
+	const hasProjectPrompt = typeof projectPrompt === "string" && projectPrompt.trim().length > 0;
+	const deprecationWarnings = hasProjectPrompt ? [DEPRECATION_WARNING] : [];
+
+	if (!repoPath) return { policy: null, warnings: deprecationWarnings };
 
 	let raw: string;
 	try {
@@ -63,7 +66,7 @@ export async function loadTrackerPolicy(input: {
 		// File absent (or unreadable) — both treated as "no policy". A future
 		// refinement could split ENOENT from unreadable, but the practical signal
 		// for agents is identical: there's no policy to apply.
-		return { policy: null, warnings: [] };
+		return { policy: null, warnings: deprecationWarnings };
 	}
 
 	const match = FRONT_MATTER_RE.exec(raw);
@@ -131,12 +134,7 @@ export async function loadTrackerPolicy(input: {
 		schema_version: validated.schema_version,
 	};
 
-	const warnings: string[] = [];
-	if (prompt.length > 0 && projectPrompt && projectPrompt.trim().length > 0) {
-		warnings.push(CONFLICT_WARNING);
-	}
-
-	return { policy, warnings };
+	return { policy, warnings: deprecationWarnings };
 }
 
 function formatZodError(error: z.ZodError): string {
