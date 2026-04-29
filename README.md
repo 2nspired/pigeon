@@ -89,6 +89,7 @@ Next.js 16 + React 19 · Prisma 7 + SQLite · tRPC v11 · shadcn/ui + Tailwind 4
 - [Design rationale](https://2nspired.github.io/project-tracker/why/)
 - [Anti-patterns](https://2nspired.github.io/project-tracker/anti-patterns/)
 - [MCP tools reference](https://2nspired.github.io/project-tracker/tools/)
+- [docs/SURFACES.md](docs/SURFACES.md) — when to use `tracker.md` vs `CLAUDE.md` vs `AGENTS.md`
 - [AGENTS.md](AGENTS.md) — contributor guide for agent conventions
 - [CLAUDE.md](CLAUDE.md) — developer-facing project config
 

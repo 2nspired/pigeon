@@ -1,5 +1,7 @@
 # Agent Guidelines for Project Tracker
 
+> **Runtime board policy lives in [`tracker.md`](tracker.md)** at the project's repo root — that file is the source of truth for `intent_required_on`, per-column prompts, and the project's general agent prompt. This document is contributor docs: tool migration history, conventions, and reference material that hasn't been moved (and may not need to be). When this file and `tracker.md` overlap, `tracker.md` wins. See [docs/SURFACES.md](docs/SURFACES.md) for the full surface map.
+
 > If the human can't see it and correct it in the surface where they'd naturally encounter it, the agent shouldn't trust it.
 
 Shared guidelines for any AI agent (Claude, Codex, etc.) using the Project Tracker MCP.
@@ -74,13 +76,15 @@ The knowledge tools were consolidated in v2.2. If your prompts or learned workfl
 
 **Key concept:** The `content` field replaces `claim` (context), `fact` (code), and `description` (measurement). All three fact types share CRUD through `saveFact`/`listFacts` with a `type` discriminator. The underlying data is unchanged.
 
-## Project Prompt
+## Project Prompt — deprecated, see `tracker.md`
 
-Each project has an optional `projectPrompt` field — a short orientation paragraph that auto-loads at session start via `checkOnboarding`. Use `updateProjectPrompt` to set it.
+The `projectPrompt` DB column has been superseded by [`tracker.md`](tracker.md) at repo root (RFC #111). New projects should write `tracker.md` directly; existing projects can run `migrateProjectPrompt({ projectId })` to copy the DB value into a fresh `tracker.md`, then clear the column. The field will be removed in v5.0.0.
 
-**When to use `projectPrompt` vs. repo-side CLAUDE.md:**
-- `projectPrompt` is stored in the tracker DB and shared across all agent accounts. Use it for project-level context that any collaborator (human or agent) needs at session start — current phase, key constraints, what to focus on.
-- `CLAUDE.md` lives in the repo and is scoped to that repo's code. Use it for build commands, code conventions, and repo-specific instructions.
+**When to use `tracker.md` vs. repo-side CLAUDE.md:**
+- `tracker.md` is the project's runtime board policy — agent prompt body + machine-parsed front matter (`intent_required_on`, per-column prompts). Read by `briefMe` and `getCardContext`.
+- `CLAUDE.md` is Claude Code's repo session bootstrap — build commands, code conventions, repo-specific instructions. Read by Claude Code at session start, not by tracker tools.
+
+See [docs/SURFACES.md](docs/SURFACES.md) for a full breakdown.
 
 ## Intent on Writes
 

@@ -331,6 +331,23 @@ export const teachingProject = {
 			tags: ["tutorial", "advanced"],
 			createdBy: "AGENT",
 		},
+
+		// ── Backlog (advanced) — tracker.md policy ──────────────────────
+		{
+			title: "Define Runtime Policy in tracker.md",
+			description: [
+				"**What:** `tracker.md` is a single Markdown file at your project's repo root. YAML front matter carries machine-parsed policy (`intent_required_on`, `columns.<name>.prompt`); the body is the project's general agent prompt. Tracker MCP tools parse it and surface it to agents at the right moment.",
+				"**Why it matters:** Unlike the legacy `projectPrompt` DB column, `tracker.md` is git-versioned — review, branch, roll back. `briefMe` exposes the body under `policy.prompt`. `getCardContext` surfaces `policy.columnPrompt` exactly when an agent picks up a card in that column. Tools listed in `intent_required_on` enforce the `intent` parameter at the MCP boundary.",
+				"**Try it (UI):** Drop the example below into `tracker.md` at the root of any project you've connected, edit the prompts to match your policy, and commit it.",
+				'**Try it (agent):** Two paths:\n  1. Project has a legacy `projectPrompt`: `runTool({ tool: "migrateProjectPrompt", params: { projectId } })` writes a tracker.md from it.\n  2. Otherwise, write the file by hand using the example below.',
+				"**Example tracker.md:**\n\n````markdown\n---\nschema_version: 1\nproject_slug: learn-project-tracker\nintent_required_on:\n  - moveCard\n  - deleteCard\ncolumns:\n  In Progress:\n    prompt: |\n      Limit to 2-3 cards. Move here when you start writing code, not when planning.\n  Review:\n    prompt: |\n      Code is written and needs human verification. Don't move to Done without\n      explicit approval in a comment.\n---\n\n# Project policy for learn-project-tracker\n\nStart every session with `briefMe` — it returns the last handoff, top work,\nblockers, and pulse. Prefer cards with `source: 'pinned'` over `source: 'scored'`.\n\nEnd every session with `endSession` — saves a handoff and links new commits.\n````",
+				"**Outcome:** `briefMe` includes the parsed policy in its response. Cards in `In Progress` or `Review` get the matching `columnPrompt` via `getCardContext`. `moveCard` and `deleteCard` reject calls without an `intent`.",
+			].join("\n\n"),
+			column: "Backlog",
+			priority: "LOW",
+			tags: ["tutorial", "advanced", "mcp", "policy"],
+			createdBy: "AGENT",
+		},
 	],
 
 	/** Card #7 (Break Work into Checklists) gets a partial checklist (2/4 done) */
@@ -395,7 +412,7 @@ export const teachingProject = {
 	handoff: {
 		agentName: "tutorial-bot",
 		summary:
-			"Seeded the dual-audience tutorial board with 20 cards. Each content card has both a Try it (UI) and a Try it (agent) step.",
+			"Seeded the dual-audience tutorial board with 21 cards. Each content card has both a Try it (UI) and a Try it (agent) step.",
 		workingOn: ["Seeding the tutorial cards across all columns"],
 		findings: [
 			"Board has 5 columns: Backlog, Up Next, In Progress, Done, Parking Lot",
