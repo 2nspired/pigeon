@@ -7,9 +7,11 @@ import {
 	type DragOverEvent,
 	DragOverlay,
 	type DragStartEvent,
+	KeyboardSensor,
 	PointerSensor,
 	pointerWithin,
 	rectIntersection,
+	TouchSensor,
 	useDroppable,
 	useSensor,
 	useSensors,
@@ -17,6 +19,7 @@ import {
 import {
 	arrayMove,
 	SortableContext,
+	sortableKeyboardCoordinates,
 	useSortable,
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
@@ -169,6 +172,12 @@ export function BoardListView({
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
 			activationConstraint: { distance: 5 },
+		}),
+		useSensor(TouchSensor, {
+			activationConstraint: { delay: 200, tolerance: 5 },
+		}),
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
 		})
 	);
 
