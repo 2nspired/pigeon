@@ -13,6 +13,7 @@ import { saveBriefSnapshot } from "../lib/services/brief-snapshot.js";
 import { isRecentDecision } from "../lib/services/decisions.js";
 import { getLatestHandoff, parseHandoff, saveHandoff } from "../lib/services/handoff.js";
 import { getBlockers as getBlockersShared } from "../lib/services/relations.js";
+import { loadTrackerPolicy } from "../lib/services/tracker-policy.js";
 import { computeWorkNextScore } from "../lib/work-next-score.js";
 import { db } from "./db.js";
 import { syncGitActivityForProject } from "./git-sync.js";
@@ -687,7 +688,9 @@ server.registerTool(
 			const board = await db.board.findUnique({
 				where: { id: boardId },
 				include: {
-					project: { select: { id: true, name: true } },
+					project: {
+						select: { id: true, name: true, repoPath: true, projectPrompt: true },
+					},
 					columns: {
 						orderBy: { position: "asc" },
 						include: {
@@ -721,6 +724,7 @@ server.registerTool(
 				blockerEntries,
 				recentAgentActivity,
 				staleInProgressMap,
+				policyResult,
 			] = await Promise.all([
 				getLatestHandoff(db, boardId),
 				db.claim.findMany({
@@ -750,6 +754,10 @@ server.registerTool(
 					select: { id: true, intent: true },
 				}),
 				findStaleInProgress(db, boardId),
+				loadTrackerPolicy({
+					repoPath: board.project.repoPath,
+					projectPrompt: board.project.projectPrompt,
+				}),
 			]);
 
 			const allCards = board.columns.flatMap((col) =>
@@ -854,8 +862,10 @@ server.registerTool(
 			const briefPayload = {
 				_serverVersion: MCP_SERVER_VERSION,
 				...(versionMismatch ? { _versionMismatch: versionMismatch } : {}),
+				...(policyResult.warnings.length > 0 ? { _warnings: policyResult.warnings } : {}),
 				pulse,
 				...(autoResolved ? { resolvedFromCwd: { ...autoResolved, boardId } } : {}),
+				policy: policyResult.policy,
 				handoff,
 				diff,
 				topWork,
