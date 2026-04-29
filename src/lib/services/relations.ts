@@ -4,6 +4,7 @@
  */
 
 import type { CardRelation, PrismaClient } from "prisma/generated/client";
+import { hasRole } from "../column-roles.js";
 
 export type CardSummary = { id: string; number: number; title: string };
 
@@ -20,15 +21,21 @@ export type LinkResult = {
 
 export async function linkCards(
 	db: PrismaClient,
-	input: { fromCardId: string; toCardId: string; type: string; actorName: string },
+	input: { fromCardId: string; toCardId: string; type: string; actorName: string }
 ): Promise<LinkResult> {
 	if (input.fromCardId === input.toCardId) {
 		throw new Error("A card cannot be linked to itself.");
 	}
 
 	const [fromCard, toCard] = await Promise.all([
-		db.card.findUnique({ where: { id: input.fromCardId }, select: { id: true, number: true, title: true } }),
-		db.card.findUnique({ where: { id: input.toCardId }, select: { id: true, number: true, title: true } }),
+		db.card.findUnique({
+			where: { id: input.fromCardId },
+			select: { id: true, number: true, title: true },
+		}),
+		db.card.findUnique({
+			where: { id: input.toCardId },
+			select: { id: true, number: true, title: true },
+		}),
 	]);
 
 	if (!fromCard) throw new Error("Source card not found.");
@@ -69,15 +76,27 @@ export async function linkCards(
 
 export async function unlinkCards(
 	db: PrismaClient,
-	input: { fromCardId: string; toCardId: string; type: string; actorName: string },
+	input: { fromCardId: string; toCardId: string; type: string; actorName: string }
 ): Promise<{ fromCard: CardSummary | null; toCard: CardSummary | null }> {
 	const [fromCard, toCard] = await Promise.all([
-		db.card.findUnique({ where: { id: input.fromCardId }, select: { id: true, number: true, title: true } }),
-		db.card.findUnique({ where: { id: input.toCardId }, select: { id: true, number: true, title: true } }),
+		db.card.findUnique({
+			where: { id: input.fromCardId },
+			select: { id: true, number: true, title: true },
+		}),
+		db.card.findUnique({
+			where: { id: input.toCardId },
+			select: { id: true, number: true, title: true },
+		}),
 	]);
 
 	const relation = await db.cardRelation.findUnique({
-		where: { fromCardId_toCardId_type: { fromCardId: input.fromCardId, toCardId: input.toCardId, type: input.type } },
+		where: {
+			fromCardId_toCardId_type: {
+				fromCardId: input.fromCardId,
+				toCardId: input.toCardId,
+				type: input.type,
+			},
+		},
 	});
 
 	if (!relation) throw new Error("Relation not found.");
@@ -111,10 +130,7 @@ export async function unlinkCards(
 	return { fromCard, toCard };
 }
 
-export async function getBlockers(
-	db: PrismaClient,
-	boardId?: string,
-): Promise<BlockerEntry[]> {
+export async function getBlockers(db: PrismaClient, boardId?: string): Promise<BlockerEntry[]> {
 	const where: Record<string, unknown> = { type: "blocks" };
 
 	if (boardId) {
@@ -129,14 +145,34 @@ export async function getBlockers(
 	const relations = await db.cardRelation.findMany({
 		where,
 		include: {
-			fromCard: { select: { id: true, number: true, title: true } },
-			toCard: { select: { id: true, number: true, title: true } },
+			fromCard: {
+				select: {
+					id: true,
+					number: true,
+					title: true,
+					column: { select: { role: true, name: true } },
+				},
+			},
+			toCard: {
+				select: {
+					id: true,
+					number: true,
+					title: true,
+					column: { select: { role: true, name: true } },
+				},
+			},
 		},
 	});
 
-	// Group by blocked card (toCard)
+	// Group by blocked card (toCard). Skip relations where either side is in a
+	// Done-role column — a shipped card can't be blocked, and a shipped blocker
+	// isn't actually blocking anything. Stale CardRelation rows linger after
+	// cards move to Done; this hides them until the moveCard cleanup lands.
 	const blockerMap = new Map<string, BlockerEntry>();
 	for (const rel of relations) {
+		if (hasRole(rel.toCard.column, "done") || hasRole(rel.fromCard.column, "done")) {
+			continue;
+		}
 		const key = rel.toCardId;
 		if (!blockerMap.has(key)) {
 			blockerMap.set(key, {
