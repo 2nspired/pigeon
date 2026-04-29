@@ -1,0 +1,84 @@
+# Project Surfaces: `tracker.md` vs `CLAUDE.md` vs `AGENTS.md`
+
+Three Markdown files at the root of a connected project. Each answers a different question. Knowing which goes where keeps them small, focused, and non-overlapping.
+
+## At a glance
+
+| File | Read by | Authoritative for | Lifecycle |
+|---|---|---|---|
+| `tracker.md` | Tracker MCP tools (`briefMe`, `getCardContext`, write tools listed in `intent_required_on`) | Runtime board policy: project agent prompt, per-column prompts, intent enforcement | Hot-reloaded on every MCP tool call |
+| `CLAUDE.md` | Claude Code (the CLI), at session start | Build commands, code conventions, repo-specific developer instructions | Loaded once per Claude Code session |
+| `AGENTS.md` | Humans (and agents on demand) | Cross-agent contributor reference: conventions, tool migration history, project-tracker UX guidance | Read on demand |
+
+## When to put a thing in `tracker.md`
+
+If the answer is **yes** to any of these, it belongs in `tracker.md`:
+
+- Should agent moves/deletes require an `intent` for this project? → `intent_required_on`
+- "When a card is in column X, the agent should…" → `columns.<X>.prompt`
+- A short orientation paragraph the agent should read at session start (current phase, key constraints) → body
+
+The body is the project's general agent prompt. It replaces the legacy `projectPrompt` DB column.
+
+```markdown
+---
+schema_version: 1
+project_slug: my-project
+intent_required_on:
+  - moveCard
+  - deleteCard
+columns:
+  In Progress:
+    prompt: |
+      Limit to 2-3 cards. Move here when you start writing code, not when planning.
+  Review:
+    prompt: |
+      Code is written and needs human verification. Don't move to Done without
+      explicit approval in a comment.
+---
+
+# Project policy for my-project
+
+Start every session with `briefMe`. Prefer `source: 'pinned'` over `source: 'scored'`.
+End every session with `endSession` — saves a handoff and links new commits.
+```
+
+`tracker.md` is git-versioned, reviewable, and rolls back like any other file. The DB column was none of those.
+
+## When to put a thing in `CLAUDE.md`
+
+If the answer is about **how Claude Code itself should work in this repo**, it belongs in `CLAUDE.md`:
+
+- `npm run dev` / build / test commands
+- Code style conventions specific to this repo
+- "Don't run X without confirming" guardrails
+- File-layout pointers
+
+`CLAUDE.md` is loaded by Claude Code at session start. Tracker tools don't read it.
+
+## When to put a thing in `AGENTS.md`
+
+If it's **cross-agent contributor reference** that doesn't belong in `tracker.md` or `CLAUDE.md`, it belongs here:
+
+- Tool migration tables (what changed in v2.3, v2.4, etc.)
+- Tag conventions (`component`, `metric`, etc.)
+- "When to use the board" prose
+- Anything that helps a contributor onboard but doesn't affect runtime board behavior
+
+`AGENTS.md` is read on demand. If something in `AGENTS.md` overlaps with `tracker.md`, `tracker.md` wins.
+
+## Migration: `projectPrompt` → `tracker.md`
+
+If a project still has a non-empty `projectPrompt` DB column, `briefMe` emits a `_warnings` entry. To migrate:
+
+1. Run `migrateProjectPrompt({ projectId })` — writes a `tracker.md` from the existing DB value, with auto-generated front matter. Idempotent (aborts if `tracker.md` already exists).
+2. Review the new file. Edit the front matter to add `columns.<name>.prompt` or `intent_required_on` if useful.
+3. Commit `tracker.md` to your repo.
+4. Clear the DB column: `updateProjectPrompt({ projectId, prompt: null })`.
+
+The `projectPrompt` column will be removed in v5.0.0. `tracker.md` is the documented path.
+
+## See also
+
+- [RFC #111: tracker.md as in-repo policy contract](RFC-WORKFLOW.md) — the design doc
+- [AGENTS.md](../AGENTS.md) — contributor reference
