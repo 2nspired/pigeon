@@ -311,26 +311,34 @@ async function move(cardId: string, data: MoveCardInput): Promise<ServiceResult<
 		const newPosition = Math.min(data.position, filtered.length);
 		filtered.splice(newPosition, 0, existing);
 
-		// Update all positions in batch; stamp lastEditedBy only on the moved card.
+		// Update positions in batch; stamp lastEditedBy only on the moved card.
 		// completedAt is only touched on Done entry/exit so siblings don't have
 		// their ship-date clobbered when an unrelated card lands in Done.
+		// Skip the update for siblings whose position doesn't actually change —
+		// otherwise Prisma's @updatedAt bumps every untouched card to ~now and
+		// pollutes "recently active" signals (#175).
 		const completedAtPatch = enteringDone
 			? { completedAt: new Date() }
 			: leavingDone
 				? { completedAt: null }
 				: {};
-		const updates = filtered.map((c, i) =>
-			db.card.update({
-				where: { id: c.id },
-				data: {
-					columnId: data.columnId,
-					position: i,
-					...(c.id === cardId && { lastEditedBy: "HUMAN", ...completedAtPatch }),
-				},
-			})
-		);
+		const updates = filtered.flatMap((c, i) => {
+			const isMovedCard = c.id === cardId;
+			const positionChanged = c.position !== i;
+			if (!isMovedCard && !positionChanged) return [];
+			return [
+				db.card.update({
+					where: { id: c.id },
+					data: {
+						columnId: data.columnId,
+						position: i,
+						...(isMovedCard && { lastEditedBy: "HUMAN", ...completedAtPatch }),
+					},
+				}),
+			];
+		});
 
-		await db.$transaction(updates);
+		if (updates.length > 0) await db.$transaction(updates);
 
 		if (existing.columnId !== data.columnId) {
 			await db.activity.create({
