@@ -8,6 +8,18 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+### Added
+
+- **TagManager UI sheet** (`src/components/tag/tag-manager.tsx`) — project-scoped tag governance surface, parallel to MilestoneManager. Sorts by usage desc; renders Singleton + Near-miss governance hint badges; AlertDialog (not `window.confirm`) for both merge and delete; disabled Delete with tooltip on any tag with usage > 0. Click a "Near-miss" badge to open the merge dialog with the peer pre-selected as the destination. Entry points: project-page boards-tab "Manage tags" button, tag-combobox dropdown footer link "Manage tags →". (#170)
+- **`tag.delete` tRPC procedure** + **`deleteTag` MCP extended tool.** Orphan-only — non-orphan attempts return `USAGE_NOT_ZERO` (BAD_REQUEST) with the merge hint in the message. Atomic against concurrent CardTag inserts via a single conditional `DELETE … WHERE NOT EXISTS` — no TOCTOU window between a count and a delete. (#170)
+- **`Tag.state` schema column** (`"active" | "archived"`, default `"active"`). Forward-compat for an archive flow; the column lands now to avoid a later destructive migration. SCHEMA_VERSION bumped 11 → 12. (#170)
+- **`tagService.merge` cross-project + archived-source guards.** Pure `validateMergeGuards` helper; the entire merge wraps in a transaction so a guard failure mid-rewrite rolls back any partial state. (#170)
+
+### Changed
+
+- **`tag.list` / `listTags` return shape gains `_governanceHints` per row** (additive, optional). `singleton: true` when usageCount === 1; `possibleMerge: [{ id, label, distance }]` for peers within Levenshtein ≤ 2 of the tag's slug. Hints are emitted only when meaningful — agents must not treat missing fields as empty arrays. (#170)
+- **`tag.list` / `listTags` accept an optional `state` filter** (`"active" | "archived"`, defaults to `"active"`). Existing callers passing only `{ projectId }` keep working; partial-key React Query invalidations still match. (#170)
+
 ## [5.2.0] — 2026-04-30
 
 Renames the session wrap-up tool `endSession` → `saveHandoff`. The new name reads as a verb-on-the-artifact (you save a handoff), matches what the tool actually persists, and stops conflating "end of session" with "must be the last thing you call." It also clears the runway for the mid-session checkpoint pattern (`saveHandoff({ syncGit: false })`) — which never made sense under the old name.
