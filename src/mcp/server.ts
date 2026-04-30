@@ -578,17 +578,25 @@ server.registerTool(
 							? { completedAt: null }
 							: {};
 
-				const updates = filtered.map((c, i) =>
-					db.card.update({
-						where: { id: c.id },
-						data: {
-							columnId: targetColumn.id,
-							position: i,
-							...(c.id === cardId && { lastEditedBy: AGENT_NAME, ...completedAtPatch }),
-						},
-					})
-				);
-				await db.$transaction(updates);
+				// Skip updates for siblings whose position doesn't actually change —
+				// otherwise Prisma's @updatedAt bumps every untouched card and
+				// pollutes "recently active" signals (#175).
+				const updates = filtered.flatMap((c, i) => {
+					const isMovedCard = c.id === cardId;
+					const positionChanged = c.position !== i;
+					if (!isMovedCard && !positionChanged) return [];
+					return [
+						db.card.update({
+							where: { id: c.id },
+							data: {
+								columnId: targetColumn.id,
+								position: i,
+								...(isMovedCard && { lastEditedBy: AGENT_NAME, ...completedAtPatch }),
+							},
+						}),
+					];
+				});
+				if (updates.length > 0) await db.$transaction(updates);
 
 				const fromCol = card.column.name;
 				if (fromCol !== columnName) {
