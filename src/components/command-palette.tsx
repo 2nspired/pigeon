@@ -3,6 +3,7 @@
 import { FolderKanban, Hash, LayoutDashboard, Plus, StickyNote } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { McpToolRow } from "@/components/header/mcp-tool-row";
 import {
 	CommandDialog,
 	CommandEmpty,
@@ -12,6 +13,7 @@ import {
 	CommandList,
 	CommandSeparator,
 } from "@/components/ui/command";
+import { docUrl } from "@/lib/doc-url";
 import { PRIORITY_DOT } from "@/lib/priority-colors";
 import type { Priority } from "@/lib/schemas/card-schemas";
 import { api } from "@/trpc/react";
@@ -59,6 +61,14 @@ export function CommandPalette() {
 		}
 	);
 
+	// MCP tool catalog — fetched lazily on first open. Only the Essentials
+	// shortlist surfaces here; full catalog lives in the dedicated header
+	// popover. One source (system.toolCatalog), two surfaces.
+	const { data: mcpCatalog } = api.system.toolCatalog.useQuery(undefined, {
+		enabled: open,
+		staleTime: Number.POSITIVE_INFINITY,
+	});
+
 	const runCommand = useCallback(
 		(command: () => void) => {
 			handleOpenChange(false);
@@ -82,6 +92,27 @@ export function CommandPalette() {
 			/>
 			<CommandList>
 				<CommandEmpty>{cardsLoading ? "Searching..." : "No results found."}</CommandEmpty>
+
+				{/* MCP Essentials — pinned shortlist of the 10 core MCP tools.
+				    Reuses the same row component as the dedicated catalog
+				    popover so the surfaces stay visually identical. */}
+				{mcpCatalog && mcpCatalog.essentials.length > 0 && (
+					<CommandGroup heading="MCP Tools — Essentials">
+						{mcpCatalog.essentials.map((tool) => (
+							<McpToolRow
+								key={tool.name}
+								name={tool.name}
+								description={tool.description}
+								filterValue={`mcp-${tool.name}-${tool.description}`}
+								onSelect={() =>
+									runCommand(() => {
+										window.open(docUrl(tool.name), "_blank", "noopener,noreferrer");
+									})
+								}
+							/>
+						))}
+					</CommandGroup>
+				)}
 
 				{/* Card search results */}
 				{debouncedSearch.length > 0 && cards && cards.length > 0 && (

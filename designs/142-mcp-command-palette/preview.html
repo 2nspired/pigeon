@@ -1,0 +1,938 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>#142 — MCP Catalog · Design Preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* shadcn new-york tokens — copied from src/app/globals.css */
+  :root {
+    --radius: 0.5rem;
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.205 0 0);
+    --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.97 0 0);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0);
+    --accent-foreground: oklch(0.205 0 0);
+    --border: oklch(0.922 0 0);
+    --input: oklch(0.922 0 0);
+    --ring: oklch(0.708 0 0);
+  }
+  .dark {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.145 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.145 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.985 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --border: oklch(0.269 0 0);
+    --input: oklch(0.269 0 0);
+    --ring: oklch(0.439 0 0);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Geist', ui-sans-serif, system-ui, sans-serif;
+    background: var(--background);
+    color: var(--foreground);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    transition: background 200ms ease;
+  }
+  .mono { font-family: 'Geist Mono', ui-monospace, 'SF Mono', monospace; }
+  .muted { color: var(--muted-foreground); }
+  .micro {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: color-mix(in oklch, var(--muted-foreground) 80%, transparent);
+  }
+
+  /* ─── Page chrome ─── */
+  .page {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 24px 28px 80px;
+  }
+  .page-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .page-header h1 {
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: -0.02em;
+  }
+  .page-header .meta {
+    font-size: 12px;
+    color: var(--muted-foreground);
+  }
+  .theme-toggle {
+    border: 1px solid var(--border);
+    background: var(--background);
+    color: var(--foreground);
+    border-radius: var(--radius);
+    padding: 6px 12px;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+  }
+  .theme-toggle:hover { background: var(--accent); }
+
+  /* ─── Section labels ─── */
+  .scene {
+    margin-top: 40px;
+  }
+  .scene-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--muted-foreground);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .scene-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ─── Mock browser frame ─── */
+  .frame {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 16px -4px rgba(0,0,0,0.04);
+  }
+  .dark .frame {
+    box-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 4px 16px -4px rgba(0,0,0,0.4);
+  }
+
+  /* ─── App header (mirrors src/app/(main)/layout.tsx) ─── */
+  .app-header {
+    display: flex;
+    align-items: center;
+    height: 56px;
+    padding: 0 16px;
+    gap: 24px;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in oklch, var(--background) 95%, transparent);
+    backdrop-filter: blur(8px);
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .brand .icon {
+    display: inline-flex;
+    width: 20px;
+    height: 20px;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+  }
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex: 1;
+    font-size: 14px;
+  }
+  .nav a {
+    color: var(--muted-foreground);
+    text-decoration: none;
+    transition: color 120ms ease;
+  }
+  .nav a:hover { color: var(--foreground); }
+  .nav a.active { color: var(--foreground); font-weight: 500; }
+
+  .header-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--border);
+    background: var(--background);
+    color: var(--muted-foreground);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  }
+  .header-pill:hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+  .header-pill.dashed {
+    border-style: dashed;
+  }
+  .header-pill.dashed:hover {
+    border-color: color-mix(in oklch, var(--primary) 50%, transparent);
+  }
+  .kbd {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    background: var(--muted);
+    border-radius: 4px;
+    padding: 2px 5px;
+    color: var(--muted-foreground);
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted-foreground);
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: var(--secondary);
+  }
+  .status-pill .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: oklch(0.65 0.18 145);
+  }
+
+  /* ─── Workspace canvas under the header ─── */
+  .canvas {
+    position: relative;
+    height: 460px;
+    background:
+      linear-gradient(var(--border) 1px, transparent 1px) 0 0 / 32px 32px,
+      linear-gradient(90deg, var(--border) 1px, transparent 1px) 0 0 / 32px 32px,
+      var(--background);
+    opacity: 1;
+  }
+  .canvas::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, transparent 0%, var(--background) 70%);
+    pointer-events: none;
+  }
+  .dark .canvas {
+    background:
+      linear-gradient(color-mix(in oklch, var(--border) 50%, transparent) 1px, transparent 1px) 0 0 / 32px 32px,
+      linear-gradient(90deg, color-mix(in oklch, var(--border) 50%, transparent) 1px, transparent 1px) 0 0 / 32px 32px,
+      var(--background);
+  }
+
+  /* ─── Popover ─── */
+  .popover {
+    position: absolute;
+    top: 8px;
+    right: 16px;
+    width: 448px;
+    max-height: min(36rem, 75vh);
+    background: var(--popover);
+    color: var(--popover-foreground);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow:
+      0 1px 2px rgba(0,0,0,0.04),
+      0 8px 24px -8px rgba(0,0,0,0.12),
+      0 24px 48px -16px rgba(0,0,0,0.12);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: popIn 160ms ease-out;
+  }
+  .dark .popover {
+    box-shadow:
+      0 1px 2px rgba(0,0,0,0.4),
+      0 8px 24px -8px rgba(0,0,0,0.6),
+      0 24px 48px -16px rgba(0,0,0,0.5);
+  }
+  @keyframes popIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── Search input ─── */
+  .cmd-search {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .cmd-search svg {
+    color: var(--muted-foreground);
+    flex-shrink: 0;
+  }
+  .cmd-search input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--foreground);
+  }
+  .cmd-search input::placeholder { color: var(--muted-foreground); }
+
+  /* ─── List body ─── */
+  .cmd-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 0;
+    scrollbar-width: thin;
+  }
+  .cmd-list::-webkit-scrollbar { width: 8px; }
+  .cmd-list::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+  }
+
+  /* ─── Essentials section ─── */
+  .essentials {
+    padding: 4px 0 8px;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: background 100ms ease;
+    border-radius: 4px;
+    margin: 0 6px;
+  }
+  .row:hover, .row.is-selected {
+    background: var(--accent);
+  }
+  .row.is-selected .external { opacity: 1; }
+  .row .chevron {
+    width: 14px;
+    height: 14px;
+    color: var(--muted-foreground);
+    flex-shrink: 0;
+    transition: transform 160ms ease;
+    cursor: pointer;
+  }
+  .row.is-expanded .chevron { transform: rotate(90deg); }
+
+  .essentials .row {
+    border-left: 2px solid color-mix(in oklch, var(--foreground) 18%, transparent);
+    border-radius: 0 4px 4px 0;
+    margin-left: 14px;
+    margin-right: 6px;
+    padding-left: 10px;
+  }
+  .essentials .row:first-of-type { padding-top: 6px; }
+  .essentials .row:last-of-type { padding-bottom: 6px; }
+
+  .row .name {
+    font-family: 'Geist Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--foreground);
+    font-variant-numeric: tabular-nums;
+  }
+  .row .desc {
+    flex: 1;
+    font-size: 12px;
+    color: var(--muted-foreground);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .row .cat {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: color-mix(in oklch, var(--muted-foreground) 70%, transparent);
+    flex-shrink: 0;
+  }
+  .external {
+    width: 14px;
+    height: 14px;
+    color: var(--muted-foreground);
+    opacity: 0.4;
+    transition: opacity 120ms ease;
+    flex-shrink: 0;
+  }
+  .row:hover .external { opacity: 1; }
+
+  /* ─── Param preview panel ─── */
+  .param-preview {
+    margin: 4px 22px 8px 32px;
+    padding: 10px 12px;
+    background: var(--muted);
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 1.6;
+    animation: previewIn 140ms ease-out;
+  }
+  @keyframes previewIn {
+    from { opacity: 0; transform: translateY(-2px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .param-preview .label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--muted-foreground);
+    margin-bottom: 4px;
+  }
+  .param-preview .params {
+    font-family: 'Geist Mono', monospace;
+    color: var(--foreground);
+  }
+  .param-preview .params .pname { color: var(--foreground); }
+  .param-preview .params .ptype { color: var(--muted-foreground); }
+  .param-preview .params .pdesc {
+    color: var(--muted-foreground);
+    font-family: 'Geist', sans-serif;
+    font-size: 10px;
+    margin-left: 12px;
+    display: block;
+  }
+  .param-preview .returns {
+    margin-top: 8px;
+  }
+
+  /* ─── Extended section ─── */
+  .ext-heading {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--muted-foreground);
+    padding: 12px 20px 6px;
+  }
+  .category {
+    margin: 0 6px;
+  }
+  .category-trigger {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 100ms ease;
+  }
+  .category-trigger:hover { background: var(--accent); }
+  .category-trigger .chev {
+    width: 14px;
+    height: 14px;
+    transition: transform 200ms ease;
+    color: var(--muted-foreground);
+  }
+  .category.is-open .category-trigger .chev { transform: rotate(90deg); }
+  .category-trigger .cname {
+    font-size: 13px;
+    color: var(--foreground);
+    flex: 1;
+  }
+  .category-trigger .ccount {
+    font-size: 11px;
+    color: var(--muted-foreground);
+  }
+  .category-rows {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 220ms ease-out;
+  }
+  .category.is-open .category-rows {
+    max-height: 800px;
+  }
+  .category .row {
+    margin-left: 28px;
+    margin-right: 6px;
+  }
+
+  /* ─── cmd-k group inside the existing palette ─── */
+  .cmdk-frame {
+    width: 560px;
+    margin: 0 auto;
+    background: var(--popover);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 8px 24px -8px rgba(0,0,0,0.12);
+  }
+  .group-heading {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--muted-foreground);
+    padding: 10px 18px 4px;
+  }
+  .cmdk-frame .row .name { font-size: 12.5px; }
+
+  /* ─── Notes panel ─── */
+  .notes {
+    margin-top: 64px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .note h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--muted-foreground);
+    margin: 0 0 10px;
+  }
+  .note p {
+    margin: 0 0 6px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .note code {
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px;
+    background: var(--muted);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  @media (max-width: 760px) {
+    .popover { right: 8px; left: 8px; width: auto; }
+    .cmdk-frame { width: 100%; }
+    .notes { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="page-header">
+    <div>
+      <h1>#142 — MCP Command Palette</h1>
+      <div class="meta">Design preview · two surfaces · light + dark · interactive</div>
+    </div>
+    <button class="theme-toggle" id="themeToggle" type="button">Toggle theme</button>
+  </header>
+
+  <!-- ───────────────── Surface A: Header affordance + dedicated catalog popover ───────────────── -->
+  <section class="scene">
+    <div class="scene-label">A · Dedicated catalog popover · trigger by header button or <span class="kbd">?</span></div>
+    <div class="frame">
+      <div class="app-header">
+        <div class="brand">
+          <span class="icon">
+            <!-- Kanban -->
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5v11"/><path d="M12 5v6"/><path d="M18 5v14"/><rect width="18" height="18" x="3" y="3" rx="2"/></svg>
+          </span>
+          Pigeon
+        </div>
+        <nav class="nav">
+          <a href="#" class="active">Projects</a>
+          <a href="#">Dashboard</a>
+          <a href="#">Notes</a>
+        </nav>
+        <button class="header-pill" type="button" aria-label="Search">
+          Search
+          <span class="kbd">⌘K</span>
+        </button>
+        <button class="header-pill dashed" type="button" aria-label="Browse MCP tools" id="mcpTrigger">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z"/><path d="m7 16.5-4.74-2.85"/><path d="m7 16.5 5-3"/><path d="M7 16.5v5.17"/><path d="M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Z"/><path d="m17 16.5-5-3"/><path d="m17 16.5 4.74-2.85"/><path d="M17 16.5v5.17"/><path d="M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8Z"/><path d="M12 8 7.26 5.15"/><path d="m12 8 4.74-2.85"/><path d="M12 13.5V8"/></svg>
+          MCP
+          <span class="kbd">?</span>
+        </button>
+        <span class="status-pill"><span class="dot"></span>Connected</span>
+      </div>
+
+      <div class="canvas">
+        <div class="popover" role="dialog" aria-label="MCP tool catalog">
+
+          <!-- search -->
+          <div class="cmd-search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input id="searchInput" type="text" placeholder="Search tools — name, description, category…" autocomplete="off">
+            <span class="kbd">esc</span>
+          </div>
+
+          <div class="cmd-list" id="cmdList">
+
+            <!-- Essentials -->
+            <div class="essentials" id="essentials">
+              <!-- Rows injected via JS so the data shape mirrors getToolCatalog() -->
+            </div>
+
+            <!-- Extended -->
+            <div class="ext-heading">Extended</div>
+            <div id="extended">
+              <!-- Categories injected via JS -->
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────── Surface B: Cmd-K palette gets a new MCP Essentials group ───────────────── -->
+  <section class="scene">
+    <div class="scene-label">B · Existing <span class="kbd">⌘K</span> palette gains an MCP Essentials group</div>
+    <div class="cmdk-frame">
+      <div class="cmd-search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" placeholder="Search cards, pages, actions…" value="" autocomplete="off">
+        <span class="kbd">esc</span>
+      </div>
+      <div class="cmd-list" style="max-height: 360px;">
+
+        <div class="group-heading">MCP Tools — Essentials</div>
+        <div class="essentials" id="cmdkEssentials" style="padding-bottom: 6px;"></div>
+
+        <div class="group-heading">Navigation</div>
+        <div style="padding: 4px 0;">
+          <div class="row" style="margin: 0 6px;">
+            <svg class="external" style="opacity:0.7" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="20" x="2" y="2" rx="2"/><path d="M9 8h7"/><path d="M9 12h7"/><path d="M9 16h7"/></svg>
+            <span style="font-size: 13px;">Projects</span>
+            <span class="desc"></span>
+          </div>
+          <div class="row" style="margin: 0 6px;">
+            <svg class="external" style="opacity:0.7" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+            <span style="font-size: 13px;">Dashboard</span>
+            <span class="desc"></span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────── Notes ───────────────── -->
+  <section class="notes">
+    <div class="note">
+      <h3>Resolves</h3>
+      <p>The card's <code>Cmd-K</code> requirement collides with the existing <code>CommandPalette</code>. This design splits responsibilities: the existing palette gets an MCP Essentials group, and a dedicated catalog opens via a header button or <code>?</code>.</p>
+    </div>
+    <div class="note">
+      <h3>Try it</h3>
+      <p>Type in the search input on Surface A. Click any chevron (<code>▸</code>) to expand a tool's parameter schema. Click a category header (e.g. <code>Cards</code>) to expand its row group. Toggle theme top-right.</p>
+    </div>
+    <div class="note">
+      <h3>Next step</h3>
+      <p>Read <code>spec.md</code> for the full implementation contract — files, props, motion durations, a11y notes, fallbacks. Pass that spec into <code>feature-dev</code> for implementation.</p>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  // ─── Data: mirrors getToolCatalog() shape ─────────────────────────────
+  const ESSENTIALS = [
+    ['briefMe',          'one-shot session primer · last handoff + top work'],
+    ['endSession',       'wrap up session · save handoff + link commits'],
+    ['createCard',       'create a single card with title, description, priority'],
+    ['updateCard',       'update card fields — partial, omitted fields unchanged'],
+    ['moveCard',         'move a card to another column with required intent'],
+    ['addComment',       'append a comment to a card'],
+    ['registerRepo',     'link a git repo to a project'],
+    ['checkOnboarding',  'startup status check — config drift, version skew'],
+    ['getTools',         'browse the 60+ extended tools by category'],
+    ['runTool',          'execute an extended tool by name with validated params'],
+  ];
+
+  const EXTENDED = [
+    {
+      cat: 'Discovery',
+      tools: [
+        ['searchCards',      'full-text search across all projects'],
+        ['queryCards',       'filter cards by priority, column, tags, milestone, age'],
+        ['getCard',          'full card detail — description, checklist, comments, history'],
+        ['getStats',         'board statistics — counts per column, priority breakdown'],
+        ['getBoard',         'board state with filtering'],
+        ['getRoadmap',       'cards grouped by milestone and horizon'],
+        ['auditBoard',       'board health — cards missing priority, tags, milestones'],
+        ['getWorkNextSuggestion', 'top cards to work on next, ranked by composite score'],
+        ['listProjects',     'list all projects with board and card counts'],
+        ['listBoards',       'list boards for a project with column summaries'],
+        ['renderStatus',     'STATUS.md-equivalent markdown snapshot'],
+        ['listWorkflows',    'named, multi-step recipes for common procedures'],
+        ['getToolUsageStats','MCP tool call analytics'],
+      ],
+    },
+    {
+      cat: 'Cards',
+      tools: [
+        ['bulkCreateCards',  'create multiple cards in one call'],
+        ['bulkUpdateCards',  'update multiple cards in one call'],
+        ['bulkMoveCards',    'move multiple cards to a column in one call'],
+        ['createCardFromTemplate', 'create a card from a pre-filled template'],
+        ['deleteCard',       'permanently delete a card · destructive · requires intent'],
+      ],
+    },
+    {
+      cat: 'Sessions',
+      tools: [
+        ['getHandoff',       'fetch the most recent session handoff'],
+        ['createHandoff',    'save a session handoff'],
+        ['linkCommits',      'attach git commits to the current handoff'],
+        ['listSessions',     'recent session history with diffs'],
+        ['boardDiff',        'changes between two session points'],
+      ],
+    },
+    {
+      cat: 'Milestones',
+      tools: [
+        ['createMilestone',  'add a milestone to a project'],
+        ['updateMilestone',  'edit milestone metadata'],
+        ['listMilestones',   'milestones for a project with progress'],
+        ['archiveMilestone', 'archive a milestone without losing card refs'],
+      ],
+    },
+    {
+      cat: 'Decisions',
+      tools: [
+        ['recordDecision',   'create a structured decision record'],
+        ['listDecisions',    'browse decisions by project or card'],
+        ['linkDecision',     'attach a decision to a card or milestone'],
+      ],
+    },
+    {
+      cat: 'Context',
+      tools: [
+        ['createContextBundle', 'persist a reusable context blob'],
+        ['searchKnowledge',     'find facts saved earlier in the project'],
+        ['recordCodeFact',      'tag a code location with knowledge for later'],
+      ],
+    },
+    {
+      cat: 'Tags',
+      tools: [
+        ['createTag',     'add a new tag to a project vocabulary'],
+        ['listTags',      'tags with usage counts'],
+        ['renameTag',     'merge or rename a tag'],
+        ['archiveTag',    'remove a tag from active use'],
+      ],
+    },
+    {
+      cat: 'Other',
+      tools: [
+        ['listActivity',    'recent changes and activity history'],
+        ['listChecklist',   'sub-tasks for a card'],
+        ['listComments',    'comments on a card'],
+        ['createNote',      'project-wide note (not card-attached)'],
+        ['runDiagnostics',  'install health check — config drift, FTS state'],
+      ],
+    },
+  ];
+
+  // ─── Param schemas (shown on chevron expand) ─────────────────────────
+  const PARAMS = {
+    briefMe: {
+      params: [
+        ['boardId', '?string', 'Board UUID — auto-detected from cwd when omitted'],
+        ['format',  '?"json" | "toon"', 'Default "json". toon wins on flat tabular arrays'],
+      ],
+      returns: '{ handoff, candidates, blockers, decisions, pulse }',
+    },
+    moveCard: {
+      params: [
+        ['cardId',     'string',  'Card UUID or #number'],
+        ['columnName', 'string',  "Target column (e.g. 'In Progress', 'Done')"],
+        ['intent',     'string',  'Short rationale for the move (1–120 chars)'],
+        ['boardId',    '?string', 'Optional — scopes #number resolution'],
+        ['position',   '?number', '0 = top, omit = bottom'],
+      ],
+      returns: '{ id, ref, title, from, to }',
+    },
+    createCard: {
+      params: [
+        ['boardId',     'string',  'Board UUID'],
+        ['title',       'string',  'Card title (1–200 chars)'],
+        ['description', '?string', 'Markdown body'],
+        ['priority',    '?"NONE" | "LOW" | "MEDIUM" | "HIGH" | "URGENT"', 'Default NONE'],
+        ['columnName',  '?string', 'Default first column on the board'],
+      ],
+      returns: '{ id, ref, number, title, column }',
+    },
+    runTool: {
+      params: [
+        ['tool',   'string', "e.g. 'bulkCreateCards', 'listActivity', 'createNote'"],
+        ['params', '?object', 'Tool parameters — use getTools({ tool }) for schema'],
+      ],
+      returns: 'Tool-specific — see getTools({ tool: name })',
+    },
+  };
+
+  // ─── Render Essentials (Surface A + Surface B share template) ─────────
+  function renderEssentials(target, { showCategory = false } = {}) {
+    target.innerHTML = '';
+    ESSENTIALS.forEach(([name, desc], idx) => {
+      const row = document.createElement('div');
+      row.className = 'row' + (idx === 0 ? ' is-selected' : '');
+      row.dataset.tool = name;
+      const hasParams = !!PARAMS[name];
+      row.innerHTML = `
+        ${hasParams ? `<svg class="chevron" data-toggle="${name}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>` : `<span style="width:14px"></span>`}
+        <span class="name">${name}</span>
+        <span class="desc">${desc}</span>
+        <a href="#" class="external-link" aria-label="${name} — open docs" onclick="event.preventDefault();event.stopPropagation();">
+          <svg class="external" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+        </a>
+      `;
+      target.appendChild(row);
+    });
+  }
+
+  // ─── Render Extended (Surface A only) ─────────────────────────────────
+  function renderExtended(target) {
+    target.innerHTML = '';
+    EXTENDED.forEach((cat, idx) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'category' + (idx === 1 ? ' is-open' : ''); // Cards open by default
+      wrap.innerHTML = `
+        <div class="category-trigger" data-category="${cat.cat}">
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          <span class="cname">${cat.cat}</span>
+          <span class="ccount">${cat.tools.length} tool${cat.tools.length === 1 ? '' : 's'}</span>
+        </div>
+        <div class="category-rows">
+          ${cat.tools.map(([name, desc]) => `
+            <div class="row" data-tool="${name}">
+              <span style="width:14px"></span>
+              <span class="name">${name}</span>
+              <span class="desc">${desc}</span>
+              <span class="cat">${cat.cat}</span>
+              <a href="#" class="external-link" aria-label="${name} — open docs" onclick="event.preventDefault();event.stopPropagation();">
+                <svg class="external" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+              </a>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      target.appendChild(wrap);
+    });
+  }
+
+  // ─── Param preview toggle ────────────────────────────────────────────
+  function togglePreview(toolName, rowEl) {
+    const next = rowEl.nextElementSibling;
+    if (next && next.classList.contains('param-preview')) {
+      next.remove();
+      rowEl.classList.remove('is-expanded');
+      return;
+    }
+    const data = PARAMS[toolName];
+    if (!data) return;
+    const panel = document.createElement('div');
+    panel.className = 'param-preview';
+    panel.innerHTML = `
+      <div class="label">Params</div>
+      <div class="params">
+        ${data.params.map(([n, t, d]) => `
+          <div>
+            <span class="pname">${n}</span>
+            <span class="ptype">: ${t}</span>
+            <span class="pdesc">${d}</span>
+          </div>
+        `).join('')}
+      </div>
+      <div class="returns">
+        <div class="label">Returns</div>
+        <div class="params"><span class="ptype">${data.returns}</span></div>
+      </div>
+    `;
+    rowEl.after(panel);
+    rowEl.classList.add('is-expanded');
+  }
+
+  // ─── Wire up: Surface A ──────────────────────────────────────────────
+  const essentialsEl = document.getElementById('essentials');
+  const extendedEl = document.getElementById('extended');
+  renderEssentials(essentialsEl);
+  renderExtended(extendedEl);
+
+  document.body.addEventListener('click', (e) => {
+    const chev = e.target.closest('.chevron');
+    if (chev) {
+      const tool = chev.dataset.toggle;
+      const row = chev.closest('.row');
+      togglePreview(tool, row);
+      return;
+    }
+    const catTrigger = e.target.closest('.category-trigger');
+    if (catTrigger) {
+      catTrigger.parentElement.classList.toggle('is-open');
+      return;
+    }
+    const row = e.target.closest('.row');
+    if (row && row.dataset.tool) {
+      document.querySelectorAll('.row.is-selected').forEach(r => r.classList.remove('is-selected'));
+      row.classList.add('is-selected');
+    }
+  });
+
+  // ─── Surface B: Cmd-K palette Essentials group ───────────────────────
+  renderEssentials(document.getElementById('cmdkEssentials'));
+
+  // ─── Search ──────────────────────────────────────────────────────────
+  const search = document.getElementById('searchInput');
+  search.addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    const allRows = document.querySelectorAll('.popover .row');
+    if (!q) {
+      // Restore initial structure
+      document.querySelector('.popover .essentials').style.display = '';
+      document.querySelector('.popover .ext-heading').style.display = '';
+      document.querySelectorAll('.popover .category').forEach(c => c.style.display = '');
+      allRows.forEach(r => r.style.display = '');
+      return;
+    }
+    document.querySelector('.popover .essentials').style.display = '';
+    document.querySelector('.popover .ext-heading').style.display = 'none';
+    document.querySelectorAll('.popover .category .category-trigger').forEach(t => t.style.display = 'none');
+    document.querySelectorAll('.popover .category').forEach(c => {
+      c.classList.add('is-open');
+      c.style.display = '';
+    });
+    allRows.forEach(r => {
+      const name = r.querySelector('.name')?.textContent ?? '';
+      const desc = r.querySelector('.desc')?.textContent ?? '';
+      const cat = r.querySelector('.cat')?.textContent ?? '';
+      const hay = (name + ' ' + desc + ' ' + cat).toLowerCase();
+      r.style.display = hay.includes(q) ? '' : 'none';
+    });
+  });
+
+  // ─── Theme toggle ────────────────────────────────────────────────────
+  const toggle = document.getElementById('themeToggle');
+  toggle.addEventListener('click', () => {
+    document.documentElement.classList.toggle('dark');
+  });
+</script>
+</body>
+</html>
