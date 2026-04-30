@@ -21,6 +21,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MilestoneCombobox } from "@/components/board/milestone-combobox";
 import { TagCombobox } from "@/components/board/tag-combobox";
+import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setup-dialog";
 import { ActorChip } from "@/components/ui/actor-chip";
 import {
 	AlertDialog,
@@ -896,9 +897,8 @@ function DecisionsSection({ cardId, projectId }: { cardId: string; projectId: st
 //   2. project has usage but this card doesn't → render nothing (silence
 //      stays correct for the "tracked elsewhere" case)
 //   3. project has no usage at all → render a one-line "Not tracked yet"
-//      hint pointing at the Stop hook setup docs in AGENTS.md, since the
+//      hint that opens the in-app TokenTrackingSetupDialog (#153), since the
 //      feature is otherwise undiscoverable
-const SETUP_DOCS_URL = "https://github.com/2nspired/pigeon/blob/main/AGENTS.md#token-tracking-96";
 
 function CardCostSection({ cardId, projectId }: { cardId: string; projectId: string }) {
 	const { data: cardSummary } = api.tokenUsage.getCardSummary.useQuery(
@@ -934,14 +934,16 @@ function CardCostSection({ cardId, projectId }: { cardId: string; projectId: str
 					<SectionHeader>Token cost</SectionHeader>
 					<span className="text-xs text-muted-foreground">
 						Not tracked yet ·{" "}
-						<a
-							href={SETUP_DOCS_URL}
-							target="_blank"
-							rel="noopener noreferrer"
-							className="underline underline-offset-2 hover:text-foreground"
-						>
-							Set up →
-						</a>
+						<TokenTrackingSetupDialog
+							trigger={
+								<button
+									type="button"
+									className="underline underline-offset-2 hover:text-foreground"
+								>
+									Set up →
+								</button>
+							}
+						/>
 					</span>
 				</div>
 			</div>

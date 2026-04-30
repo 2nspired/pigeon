@@ -1,5 +1,6 @@
 import { createReadStream } from "node:fs";
-import { access, readdir } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
 import { createInterface } from "node:readline";
 import type { PrismaClient } from "prisma/generated/client";
@@ -586,6 +587,93 @@ async function getDailyCostSeries(projectId: string): Promise<ServiceResult<Dail
 	}
 }
 
+// ─── Setup diagnostics ─────────────────────────────────────────────
+
+export type SetupConfigPath = {
+	/** Absolute path of the inspected Claude Code config file. */
+	path: string;
+	/** True when the file exists and is readable JSON. */
+	exists: boolean;
+	/** True when a Stop hook targeting `recordTokenUsageFromTranscript` is present. */
+	hasHook: boolean;
+};
+
+export type SetupDiagnostics = {
+	configPaths: SetupConfigPath[];
+	eventCount: number;
+	lastEventAt: Date | null;
+	/** Count of `Project` rows missing `repoPath` — these can't be resolved by `resolveProjectIdFromCwd` and silently drop their token data. */
+	projectsWithoutRepoPath: number;
+};
+
+// Standard Claude Code config locations checked by the setup dialog. Other
+// locations (CLAUDE_CONFIG_DIR overrides, custom installs) aren't auto-detected
+// — users with those setups are advanced enough to read AGENTS.md.
+const CLAUDE_CONFIG_PATHS = [".claude/.claude.json", ".claude-alt/.claude.json"];
+
+// Loose typing: we walk the JSON without enforcing the full Claude Code config
+// schema. We only need `hooks.Stop[*].hooks[*].tool === "recordTokenUsageFromTranscript"`.
+function configHasTokenHook(json: unknown): boolean {
+	if (!json || typeof json !== "object") return false;
+	const hooks = (json as { hooks?: { Stop?: unknown } }).hooks?.Stop;
+	if (!Array.isArray(hooks)) return false;
+	for (const stop of hooks) {
+		const inner = (stop as { hooks?: unknown }).hooks;
+		if (!Array.isArray(inner)) continue;
+		for (const h of inner) {
+			if (
+				h &&
+				typeof h === "object" &&
+				(h as { tool?: string }).tool === "recordTokenUsageFromTranscript"
+			) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+async function inspectConfigPath(absPath: string): Promise<SetupConfigPath> {
+	try {
+		const content = await readFile(absPath, "utf8");
+		const parsed = JSON.parse(content);
+		return { path: absPath, exists: true, hasHook: configHasTokenHook(parsed) };
+	} catch {
+		return { path: absPath, exists: false, hasHook: false };
+	}
+}
+
+async function getDiagnostics(): Promise<ServiceResult<SetupDiagnostics>> {
+	try {
+		const home = homedir();
+		const [configPaths, latest, total, missingRepoPath] = await Promise.all([
+			Promise.all(CLAUDE_CONFIG_PATHS.map((rel) => inspectConfigPath(path.join(home, rel)))),
+			db.tokenUsageEvent.findFirst({
+				orderBy: { recordedAt: "desc" },
+				select: { recordedAt: true },
+			}),
+			db.tokenUsageEvent.count(),
+			db.project.count({ where: { OR: [{ repoPath: null }, { repoPath: "" }] } }),
+		]);
+
+		return {
+			success: true,
+			data: {
+				configPaths,
+				eventCount: total,
+				lastEventAt: latest?.recordedAt ?? null,
+				projectsWithoutRepoPath: missingRepoPath,
+			},
+		};
+	} catch (error) {
+		console.error("[TOKEN_USAGE_SERVICE] getDiagnostics error:", error);
+		return {
+			success: false,
+			error: { code: "QUERY_FAILED", message: "Failed to load diagnostics." },
+		};
+	}
+}
+
 async function getPricing(): Promise<ServiceResult<Record<string, ModelPricing>>> {
 	try {
 		const pricing = await loadPricing(db);
@@ -681,6 +769,7 @@ export const tokenUsageService = {
 	getCardSummary,
 	getMilestoneSummary,
 	getDailyCostSeries,
+	getDiagnostics,
 	getPricing,
 	updatePricing,
 };
