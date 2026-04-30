@@ -1,15 +1,14 @@
 "use client";
 
-import { Activity, AlertTriangle, ArrowLeft, ArrowRight, ExternalLink } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, ArrowRight } from "lucide-react";
 
+import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setup-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatCost } from "@/lib/format-cost";
 import { formatRelative } from "@/lib/format-date";
 import { STATUS_TEXT } from "@/lib/priority-colors";
 import type { RouterOutputs } from "@/trpc/react";
 import { api } from "@/trpc/react";
-
-const SETUP_DOCS_URL = "https://github.com/2nspired/pigeon/blob/main/AGENTS.md#token-tracking-96";
 
 type SparklineProps = {
 	data: number[];
@@ -196,15 +195,16 @@ export function BoardPulse({ boardId, projectId }: { boardId: string; projectId:
 				</PopoverTrigger>
 
 				{showCostSetupCta && (
-					<a
-						href={SETUP_DOCS_URL}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="flex shrink-0 items-center gap-1 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-					>
-						Set up token tracking
-						<ExternalLink className="h-3 w-3" />
-					</a>
+					<TokenTrackingSetupDialog
+						trigger={
+							<button
+								type="button"
+								className="flex shrink-0 items-center gap-1 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+							>
+								Set up token tracking
+							</button>
+						}
+					/>
 				)}
 			</div>
 
@@ -351,15 +351,16 @@ function PulseDetails({
 				</div>
 			) : (
 				<div className="p-4">
-					<a
-						href={SETUP_DOCS_URL}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-					>
-						Set up token tracking
-						<ExternalLink className="h-3 w-3" />
-					</a>
+					<TokenTrackingSetupDialog
+						trigger={
+							<button
+								type="button"
+								className="flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+							>
+								Set up token tracking
+							</button>
+						}
+					/>
 				</div>
 			)}
 		</div>

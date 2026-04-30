@@ -68,6 +68,14 @@ export const tokenUsageRouter = createTRPCRouter({
 			return result.data;
 		}),
 
+	getDiagnostics: publicProcedure.query(async () => {
+		const result = await tokenUsageService.getDiagnostics();
+		if (!result.success) {
+			throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
+		}
+		return result.data;
+	}),
+
 	getPricing: publicProcedure.query(async () => {
 		const result = await tokenUsageService.getPricing();
 		if (!result.success) {
