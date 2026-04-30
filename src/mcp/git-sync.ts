@@ -22,7 +22,7 @@ type SyncOptions = {
  * Shared syncGitActivity logic — scans commits for #N card refs and upserts
  * GitLinks for cards that exist in the project.
  *
- * Used by both the `syncGitActivity` extended tool and the `endSession`
+ * Used by both the `syncGitActivity` extended tool and the `saveHandoff`
  * essential tool so the latter can link new commits as part of wrap-up
  * without re-implementing the scan.
  */

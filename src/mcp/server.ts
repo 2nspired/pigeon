@@ -165,7 +165,7 @@ async function resolveBoardFromCwd(): Promise<ResolvedBoard> {
 }
 
 /**
- * Response for briefMe/endSession when cwd is a git repo but no project owns
+ * Response for briefMe/saveHandoff when cwd is a git repo but no project owns
  * it. Returns ok() with a setup prompt so the agent can ask the human which
  * project to bind to, then call registerRepo. Not an error — the system
  * works, it just needs a one-time bind.
@@ -991,7 +991,7 @@ server.registerTool(
 				...(intentReminder ? { intentReminder } : {}),
 				_hint: lastHandoff
 					? "Continue via handoff.nextSteps or pick from topWork (cards with source='pinned' are human-prioritized — top of Backlog by drag order — pick those before source='scored'). Use runTool('getCardContext', { cardId }) for deep work. Run `listWorkflows({ boardId })` to see named recipes (sessionStart, sessionEnd, recordDecision, searchKnowledge)."
-					: "No prior handoff — pick from topWork (cards with source='pinned' are human-prioritized — top of Backlog by drag order — pick those before source='scored'). Run `listWorkflows({ boardId })` for the full recipe set; call `endSession` before wrapping to save context.",
+					: "No prior handoff — pick from topWork (cards with source='pinned' are human-prioritized — top of Backlog by drag order — pick those before source='scored'). Run `listWorkflows({ boardId })` for the full recipe set; call `saveHandoff` before wrapping to save context (`endSession` is a deprecated alias).",
 			};
 
 			try {
@@ -1012,186 +1012,248 @@ server.registerTool(
 
 // ─── Session Wrap-Up (Essential) ─────────────────────────────────────
 
+// Shared input schema for `saveHandoff` (and its deprecated `endSession` alias).
+const saveHandoffInputSchema = {
+	boardId: z
+		.string()
+		.optional()
+		.describe("Board UUID (optional — auto-detected from cwd when omitted)"),
+	summary: z
+		.string()
+		.min(1, "summary is required — one paragraph describing what this session accomplished")
+		.describe("One-paragraph session summary (what was accomplished)"),
+	workingOn: z
+		.array(z.string())
+		.default([])
+		.describe("Cards or topics worked on (free text; card refs like '#7 auth' are fine)"),
+	findings: z
+		.array(z.string())
+		.default([])
+		.describe("Non-obvious discoveries worth carrying forward (code facts, gotchas)"),
+	nextSteps: z.array(z.string()).default([]).describe("Concrete first actions for the next agent"),
+	blockers: z
+		.array(z.string())
+		.default([])
+		.describe("Anything waiting on a human decision or external change"),
+	syncGit: z
+		.boolean()
+		.default(true)
+		.describe(
+			"Run syncGitActivity to link new commits referencing #N (default true). Pass `false` for a mid-session checkpoint."
+		),
+};
+
+type SaveHandoffArgs = {
+	boardId?: string;
+	summary: string;
+	workingOn?: string[];
+	findings?: string[];
+	nextSteps?: string[];
+	blockers?: string[];
+	syncGit?: boolean;
+};
+
+// Core handoff handler. Used by both `saveHandoff` (the canonical essential)
+// and the deprecated `endSession` alias below.
+async function handleSaveHandoff({
+	boardId: explicitBoardId,
+	summary,
+	workingOn,
+	findings,
+	nextSteps,
+	blockers,
+	syncGit,
+}: SaveHandoffArgs) {
+	return safeExecute(async () => {
+		let boardId = explicitBoardId;
+		let autoResolved: { projectName: string; boardName: string } | null = null;
+		if (!boardId) {
+			const resolved = await resolveBoardFromCwd();
+			if (!resolved.ok) {
+				if (resolved.kind === "unregistered") return unregisteredRepoResponse(resolved.repoRoot);
+				return err(resolved.reason, resolved.hint);
+			}
+			boardId = resolved.boardId;
+			autoResolved = { projectName: resolved.projectName, boardName: resolved.boardName };
+		}
+
+		const board = await db.board.findUnique({
+			where: { id: boardId },
+			include: { project: { select: { id: true, name: true } } },
+		});
+		if (!board) return err("Board not found.", "Use checkOnboarding to discover boards.");
+
+		// Optional: link new commits. Failures are non-fatal — saveHandoff's
+		// primary job is the handoff; commit linkage is a bonus.
+		let gitSync: { commitsScanned: number; linksCreated: number; refsSkipped: number } | null =
+			null;
+		let gitSyncError: string | null = null;
+		if (syncGit !== false) {
+			const syncResult = await syncGitActivityForProject(board.project.id);
+			if (syncResult.ok) {
+				gitSync = {
+					commitsScanned: syncResult.commitsScanned,
+					linksCreated: syncResult.linksCreated,
+					refsSkipped: syncResult.refsSkipped,
+				};
+			} else {
+				gitSyncError = syncResult.message;
+			}
+		}
+
+		// Infer touched cards: agent activity since the prior handoff, or
+		// last 2 hours if there's no handoff yet. Last-write-wins doctrine
+		// forbids auto-moving cards here — we only *report* what the agent
+		// touched so the human sees the wake.
+		const lastHandoff = await getLatestHandoff(db, boardId);
+		const since = lastHandoff ? lastHandoff.createdAt : new Date(Date.now() - 2 * 60 * 60 * 1000);
+
+		const recentActivity = await db.activity.findMany({
+			where: {
+				actorType: "AGENT",
+				actorName: AGENT_NAME,
+				createdAt: { gte: since },
+				card: { column: { boardId } },
+			},
+			include: {
+				card: {
+					select: {
+						number: true,
+						title: true,
+						column: { select: { name: true } },
+					},
+				},
+			},
+			orderBy: { createdAt: "asc" },
+		});
+
+		const touchedMap = new Map<
+			number,
+			{ ref: string; title: string; column: string; activityCount: number }
+		>();
+		for (const a of recentActivity) {
+			const existing = touchedMap.get(a.card.number);
+			if (existing) {
+				existing.activityCount++;
+			} else {
+				touchedMap.set(a.card.number, {
+					ref: `#${a.card.number}`,
+					title: a.card.title,
+					column: a.card.column.name,
+					activityCount: 1,
+				});
+			}
+		}
+		const touchedCards = Array.from(touchedMap.values()).sort((a, b) =>
+			a.ref.localeCompare(b.ref, undefined, { numeric: true })
+		);
+
+		const handoff = await saveHandoff(db, {
+			boardId,
+			agentName: AGENT_NAME,
+			workingOn: (workingOn as string[]) ?? [],
+			findings: (findings as string[]) ?? [],
+			nextSteps: (nextSteps as string[]) ?? [],
+			blockers: (blockers as string[]) ?? [],
+			summary: summary as string,
+		});
+
+		const projectName = autoResolved?.projectName ?? board.project.name;
+		const boardName = autoResolved?.boardName ?? board.name;
+
+		// Copy-pasteable resume prompt for the next chat. References cards
+		// by #number so the next agent can resolve them via briefMe.
+		const resumeLines = [
+			`Continue the ${projectName} session. Call \`briefMe()\` first to load the handoff, then pick up from the next steps.`,
+		];
+		if (touchedCards.length > 0) {
+			const refs = touchedCards.map((c) => c.ref).join(", ");
+			resumeLines.push(`Recent focus: ${refs}.`);
+		}
+		if ((blockers as string[])?.length > 0) {
+			resumeLines.push(`Open blockers: ${(blockers as string[]).join("; ")}.`);
+		}
+		const resumePrompt = resumeLines.join(" ");
+
+		return ok({
+			handoff: {
+				id: handoff.id,
+				boardId: handoff.boardId,
+				agentName: handoff.author,
+				createdAt: handoff.createdAt,
+			},
+			board: { id: boardId, project: projectName, name: boardName },
+			touchedCards,
+			gitSync,
+			...(gitSyncError ? { gitSyncError } : {}),
+			resumePrompt,
+			_hint:
+				"Paste `resumePrompt` into the next conversation — the next session calls briefMe() and picks up from there.",
+		});
+	});
+}
+
+server.registerTool(
+	"saveHandoff",
+	{
+		title: "Save Handoff",
+		description:
+			"Session wrap-up companion to `briefMe`. Saves a handoff, links new commits via syncGitActivity, reports which cards the agent touched since the last handoff, and returns a copy-pasteable resume prompt for the next conversation. Does NOT auto-move cards — call `moveCard` with `intent` for any remaining transitions before wrapping up. With no boardId, auto-detects the project from the current git repo.",
+		inputSchema: saveHandoffInputSchema,
+	},
+	wrapEssentialHandler("saveHandoff", handleSaveHandoff)
+);
+
+// ─── Deprecated alias: endSession → saveHandoff ──────────────────────
+// Renamed in v5.x for naming continuity (slash command `/handoff`, skill,
+// service, DB artifact `Note.kind="handoff"`, MCP resource — all "handoff").
+// Removed in v6.0.0. The alias forwards every param to the same handler and
+// emits a one-time process warning so older clients see the migration hint.
+let endSessionDeprecationWarned = false;
+function warnEndSessionDeprecatedOnce(): void {
+	if (endSessionDeprecationWarned) return;
+	endSessionDeprecationWarned = true;
+	console.warn(
+		"[mcp] DEPRECATED: `endSession` was renamed to `saveHandoff` in v5.x and will be removed in v6.0.0. Update your client to call `saveHandoff` with the same parameters."
+	);
+}
+
 server.registerTool(
 	"endSession",
 	{
-		title: "End Session",
+		title: "End Session (deprecated — use saveHandoff)",
 		description:
-			"Session wrap-up companion to `briefMe`. Saves a handoff, links new commits via syncGitActivity, reports which cards the agent touched since the last handoff, and returns a copy-pasteable resume prompt for the next conversation. Does NOT auto-move cards — call `moveCard` with `intent` for any remaining transitions before wrapping up. With no boardId, auto-detects the project from the current git repo.",
-		inputSchema: {
-			boardId: z
-				.string()
-				.optional()
-				.describe("Board UUID (optional — auto-detected from cwd when omitted)"),
-			summary: z
-				.string()
-				.min(1, "summary is required — one paragraph describing what this session accomplished")
-				.describe("One-paragraph session summary (what was accomplished)"),
-			workingOn: z
-				.array(z.string())
-				.default([])
-				.describe("Cards or topics worked on (free text; card refs like '#7 auth' are fine)"),
-			findings: z
-				.array(z.string())
-				.default([])
-				.describe("Non-obvious discoveries worth carrying forward (code facts, gotchas)"),
-			nextSteps: z
-				.array(z.string())
-				.default([])
-				.describe("Concrete first actions for the next agent"),
-			blockers: z
-				.array(z.string())
-				.default([])
-				.describe("Anything waiting on a human decision or external change"),
-			syncGit: z
-				.boolean()
-				.default(true)
-				.describe("Run syncGitActivity to link new commits referencing #N (default true)"),
-		},
+			"DEPRECATED: renamed to `saveHandoff` in v5.x; removed in v6.0.0. Forwards to `saveHandoff`. Session wrap-up companion to `briefMe`. Saves a handoff, links new commits via syncGitActivity, reports which cards the agent touched since the last handoff, and returns a copy-pasteable resume prompt for the next conversation. Does NOT auto-move cards — call `moveCard` with `intent` for any remaining transitions before wrapping up. With no boardId, auto-detects the project from the current git repo.",
+		inputSchema: saveHandoffInputSchema,
 	},
-	wrapEssentialHandler(
-		"endSession",
-		async ({
-			boardId: explicitBoardId,
-			summary,
-			workingOn,
-			findings,
-			nextSteps,
-			blockers,
-			syncGit,
-		}) => {
-			return safeExecute(async () => {
-				let boardId = explicitBoardId;
-				let autoResolved: { projectName: string; boardName: string } | null = null;
-				if (!boardId) {
-					const resolved = await resolveBoardFromCwd();
-					if (!resolved.ok) {
-						if (resolved.kind === "unregistered")
-							return unregisteredRepoResponse(resolved.repoRoot);
-						return err(resolved.reason, resolved.hint);
-					}
-					boardId = resolved.boardId;
-					autoResolved = { projectName: resolved.projectName, boardName: resolved.boardName };
-				}
-
-				const board = await db.board.findUnique({
-					where: { id: boardId },
-					include: { project: { select: { id: true, name: true } } },
-				});
-				if (!board) return err("Board not found.", "Use checkOnboarding to discover boards.");
-
-				// Optional: link new commits. Failures are non-fatal — endSession's
-				// primary job is the handoff; commit linkage is a bonus.
-				let gitSync: { commitsScanned: number; linksCreated: number; refsSkipped: number } | null =
-					null;
-				let gitSyncError: string | null = null;
-				if (syncGit !== false) {
-					const syncResult = await syncGitActivityForProject(board.project.id);
-					if (syncResult.ok) {
-						gitSync = {
-							commitsScanned: syncResult.commitsScanned,
-							linksCreated: syncResult.linksCreated,
-							refsSkipped: syncResult.refsSkipped,
-						};
-					} else {
-						gitSyncError = syncResult.message;
-					}
-				}
-
-				// Infer touched cards: agent activity since the prior handoff, or
-				// last 2 hours if there's no handoff yet. Last-write-wins doctrine
-				// forbids auto-moving cards here — we only *report* what the agent
-				// touched so the human sees the wake.
-				const lastHandoff = await getLatestHandoff(db, boardId);
-				const since = lastHandoff
-					? lastHandoff.createdAt
-					: new Date(Date.now() - 2 * 60 * 60 * 1000);
-
-				const recentActivity = await db.activity.findMany({
-					where: {
-						actorType: "AGENT",
-						actorName: AGENT_NAME,
-						createdAt: { gte: since },
-						card: { column: { boardId } },
-					},
-					include: {
-						card: {
-							select: {
-								number: true,
-								title: true,
-								column: { select: { name: true } },
-							},
-						},
-					},
-					orderBy: { createdAt: "asc" },
-				});
-
-				const touchedMap = new Map<
-					number,
-					{ ref: string; title: string; column: string; activityCount: number }
-				>();
-				for (const a of recentActivity) {
-					const existing = touchedMap.get(a.card.number);
-					if (existing) {
-						existing.activityCount++;
-					} else {
-						touchedMap.set(a.card.number, {
-							ref: `#${a.card.number}`,
-							title: a.card.title,
-							column: a.card.column.name,
-							activityCount: 1,
-						});
-					}
-				}
-				const touchedCards = Array.from(touchedMap.values()).sort((a, b) =>
-					a.ref.localeCompare(b.ref, undefined, { numeric: true })
-				);
-
-				const handoff = await saveHandoff(db, {
-					boardId,
-					agentName: AGENT_NAME,
-					workingOn: (workingOn as string[]) ?? [],
-					findings: (findings as string[]) ?? [],
-					nextSteps: (nextSteps as string[]) ?? [],
-					blockers: (blockers as string[]) ?? [],
-					summary: summary as string,
-				});
-
-				const projectName = autoResolved?.projectName ?? board.project.name;
-				const boardName = autoResolved?.boardName ?? board.name;
-
-				// Copy-pasteable resume prompt for the next chat. References cards
-				// by #number so the next agent can resolve them via briefMe.
-				const resumeLines = [
-					`Continue the ${projectName} session. Call \`briefMe()\` first to load the handoff, then pick up from the next steps.`,
-				];
-				if (touchedCards.length > 0) {
-					const refs = touchedCards.map((c) => c.ref).join(", ");
-					resumeLines.push(`Recent focus: ${refs}.`);
-				}
-				if ((blockers as string[])?.length > 0) {
-					resumeLines.push(`Open blockers: ${(blockers as string[]).join("; ")}.`);
-				}
-				const resumePrompt = resumeLines.join(" ");
-
-				return ok({
-					handoff: {
-						id: handoff.id,
-						boardId: handoff.boardId,
-						agentName: handoff.author,
-						createdAt: handoff.createdAt,
-					},
-					board: { id: boardId, project: projectName, name: boardName },
-					touchedCards,
-					gitSync,
-					...(gitSyncError ? { gitSyncError } : {}),
-					resumePrompt,
-					_hint:
-						"Paste `resumePrompt` into the next conversation — the next session calls briefMe() and picks up from there.",
-				});
-			});
+	wrapEssentialHandler("endSession", async (args: SaveHandoffArgs) => {
+		warnEndSessionDeprecatedOnce();
+		const result = await handleSaveHandoff(args);
+		// Inject `_deprecated` migration metadata into successful payloads,
+		// mirroring the convention used for legacy `tags`/`milestoneName`
+		// params elsewhere. On error, leave the response untouched.
+		if (result.isError) return result;
+		try {
+			const text = result.content[0]?.text ?? "";
+			const parsed = JSON.parse(text);
+			if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+				parsed._deprecated = {
+					renamedTo: "saveHandoff",
+					removeIn: "v6.0.0",
+					message:
+						"`endSession` was renamed to `saveHandoff`. Update your client — same parameters, same response.",
+				};
+				return {
+					...result,
+					content: [{ type: "text" as const, text: JSON.stringify(parsed, null, 2) }],
+				};
+			}
+		} catch {
+			// If the payload isn't JSON for any reason, fall through with the
+			// original result rather than masking the underlying response.
 		}
-	)
+		return result;
+	})
 );
 
 server.registerTool(
@@ -1199,7 +1261,7 @@ server.registerTool(
 	{
 		title: "Register Repo",
 		description:
-			"Bind a git repo path to a project so briefMe/endSession can auto-detect it from cwd. Call this after briefMe returns needsRegistration.",
+			"Bind a git repo path to a project so briefMe/saveHandoff can auto-detect it from cwd. Call this after briefMe returns needsRegistration.",
 		inputSchema: {
 			projectId: z.string().uuid().describe("Project UUID to attach the repo to"),
 			repoPath: z
@@ -1466,7 +1528,7 @@ server.registerPrompt(
 		lines.push(
 			"",
 			`---`,
-			`~${tokens} tokens | Use \`getCardContext\` for deep work on a card. Call \`end-session\` before wrapping up.`
+			`~${tokens} tokens | Use \`getCardContext\` for deep work on a card. Call \`saveHandoff\` before wrapping up.`
 		);
 
 		return {
@@ -1485,7 +1547,7 @@ server.registerPrompt(
 	{
 		title: "End Session (superseded)",
 		description:
-			"Superseded by the `endSession` essential tool. Kept as a pointer for older clients.",
+			"Superseded by the `saveHandoff` essential tool. Kept as a pointer for older clients.",
 		argsSchema: {
 			boardId: z.string().describe("Board ID").optional(),
 		},
@@ -1494,10 +1556,10 @@ server.registerPrompt(
 		const text = [
 			"# End Session — superseded",
 			"",
-			"This prompt has been replaced by the **`endSession`** essential tool. Call it directly instead of walking a checklist:",
+			"This prompt has been replaced by the **`saveHandoff`** essential tool (renamed from `endSession` in v5.x; the old name is a deprecated alias removed in v6.0.0). Call it directly instead of walking a checklist:",
 			"",
 			"```",
-			"endSession({",
+			"saveHandoff({",
 			`  ${boardId ? `boardId: '${boardId}',` : "// boardId auto-detected from cwd"}`,
 			"  summary: 'one paragraph — what this session accomplished',",
 			"  workingOn: ['cards or topics'],",
@@ -1507,7 +1569,7 @@ server.registerPrompt(
 			"})",
 			"```",
 			"",
-			"`endSession` saves the handoff, runs `syncGitActivity`, reports which cards you touched this session, and returns a copy-pasteable resume prompt for the next conversation.",
+			"`saveHandoff` saves the handoff, runs `syncGitActivity`, reports which cards you touched this session, and returns a copy-pasteable resume prompt for the next conversation. Pass `syncGit: false` for a mid-session checkpoint.",
 			"",
 			"Before calling it, move any finished cards with `moveCard({ intent })` — the tool won't auto-move cards because the intent contract requires a human-readable reason on every transition.",
 		].join("\n");
@@ -1804,7 +1866,7 @@ server.registerPrompt(
 			"## Project Tracking",
 			"This project uses the `pigeon` MCP tools.",
 			"Use the `resume-session` prompt with the board ID at the start of each conversation.",
-			"Use `end-session` before wrapping up to save handoff for the next session.",
+			"Call `saveHandoff` before wrapping up to save handoff for the next session.",
 			'Reference cards by #number (e.g. "working on #7").',
 			"```",
 			"",
