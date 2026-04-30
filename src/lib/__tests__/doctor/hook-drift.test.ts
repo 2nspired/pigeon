@@ -32,7 +32,7 @@ describe("evaluateHookDrift", () => {
 			hooks: {
 				Stop: [
 					{
-						hooks: [{ type: "mcp_tool", server: "pigeon", tool: "endSession" }],
+						hooks: [{ type: "mcp_tool", server: "pigeon", tool: "saveHandoff" }],
 					},
 				],
 			},
@@ -46,7 +46,7 @@ describe("evaluateHookDrift", () => {
 			hooks: {
 				Stop: [
 					{
-						hooks: [{ type: "mcp_tool", server: "project-tracker", tool: "endSession" }],
+						hooks: [{ type: "mcp_tool", server: "project-tracker", tool: "saveHandoff" }],
 					},
 				],
 			},

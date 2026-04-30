@@ -262,7 +262,7 @@ function EmptyState({ hasAny }: { hasAny: boolean }) {
 					<p className="font-medium">No sessions yet.</p>
 					<p className="mt-1">
 						Sessions are saved when an agent runs <code>/handoff</code> or calls{" "}
-						<code>endSession</code>.
+						<code>saveHandoff</code>.
 					</p>
 				</>
 			)}

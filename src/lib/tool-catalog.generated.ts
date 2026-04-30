@@ -23,8 +23,8 @@ export const TOOL_CATALOG: {
 			"description": "One-shot session primer — handoff, diff, top work, blockers, recent decisions, pulse."
 		},
 		{
-			"name": "endSession",
-			"description": "Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt."
+			"name": "saveHandoff",
+			"description": "Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt. (`endSession` is a deprecated alias, removed in v6.0.0.)"
 		},
 		{
 			"name": "createCard",
@@ -435,13 +435,6 @@ export const TOOL_CATALOG: {
 			"name": "recordTokenUsageFromTranscript",
 			"category": "session",
 			"description": "Stream a Claude Code session transcript JSONL (plus any sibling sub-agent transcripts) and record per-model token usage. Idempotent on sessionId — re-running replaces rows. Designed for the Claude Code Stop hook (type: 'mcp_tool') with ${transcript_path}, ${session_id}, ${cwd} substitution. Returns soft warnings (NO_USAGE_FOUND, PROJECT_NOT_FOUND, TRANSCRIPT_NOT_FOUND) instead of erroring so the hook never blocks.",
-			"readOnly": false,
-			"destructive": false
-		},
-		{
-			"name": "saveHandoff",
-			"category": "session",
-			"description": "Save session handoff for the next agent/conversation.",
 			"readOnly": false,
 			"destructive": false
 		},
@@ -1637,38 +1630,6 @@ export const TOOL_CATALOG: {
 				"type": "Optional card UUID for card-level attribution",
 				"required": false,
 				"description": "Optional card UUID for card-level attribution"
-			}
-		},
-		"saveHandoff": {
-			"boardId": {
-				"type": "Board UUID",
-				"required": true,
-				"description": "Board UUID"
-			},
-			"workingOn": {
-				"type": "What you were working on",
-				"required": false,
-				"description": "What you were working on"
-			},
-			"findings": {
-				"type": "Key findings or discoveries",
-				"required": false,
-				"description": "Key findings or discoveries"
-			},
-			"nextSteps": {
-				"type": "Suggested next actions",
-				"required": false,
-				"description": "Suggested next actions"
-			},
-			"blockers": {
-				"type": "Anything blocking progress",
-				"required": false,
-				"description": "Anything blocking progress"
-			},
-			"summary": {
-				"type": "Brief session summary",
-				"required": false,
-				"description": "Brief session summary"
 			}
 		},
 		"createColumn": {

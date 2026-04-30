@@ -19,7 +19,7 @@ These are in the agent's context on every session. They cover the hot path: star
 | Tool | What it does |
 | --- | --- |
 | `briefMe` | One-shot session primer — handoff, diff, top work, blockers, recent decisions, pulse. |
-| `endSession` | Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt. |
+| `saveHandoff` | Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt. (`endSession` is a deprecated alias, removed in v6.0.0.) |
 | `createCard` | Create a card in a column (by name). |
 | `updateCard` | Update card fields; optional `intent`. |
 | `moveCard` | Move a card to a column. Requires `intent`. |
@@ -51,7 +51,7 @@ Browsed via `getTools({ category })` and executed via `runTool({ tool, params })
 | `milestones` | 4 | `createMilestone`, `listMilestones`, `mergeMilestones`, `updateMilestone` |
 | `notes` | 3 | `createNote`, `listNotes`, `updateNote` |
 | `relations` | 3 | `getBlockers`, `linkCards`, `unlinkCards` |
-| `session` | 5 | `listHandoffs`, `loadHandoff`, `recordTokenUsage`, `recordTokenUsageFromTranscript`, `saveHandoff` |
+| `session` | 4 | `listHandoffs`, `loadHandoff`, `recordTokenUsage`, `recordTokenUsageFromTranscript` |
 | `setup` | 4 | `createColumn`, `createProject`, `seedTutorial`, `setRepoPath` |
 | `tags` | 4 | `createTag`, `listTags`, `mergeTags`, `renameTag` |
 {/* tracker:extended:end */}

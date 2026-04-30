@@ -4,51 +4,17 @@ import {
 	getLatestHandoff,
 	listHandoffs as listHandoffsShared,
 	parseHandoff,
-	saveHandoff,
 } from "../../lib/services/handoff.js";
 import { db } from "../db.js";
 import { checkStaleness, formatStalenessWarnings } from "../staleness.js";
 import { registerExtendedTool } from "../tool-registry.js";
-import { AGENT_NAME, err, ok, safeExecute } from "../utils.js";
+import { err, ok, safeExecute } from "../utils.js";
 
 // ─── Session ───────────────────────────────────────────────────────
-
-registerExtendedTool("saveHandoff", {
-	category: "session",
-	description: "Save session handoff for the next agent/conversation.",
-	parameters: z.object({
-		boardId: z.string().describe("Board UUID"),
-		workingOn: z.array(z.string()).default([]).describe("What you were working on"),
-		findings: z.array(z.string()).default([]).describe("Key findings or discoveries"),
-		nextSteps: z.array(z.string()).default([]).describe("Suggested next actions"),
-		blockers: z.array(z.string()).default([]).describe("Anything blocking progress"),
-		summary: z.string().default("").describe("Brief session summary"),
-	}),
-	handler: ({ boardId, workingOn, findings, nextSteps, blockers, summary }) =>
-		safeExecute(async () => {
-			const board = await db.board.findUnique({ where: { id: boardId as string } });
-			if (!board)
-				return err("Board not found.", "Use listProjects → listBoards to find a valid boardId.");
-
-			const handoff = await saveHandoff(db, {
-				boardId: boardId as string,
-				agentName: AGENT_NAME,
-				workingOn: (workingOn as string[]) ?? [],
-				findings: (findings as string[]) ?? [],
-				nextSteps: (nextSteps as string[]) ?? [],
-				blockers: (blockers as string[]) ?? [],
-				summary: (summary as string) ?? "",
-			});
-
-			return ok({
-				id: handoff.id,
-				agentName: AGENT_NAME,
-				boardId: handoff.boardId,
-				createdAt: handoff.createdAt,
-				saved: true,
-			});
-		}),
-});
+// `saveHandoff` is registered as an essential tool in `src/mcp/server.ts`
+// (it absorbed the old extended `saveHandoff` primitive — pass `syncGit: false`
+// for a mid-session checkpoint). The deprecated `endSession` alias also lives
+// there.
 
 registerExtendedTool("loadHandoff", {
 	category: "session",

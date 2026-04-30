@@ -136,7 +136,7 @@ Pigeon's MCP server registers under the key `pigeon` and runs over stdio. Ten es
 | Tool | What it does |
 | --- | --- |
 | `briefMe` | One-shot session primer — handoff, diff, top work, blockers, recent decisions, pulse. |
-| `endSession` | Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt. |
+| `saveHandoff` | Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt. (`endSession` is a deprecated alias, removed in v6.0.0.) |
 | `createCard` | Create a card in a column (by name). |
 | `updateCard` | Update card fields; optional `intent`. |
 | `moveCard` | Move a card to a column. Requires `intent`. |

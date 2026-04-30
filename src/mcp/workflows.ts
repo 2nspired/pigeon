@@ -81,7 +81,7 @@ export const WORKFLOWS: Workflow[] = [
 			{
 				tool: "moveCard",
 				intent:
-					"Reflect any column transitions for finished work — `endSession` does NOT auto-move cards.",
+					"Reflect any column transitions for finished work — `saveHandoff` does NOT auto-move cards.",
 				when: "You finished work on a card and the column doesn't already match reality.",
 			},
 			{
@@ -90,9 +90,9 @@ export const WORKFLOWS: Workflow[] = [
 				when: "Something specific belongs on a card, not in the generic handoff blockers list.",
 			},
 			{
-				tool: "endSession",
+				tool: "saveHandoff",
 				intent:
-					"Save handoff, run syncGitActivity, report touched cards, and emit a resume prompt the human pastes into the next chat.",
+					"Save handoff, run syncGitActivity, report touched cards, and emit a resume prompt the human pastes into the next chat. (`endSession` is a deprecated alias — same params.)",
 			},
 		],
 	},
