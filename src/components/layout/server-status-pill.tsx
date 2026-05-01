@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api } from "@/trpc/react";
 
@@ -10,6 +11,13 @@ export function ServerStatusPill() {
 		refetchOnWindowFocus: true,
 		staleTime: 60_000,
 	});
+	const [host, setHost] = useState<string | null>(null);
+	const [origin, setOrigin] = useState<string | null>(null);
+
+	useEffect(() => {
+		setHost(window.location.host);
+		setOrigin(window.location.origin);
+	}, []);
 
 	const { data: versionCheck } = api.system.versionCheck.useQuery(undefined, {
 		staleTime: 1000 * 60 * 60 * 6,
@@ -21,38 +29,40 @@ export function ServerStatusPill() {
 	const isOutdated = versionCheck?.isOutdated === true;
 	const latest = versionCheck?.latest ?? null;
 
-	const pill = (
-		<div className="hidden items-center gap-1.5 rounded-full border bg-background/50 px-2 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline-flex">
-			{isOutdated ? (
-				<span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden="true" />
-			) : null}
-			<span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-			<span>v{data.version}</span>
-			<span className="opacity-60">·</span>
-			<span>{data.mode}</span>
-		</div>
-	);
-
-	const trigger = isOutdated ? (
-		<a
-			href={RELEASES_URL}
-			target="_blank"
-			rel="noreferrer noopener"
-			aria-label={`New version v${latest ?? ""} available — view release notes`}
-		>
-			{pill}
-		</a>
-	) : (
-		pill
-	);
+	const href = isOutdated ? RELEASES_URL : (origin ?? "#");
+	const ariaLabel = isOutdated
+		? `New version v${latest ?? ""} available — view release notes`
+		: undefined;
 
 	const tooltipText = isOutdated
 		? `New version v${latest ?? ""} available — click to view release notes`
-		: `Server up · v${data.version} (${data.mode})`;
+		: host
+			? `Server up · v${data.version} · ${host}`
+			: `Server up · v${data.version}`;
 
 	return (
 		<Tooltip>
-			<TooltipTrigger asChild>{trigger}</TooltipTrigger>
+			<TooltipTrigger asChild>
+				<a
+					href={href}
+					target="_blank"
+					rel="noopener noreferrer"
+					aria-label={ariaLabel}
+					className="hidden items-center gap-1.5 rounded-full border bg-background/50 px-2 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline-flex"
+				>
+					{isOutdated ? (
+						<span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden="true" />
+					) : null}
+					<span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+					<span>v{data.version}</span>
+					{host ? (
+						<>
+							<span className="opacity-60">·</span>
+							<span>{host}</span>
+						</>
+					) : null}
+				</a>
+			</TooltipTrigger>
 			<TooltipContent>{tooltipText}</TooltipContent>
 		</Tooltip>
 	);
