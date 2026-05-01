@@ -533,11 +533,7 @@ function hasOverride(pricing: Record<string, ModelPricing>, model: string): bool
 	return RATE_FIELDS.some((f) => current[f.key] !== builtin[f.key]);
 }
 
-function hasOverrideForField(
-	model: string,
-	pricing: ModelPricing,
-	field: RateField
-): boolean {
+function hasOverrideForField(model: string, pricing: ModelPricing, field: RateField): boolean {
 	// Compare against the model's own built-in default — not the zero
 	// `__default__` fallback — otherwise every built-in model (e.g. gpt-4o
 	// at $5/MTok) reads as "overridden" the moment the table loads. For
