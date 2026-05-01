@@ -437,6 +437,9 @@ Per-session token cost surfaces on cards (Token cost section in card detail),
 in `briefMe`'s pulse line, and on the Sessions sheet. Tracking is opt-in per
 agent — Project Tracker never reads your transcript on its own.
 
+Token tracking: see [`docs/token-tracking.md`](docs/token-tracking.md) for the
+full coverage matrix and methodology.
+
 ### Claude Code (automatic)
 
 Add a Stop hook to one of Claude Code's `settings.json` files — user-level

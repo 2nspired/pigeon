@@ -585,7 +585,7 @@ function ReadMoreFooter() {
 				rel="noopener noreferrer"
 				className="inline-flex items-center gap-1 font-mono text-2xs text-muted-foreground/80 transition-colors hover:text-foreground"
 			>
-				AGENTS.md / Token Tracking
+				docs/token-tracking.md
 				<ExternalLink className="h-3 w-3" />
 			</a>
 		</div>
