@@ -23,10 +23,11 @@ Legacy paths still work in v4.2 but go through normalization (slugify for tags, 
 
 | Tool | Purpose |
 |---|---|
-| `listTags({ projectId })` | List tags with usage counts. Backs the autocomplete combobox + agent discovery. |
+| `listTags({ projectId, state? })` | List tags with usage counts and `_governanceHints`. `state` filter defaults to `"active"`. Backs the autocomplete combobox + agent discovery. |
 | `createTag({ projectId, label })` | Explicit creation — slugifies the label. Idempotent on the slug. |
 | `renameTag({ tagId, label })` | Update display label only. Slug is immutable. |
 | `mergeTags({ fromTagId, intoTagId })` | Admin cleanup — rewrites all CardTag rows from `from` to `into`, then deletes the source. |
+| `deleteTag({ tagId })` | Hard-delete a tag — **only when zero cards reference it**. Non-orphan deletes return `USAGE_NOT_ZERO`; merge first. Atomic against concurrent CardTag inserts (#170). |
 | `mergeMilestones({ fromMilestoneId, intoMilestoneId })` | Admin cleanup — rewrites Card.milestoneId from `from` to `into`, then deletes the source. |
 | `migrateTags()` | One-shot idempotent backfill from the legacy JSON column to the Tag + CardTag junction. Composes with `migrateProjectPrompt`. |
 | `updateMilestone({ ..., state: "archived" })` | New `state` field — archived milestones are hidden from the picker by default but kept in the schema. |
@@ -185,6 +186,21 @@ Marks a card whose `metadata` JSON holds metrics read by `renderStatus`. Shape:
 ```json
 { "metrics": [{ "key": "latency", "value": 17.5, "unit": "s", "recordedAt": "2026-04-10", "env": "Mac Mini M4" }] }
 ```
+
+### Governance hints + cleanup (#170)
+
+`listTags` returns a `_governanceHints` field per row when something deserves attention. Hints are emitted only when meaningful — **absent fields are not empty arrays**, they're "no signal."
+
+| Hint | Meaning | Action |
+|---|---|---|
+| `singleton: true` | Tag is referenced by exactly one card | Decide if the vocabulary is premature. Rename to a broader peer, merge, or accept as a deliberate one-off |
+| `possibleMerge: [{ id, label, distance }]` | Peers within Levenshtein distance ≤ 2 of this tag's slug | Run `mergeTags` to fold near-duplicates into the canonical tag |
+
+Tags also carry a `state` field (`"active" \| "archived"`). `listTags` defaults to `state: "active"`; pass `state: "archived"` to inspect archived rows. The schema column was added forward-compat — no archive flow yet, so most projects will only ever see `active`.
+
+**`deleteTag` is orphan-only by contract.** The service runs an atomic `DELETE … WHERE NOT EXISTS (SELECT 1 FROM card_tag …)` against the same row, so a concurrent CardTag insert closes the window: a tag picking up usage between your `listTags` call and the `deleteTag` confirm is rejected with `USAGE_NOT_ZERO` rather than getting deleted with rows still pointing at it. Recovery is `mergeTags` to drain references, then re-attempt the delete if the merge didn't already remove it.
+
+The TagManager UI surfaces all of this: usage-desc sort, Singleton + Near-miss badges, click-to-pre-select-merge, and a disabled-with-tooltip Delete button on any tag with usage > 0. Open it from the project page header ("Manage tags") or the tag-combobox dropdown footer ("Manage tags →").
 
 ## Milestones
 

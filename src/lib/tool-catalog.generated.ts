@@ -474,9 +474,16 @@ export const TOOL_CATALOG: {
 			"destructive": false
 		},
 		{
+			"name": "deleteTag",
+			"category": "tags",
+			"description": "Delete a tag — only when zero cards reference it. To delete a tag that's still in use, call `mergeTags` first to drain its references into another tag, then delete the (now orphan) source if the merge didn't already remove it. The check is atomic against concurrent CardTag inserts: a tag picking up usage mid-request is rejected with USAGE_NOT_ZERO rather than getting deleted with rows still pointing at it.",
+			"readOnly": false,
+			"destructive": false
+		},
+		{
 			"name": "listTags",
 			"category": "tags",
-			"description": "List all tags in a project with usage counts. Backs the autocomplete combobox and agent-side discovery for tagSlugs.",
+			"description": "List tags in a project with usage counts and governance hints. Backs the autocomplete combobox and agent-side discovery for tagSlugs.\n\nOptional `state` filter ('active' | 'archived') defaults to 'active' when omitted.\n\nEach row may include `_governanceHints` when something deserves the agent's attention:\n- `singleton: true` — the tag is referenced by exactly one card; consider whether the vocabulary is premature.\n- `possibleMerge: [{ id, label, distance }]` — peers within Levenshtein distance ≤ 2 of this tag's slug; collapse near-duplicates with `mergeTags`.\nAbsent fields mean no signal — agents should not treat missing hints as an empty array.",
 			"readOnly": true,
 			"destructive": false
 		},
@@ -1691,11 +1698,23 @@ export const TOOL_CATALOG: {
 				"description": "Display label — slugified for the canonical identifier"
 			}
 		},
+		"deleteTag": {
+			"tagId": {
+				"type": "Tag UUID — must be an orphan (usageCount === 0)",
+				"required": true,
+				"description": "Tag UUID — must be an orphan (usageCount === 0)"
+			}
+		},
 		"listTags": {
 			"projectId": {
 				"type": "Project UUID",
 				"required": true,
 				"description": "Project UUID"
+			},
+			"state": {
+				"type": "Filter by tag state. Defaults to 'active' when omitted.",
+				"required": false,
+				"description": "Filter by tag state. Defaults to 'active' when omitted."
 			}
 		},
 		"mergeTags": {

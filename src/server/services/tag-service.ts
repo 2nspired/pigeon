@@ -3,7 +3,24 @@ import { editDistance, slugify } from "@/lib/slugify";
 import { db } from "@/server/db";
 import type { ServiceResult } from "@/server/services/types/service-result";
 
+export type TagState = "active" | "archived";
+
 export type TagWithCount = Tag & { _count: { cardTags: number } };
+
+export type TagGovernanceHints = {
+	// Tag is referenced by exactly one CardTag — likely premature or one-off.
+	// Mirrors the milestone "premature singleton" signal but uses usage rather
+	// than age, since tags don't have the same long-lived-container shape.
+	singleton?: true;
+	// Other tags within Levenshtein 2 of this tag's slug — candidates for a
+	// merge to collapse near-duplicate vocabulary.
+	possibleMerge?: Array<{ id: string; label: string; distance: number }>;
+};
+
+export type TagWithHints = TagWithCount & {
+	state: TagState;
+	_governanceHints?: TagGovernanceHints;
+};
 
 export type DidYouMean = { id: string; slug: string; label: string; distance: number };
 
@@ -18,18 +35,125 @@ export type TagResolveResult = {
 	didYouMean: DidYouMean[];
 };
 
+// ─── Pure helpers (exported via __testing__ for unit tests) ──────────
+
+type GovernanceHintInput = {
+	id: string;
+	slug: string;
+	label: string;
+	usageCount: number;
+};
+
+/**
+ * Compute governance hints for a single tag relative to its project peers.
+ *
+ * Pure — no DB, no I/O. Hints surface only when meaningful so consumers
+ * can render conditionally without coordinating "is empty" checks.
+ *
+ *   singleton:    true when usageCount === 1
+ *   possibleMerge: every peer (excluding self) within Levenshtein ≤ 2 of
+ *                  the subject's slug, sorted ascending by distance
+ *
+ * O(n) per call (n = peer count); the calling list endpoint runs this n
+ * times for an O(n²) total. Acceptable up to ~500 tags per project — past
+ * that, switch to prefix-bucketed candidate selection.
+ */
+function computeGovernanceHints(
+	subject: GovernanceHintInput,
+	peers: GovernanceHintInput[]
+): TagGovernanceHints | undefined {
+	const hints: TagGovernanceHints = {};
+
+	if (subject.usageCount === 1) {
+		hints.singleton = true;
+	}
+
+	const possibleMerge: Array<{ id: string; label: string; distance: number }> = [];
+	if (subject.slug) {
+		for (const peer of peers) {
+			if (peer.id === subject.id) continue;
+			if (!peer.slug) continue;
+			const distance = editDistance(subject.slug, peer.slug, 2);
+			if (distance <= 2) {
+				possibleMerge.push({ id: peer.id, label: peer.label, distance });
+			}
+		}
+		possibleMerge.sort((a, b) => a.distance - b.distance);
+	}
+	if (possibleMerge.length > 0) {
+		hints.possibleMerge = possibleMerge;
+	}
+
+	return Object.keys(hints).length > 0 ? hints : undefined;
+}
+
+/**
+ * Validate guards for `mergeTags` against fetched-tag pairs.
+ *
+ * Pure — separates the policy from the transactional rewrite. Returned
+ * error codes flow up to the caller through ServiceResult.
+ */
+function validateMergeGuards(
+	from: { id: string; projectId: string; state: string } | null,
+	into: { id: string; projectId: string; state: string } | null
+): { ok: true } | { ok: false; code: string; message: string } {
+	if (!from || !into) {
+		return { ok: false, code: "NOT_FOUND", message: "One or both tags not found." };
+	}
+	if (from.id === into.id) {
+		return { ok: false, code: "INVALID_INPUT", message: "Cannot merge a tag into itself." };
+	}
+	if (from.projectId !== into.projectId) {
+		return {
+			ok: false,
+			code: "CROSS_PROJECT",
+			message: "Cannot merge tags across projects.",
+		};
+	}
+	if (from.state === "archived") {
+		return {
+			ok: false,
+			code: "SOURCE_ARCHIVED",
+			message:
+				"Source tag is archived. Reactivate it before merging, or delete the archived row directly if it is unused.",
+		};
+	}
+	return { ok: true };
+}
+
+// ─── Service factory ─────────────────────────────────────────────────
+
 // Factory matches the createClaimService convention so the same logic can
 // run inside the Next.js process (with the FTS-extended db singleton) and
 // inside the MCP stdio process (with its own better-sqlite3 client).
 export function createTagService(prisma: PrismaClient) {
-	async function listByProject(projectId: string): Promise<ServiceResult<TagWithCount[]>> {
+	async function listByProject(
+		projectId: string,
+		options?: { state?: TagState }
+	): Promise<ServiceResult<TagWithHints[]>> {
 		try {
+			const stateFilter: TagState = options?.state ?? "active";
 			const tags = await prisma.tag.findMany({
-				where: { projectId },
-				orderBy: { label: "asc" },
+				where: { projectId, state: stateFilter },
+				orderBy: [{ label: "asc" }],
 				include: { _count: { select: { cardTags: true } } },
 			});
-			return { success: true, data: tags };
+
+			const hintInputs: GovernanceHintInput[] = tags.map((t) => ({
+				id: t.id,
+				slug: t.slug,
+				label: t.label,
+				usageCount: t._count.cardTags,
+			}));
+
+			const enriched: TagWithHints[] = tags.map((t, i) => {
+				const hints = computeGovernanceHints(hintInputs[i], hintInputs);
+				const base: TagWithHints = { ...t, state: t.state as TagState };
+				if (hints) base._governanceHints = hints;
+				return base;
+			});
+
+			return { success: true, data: enriched };
 		} catch (error) {
 			console.error("[TAG_SERVICE] listByProject error:", error);
 			return {
@@ -110,6 +234,11 @@ export function createTagService(prisma: PrismaClient) {
 	// Rewrites every CardTag pointing at `from` to point at `into`, then
 	// deletes `from`. Composite-PK collisions on (cardId, tagId) are handled
 	// per-row: if the destination row exists, we just delete the source row.
+	//
+	// Guards (validateMergeGuards): self-merge, cross-project, archived
+	// source. Each guard returns a typed error that the router maps to a
+	// 4xx. Wrapped in a transaction so a guard failure mid-rewrite rolls
+	// back any partial state.
 	async function merge(input: {
 		fromTagId: string;
 		intoTagId: string;
@@ -126,11 +255,11 @@ export function createTagService(prisma: PrismaClient) {
 					tx.tag.findUnique({ where: { id: input.fromTagId } }),
 					tx.tag.findUnique({ where: { id: input.intoTagId } }),
 				]);
-				if (!from || !into) {
-					throw new Error("One or both tags not found.");
-				}
-				if (from.projectId !== into.projectId) {
-					throw new Error("Cannot merge tags across projects.");
+				const guard = validateMergeGuards(from, into);
+				if (!guard.ok) {
+					const error = new Error(guard.message) as Error & { code?: string };
+					error.code = guard.code;
+					throw error;
 				}
 
 				const sourceRows = await tx.cardTag.findMany({ where: { tagId: input.fromTagId } });
@@ -158,12 +287,67 @@ export function createTagService(prisma: PrismaClient) {
 			return { success: true, data: result };
 		} catch (error) {
 			console.error("[TAG_SERVICE] merge error:", error);
+			const code = (error as { code?: string }).code ?? "MERGE_FAILED";
 			return {
 				success: false,
 				error: {
-					code: "MERGE_FAILED",
+					code,
 					message: error instanceof Error ? error.message : "Failed to merge tags.",
 				},
+			};
+		}
+	}
+
+	/**
+	 * Delete a tag — only when zero CardTag rows reference it.
+	 *
+	 * Atomic via a single conditional DELETE that races against any
+	 * concurrent INSERT into card_tag. SQLite's row-level write locks make
+	 * the DELETE+NOT-EXISTS scan internally consistent: if a CardTag is
+	 * inserted between our check and our delete, the NOT EXISTS clause sees
+	 * it and the DELETE matches zero rows. Returns the projectId so the
+	 * caller (router) can scope the SSE invalidation.
+	 *
+	 * Returns USAGE_NOT_ZERO when the tag has cardTag references — caller
+	 * surfaces that as a 4xx with a hint pointing at `mergeTags`.
+	 */
+	async function deleteIfOrphan(
+		tagId: string
+	): Promise<ServiceResult<{ deleted: true; projectId: string }>> {
+		try {
+			const tag = await prisma.tag.findUnique({
+				where: { id: tagId },
+				select: { id: true, projectId: true },
+			});
+			if (!tag) {
+				return { success: false, error: { code: "NOT_FOUND", message: "Tag not found." } };
+			}
+			// Atomic conditional delete — the NOT EXISTS subquery gates the
+			// delete against any CardTag row, closing the TOCTOU window
+			// between an explicit count() and a separate delete().
+			const affected = await prisma.$executeRaw<number>`
+				DELETE FROM "tag"
+				WHERE "id" = ${tagId}
+				  AND NOT EXISTS (
+					SELECT 1 FROM "card_tag" WHERE "tag_id" = ${tagId}
+				  )
+			`;
+			if (affected === 0) {
+				return {
+					success: false,
+					error: {
+						code: "USAGE_NOT_ZERO",
+						message:
+							"Tag has card associations and cannot be deleted. Merge it into another tag first.",
+					},
+				};
+			}
+			return { success: true, data: { deleted: true, projectId: tag.projectId } };
+		} catch (error) {
+			console.error("[TAG_SERVICE] deleteIfOrphan error:", error);
+			return {
+				success: false,
+				error: { code: "DELETE_FAILED", message: "Failed to delete tag." },
 			};
 		}
 	}
@@ -238,7 +422,15 @@ export function createTagService(prisma: PrismaClient) {
 		}
 	}
 
-	return { listByProject, getById, create, rename, merge, resolveOrCreate };
+	return {
+		listByProject,
+		getById,
+		create,
+		rename,
+		merge,
+		deleteIfOrphan,
+		resolveOrCreate,
+	};
 }
 
 export type TagService = ReturnType<typeof createTagService>;
@@ -246,3 +438,9 @@ export type TagService = ReturnType<typeof createTagService>;
 // Singleton bound to the Next.js db (FTS-extended). MCP code constructs its
 // own instance via createTagService(mcpDb) at module load.
 export const tagService = createTagService(db);
+
+// Internals exposed for unit tests — not part of the public service API.
+export const __testing__ = {
+	computeGovernanceHints,
+	validateMergeGuards,
+};
