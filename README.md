@@ -90,6 +90,7 @@ The full docs site lives at **[2nspired.github.io/pigeon](https://2nspired.githu
 
 **Reference**
 - [MCP tools](https://2nspired.github.io/pigeon/tools/) — every tool the agent can call (10 essentials + 60+ extended).
+- [Cost tracking](https://2nspired.github.io/pigeon/costs/) — what the Costs page records, how attribution works, and the savings/overhead math.
 - [Commands](docs/commands.md) — every npm script with the moment you'd reach for it.
 - [`docs/SURFACES.md`](docs/SURFACES.md) — `tracker.md` vs `CLAUDE.md` vs `AGENTS.md` cheat sheet.
 - [`docs/token-tracking.md`](docs/token-tracking.md) — opt-in token cost capture, methodology, and the per-project Costs page.

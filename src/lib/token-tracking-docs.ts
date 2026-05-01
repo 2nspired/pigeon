@@ -10,6 +10,13 @@
 export const TOKEN_TRACKING_DOCS_URL =
 	"https://github.com/2nspired/pigeon/blob/main/docs/token-tracking.md";
 
+// Docs-site page that explains the cost surface — what gets recorded, how
+// attribution works, what overhead/savings measure, and the input-rate
+// decision (#204). Linked from `<SavingsMethodologySheet>` and from
+// `<TokenTrackingSetupDialog>`'s "Read more" footer alongside the long-form
+// docs/token-tracking.md companion.
+export const COST_TRACKING_DOCS_URL = "https://2nspired.github.io/pigeon/costs/";
+
 // Default placeholder when the server hasn't yet resolved a per-machine
 // script path. The dialog substitutes this for the real absolute path
 // returned by `getDiagnostics().recommendedHookCommand`.
