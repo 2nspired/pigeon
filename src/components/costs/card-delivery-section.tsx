@@ -136,10 +136,15 @@ function DeliveryContent({
 		);
 	}
 
-	// Delta arrow only when a previous-period comparison is available — the
-	// service returns null for Lifetime (no prior window) or for windows
-	// where the prior period had no priced cards.
-	const showDelta = periodLabel !== "lifetime" && previousPeriodAvgCostUsd !== null;
+	// Delta arrow only when a previous-period comparison is available AND the
+	// averages actually moved — the service returns null for Lifetime (no prior
+	// window) or for windows where the prior period had no priced cards. A flat
+	// delta hides the arrow rather than rendering an amber "from $X" that reads
+	// as a false alarm.
+	const showDelta =
+		periodLabel !== "lifetime" &&
+		previousPeriodAvgCostUsd !== null &&
+		avgCostUsd !== previousPeriodAvgCostUsd;
 	const isLower = showDelta && avgCostUsd < (previousPeriodAvgCostUsd ?? 0);
 
 	return (
