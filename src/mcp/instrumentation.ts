@@ -16,6 +16,7 @@ interface LogEntry {
 	durationMs: number;
 	success: boolean;
 	errorMessage?: string;
+	responseTokens?: number;
 }
 
 function record(entry: LogEntry): void {
@@ -29,6 +30,7 @@ function record(entry: LogEntry): void {
 				durationMs: entry.durationMs,
 				success: entry.success,
 				errorMessage: entry.errorMessage ?? null,
+				responseTokens: entry.responseTokens ?? 0,
 			},
 		})
 		.catch((e) => console.error("[MCP] instrumentation write failed:", e));
@@ -44,6 +46,10 @@ export function logToolCall(toolName: string, durationMs: number, result: ToolRe
 		durationMs,
 		success: result.isError !== true,
 		errorMessage: result.isError ? result.content[0]?.text?.slice(0, 500) : undefined,
+		// Estimate response tokens via the chars/4 heuristic (matches `ok()` in
+		// utils.ts). `result.content[0].text` is already the serialized payload
+		// (JSON or TOON) — no double-stringify, just measure its length.
+		responseTokens: Math.ceil((result.content[0]?.text?.length ?? 0) / 4),
 	});
 }
 
@@ -73,6 +79,7 @@ export function wrapEssentialHandler<F extends (...args: any[]) => Promise<any>>
 					durationMs: Date.now() - start,
 					success: false,
 					errorMessage: result.content[0]?.text?.slice(0, 500),
+					responseTokens: Math.ceil((result.content[0]?.text?.length ?? 0) / 4),
 				});
 				return result;
 			}
@@ -84,6 +91,7 @@ export function wrapEssentialHandler<F extends (...args: any[]) => Promise<any>>
 				durationMs: Date.now() - start,
 				success: result.isError !== true,
 				errorMessage: result.isError ? result.content[0]?.text?.slice(0, 500) : undefined,
+				responseTokens: Math.ceil((result.content[0]?.text?.length ?? 0) / 4),
 			});
 			return result;
 		} catch (error) {
