@@ -8,27 +8,39 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
-### Added
-
-- **TagManager UI sheet** (`src/components/tag/tag-manager.tsx`) — project-scoped tag governance surface, parallel to MilestoneManager. Sorts by usage desc; renders Singleton + Near-miss governance hint badges; AlertDialog (not `window.confirm`) for both merge and delete; disabled Delete with tooltip on any tag with usage > 0. Click a "Near-miss" badge to open the merge dialog with the peer pre-selected as the destination. Entry points: project-page boards-tab "Manage tags" button, tag-combobox dropdown footer link "Manage tags →". (#170)
-- **`tag.delete` tRPC procedure** + **`deleteTag` MCP extended tool.** Orphan-only — non-orphan attempts return `USAGE_NOT_ZERO` (BAD_REQUEST) with the merge hint in the message. Atomic against concurrent CardTag inserts via a single conditional `DELETE … WHERE NOT EXISTS` — no TOCTOU window between a count and a delete. (#170)
-- **`Tag.state` schema column** (`"active" | "archived"`, default `"active"`). Forward-compat for an archive flow; the column lands now to avoid a later destructive migration. SCHEMA_VERSION bumped 11 → 12. (#170)
-- **`tagService.merge` cross-project + archived-source guards.** Pure `validateMergeGuards` helper; the entire merge wraps in a transaction so a guard failure mid-rewrite rolls back any partial state. (#170)
-
-### Changed
-
-- **`tag.list` / `listTags` return shape gains `_governanceHints` per row** (additive, optional). `singleton: true` when usageCount === 1; `possibleMerge: [{ id, label, distance }]` for peers within Levenshtein ≤ 2 of the tag's slug. Hints are emitted only when meaningful — agents must not treat missing fields as empty arrays. (#170)
-- **`tag.list` / `listTags` accept an optional `state` filter** (`"active" | "archived"`, defaults to `"active"`). Existing callers passing only `{ projectId }` keep working; partial-key React Query invalidations still match. (#170)
+_Nothing yet — append entries here as PRs merge._
 
 ## [5.2.0] — 2026-04-30
 
-Renames the session wrap-up tool `endSession` → `saveHandoff`. The new name reads as a verb-on-the-artifact (you save a handoff), matches what the tool actually persists, and stops conflating "end of session" with "must be the last thing you call." It also clears the runway for the mid-session checkpoint pattern (`saveHandoff({ syncGit: false })`) — which never made sense under the old name.
+Bundles ~24 PRs of UI, governance, and infra work since v5.1.0. Headline change is the **`endSession` → `saveHandoff` rename** (closes the slash-command/tool naming gap that drove two adoption-friction reports). Other threads: Pigeon brand rollout (logo, favicons, OG cards), in-app token tracking setup + Pulse cost surfacing, MCP tool catalog (header popover + Cmd-K palette + slash commands), TagManager UI with governance hints, and a Done-column ship-date sort that finally matches user expectation.
 
 The slash command `/handoff` is unchanged. Humans keep typing `/handoff`; it now invokes `saveHandoff` under the hood instead of `endSession`. (#151, #152)
 
 ### Why now
 
-Two adoption-friction reports landed in the same week — both traced to the same naming gap. The slash command and the underlying tool had different names, so users learning the loop kept tripping over which to invoke when. Renaming the tool to match the slash-command verb closes the gap before more docs ossify around the old name.
+Two adoption-friction reports landed in the same week — both traced to the same naming gap. The slash command and the underlying tool had different names, so users learning the loop kept tripping over which to invoke when. Renaming the tool to match the slash-command verb closes the gap before more docs ossify around the old name. The rest of this release is the accumulated work that piled up between v5.1.0 and now — backfilled in one cut to restore the CHANGELOG-as-async-signal contract.
+
+### Schema
+
+`SCHEMA_VERSION` 11 → 12. The bump comes from the new `Tag.state` column added by the TagManager work (#170). After pulling, run `npm run db:push` to apply.
+
+### Added
+
+- **TagManager UI sheet** (`src/components/tag/tag-manager.tsx`) — project-scoped tag governance surface, parallel to MilestoneManager. Sorts by usage desc; renders Singleton + Near-miss governance hint badges; AlertDialog (not `window.confirm`) for both merge and delete; disabled Delete with tooltip on any tag with usage > 0. Click a "Near-miss" badge to open the merge dialog with the peer pre-selected as the destination. Entry points: project-page boards-tab "Manage tags" button, tag-combobox dropdown footer link "Manage tags →". (#170)
+- **`tag.delete` tRPC procedure** + **`deleteTag` MCP extended tool.** Orphan-only — non-orphan attempts return `USAGE_NOT_ZERO` (BAD_REQUEST) with the merge hint in the message. Atomic against concurrent CardTag inserts via a single conditional `DELETE … WHERE NOT EXISTS` — no TOCTOU window between a count and a delete. (#170)
+- **`Tag.state` schema column** (`"active" | "archived"`, default `"active"`). Forward-compat for an archive flow; the column lands now to avoid a later destructive migration. (#170)
+- **`tagService.merge` cross-project + archived-source guards.** Pure `validateMergeGuards` helper; the entire merge wraps in a transaction so a guard failure mid-rewrite rolls back any partial state. (#170)
+- **MCP tool catalog UI — header popover + Cmd-K Essentials group** (#142). Searchable list of every registered MCP tool with category, description, and copyable invocation snippet. Cmd-K palette gains an Essentials group surfacing the 10 tools an agent needs to learn first.
+- **Slash commands surfaced in MCP catalog + Cmd-K palette** (#152). `/plan-card`, `/handoff`, `/brief-me` etc. now show alongside MCP tools so the discovery surface is unified.
+- **MCP catalog — mobile Sheet variant** (#145). Below the breakpoint the popover swaps to a full-height Sheet; same content, no truncation.
+- **Empty-state CTA on card token cost section** (#147). When a card has zero tracked sessions, shows a one-click setup link instead of a blank panel.
+- **Briefings Sheet** (#144) — right-slide Sheet matching the Sessions structure; renders the latest handoff plus diff-since-last with deep links into touched cards.
+- **Pulse strip surfaces token cost + popover depth** (#148). Top-of-board pulse adds a per-session cost number with a popover breakdown by model and by tool.
+- **In-app token tracking setup dialog with verify diagnostics** (#153). Walk-through dialog that writes the Stop hook into `~/.claude/settings.json` and runs a verification round-trip — replaces the previous copy-paste-this-block flow.
+- **Board audit conventions + `auditBoard` taxonomy signals** (#163). New MCP tool surfaces tag/milestone drift, orphan cards, and stale columns in one report.
+- **Pigeon brand rollout** — pigeon-with-sunglasses logo + favicon set + OG card (#150 / #87 / #89 / #99). Replaces the placeholder favicons and meta images that survived the v5.0 rebrand.
+- **World-class docs overhaul + portfolio-grade README** (#80). Astro Starlight site rewrite; quickstart, why, anti-patterns, and per-tool reference pages.
+- **CI: MCP registration check workflow** (#146). Extracts the tool registration into a barrel + adds a CI gate so a tool added to a registry but missing from the catalog fails the build.
 
 ### Changed
 
@@ -36,17 +48,32 @@ Two adoption-friction reports landed in the same week — both traced to the sam
 - **`/handoff` slash command** now calls `saveHandoff`. No user-facing change to the keystroke.
 - **Mid-session checkpoint pattern documented.** `saveHandoff({ syncGit: false })` writes a handoff snapshot without running `syncGitActivity` or producing a touched-cards report — useful for "save my place" mid-session without the end-of-session ceremony. The flag existed pre-rename; the name change makes the pattern legible.
 - **Docs rewritten for the new name.** README, AGENTS.md, CLAUDE.md, every relevant page in `docs-site/`, the `/handoff` slash-command skill body, and the `142-mcp-command-palette` design spec.
+- **`tag.list` / `listTags` return shape gains `_governanceHints` per row** (additive, optional). `singleton: true` when usageCount === 1; `possibleMerge: [{ id, label, distance }]` for peers within Levenshtein ≤ 2 of the tag's slug. Hints are emitted only when meaningful — agents must not treat missing fields as empty arrays. (#170)
+- **`tag.list` / `listTags` accept an optional `state` filter** (`"active" | "archived"`, defaults to `"active"`). Existing callers passing only `{ projectId }` keep working; partial-key React Query invalidations still match. (#170)
+- **Done column sorted by ship date.** `Card.completedAt` is set when a card moves to Done and used as the sort key, replacing position-based ordering that drifted with sibling moves (#174).
+- **Position updates skip `updatedAt` bumps on unchanged siblings** (#175). Moving one card no longer dirties every other card in the column — keeps "recently changed" filters meaningful.
+- **CI bumped to actions/checkout + setup-node v5 (Node 24)** (#96). Eliminates the Node 20 deprecation warnings from every workflow run.
+
+### Fixed
+
+- **Token tracking Stop hook command-style for Claude Code 2.1.x** (#97). The old `mcp_tool` hook shape silently no-ops on CC 2.1.x; switched to command-style hook so Stop events actually fire.
+- **Lint baseline cleared.** 16 pre-existing biome errors that were blocking CI (#149) plus typography/spacing inconsistencies in the token tracking setup dialog (#94, #91, #155).
 
 ### Deprecated
 
 - **`endSession` as a callable tool.** Retained as a non-breaking alias through v5.x. Calling it forwards to `saveHandoff` and returns a `_deprecated` warning in the response payload pointing at the new name. **Removed in v6.0.0.** Migration: update agent prompts, custom hooks, and any wrapper scripts to call `saveHandoff` directly.
 
+### Chore
+
+- **Gitignore `.claude/scheduled_tasks.lock` runtime** (#98) — was getting committed accidentally on agents that ran the scheduler.
+
 ### Migration
 
-No required action for end users. Pulling v5.2 leaves `/handoff` working as before. Custom integrations that call the MCP tool directly should switch from `endSession` → `saveHandoff` before v6.0; the deprecation warning surfaces in every call until they do.
+No required action for end users beyond running the schema push. Pulling v5.2 leaves `/handoff` working as before. Custom integrations that call the MCP tool directly should switch from `endSession` → `saveHandoff` before v6.0; the deprecation warning surfaces in every call until they do.
 
 ```bash
 npm install
+npm run db:push      # picks up SCHEMA_VERSION 11 → 12 (Tag.state column)
 npm run service:update
 npm run doctor       # unchanged check set; verifies the install is healthy
 ```

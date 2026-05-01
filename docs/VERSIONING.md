@@ -67,16 +67,27 @@ The MCP server exposes `SCHEMA_VERSION` in its handshake so connected agents can
 
 Pre-release and build metadata (`-rc.1`, `+sha.abc123`) are not used. Two-user project — we don't need the overhead.
 
+## Release cadence — `[Unreleased]`-as-you-go
+
+The CHANGELOG only works as an async signal if it stays current between tags. The rule:
+
+- **Every PR adds a line to `[Unreleased]`** under the right Keep-a-Changelog category (`### Added` / `### Changed` / `### Fixed` / `### Deprecated` / `### Chore`) before merge. The line links the tracker card ref so future readers can trace it back.
+- **Cut a tag when the section feels meaningful** — roughly 3–5 PRs of additive work, or any one breaking change, or any one schema bump. Don't wait until the section is overwhelming; the v5.2.0 backfill (#176) is the cautionary tale.
+- **PR review checks `[Unreleased]`.** If a non-trivial PR doesn't touch CHANGELOG, that's a review block.
+
+Skip the entry only for: pure formatting/lint commits, CHANGELOG itself, dependency bumps without behavior change, internal refactors with no public-surface delta. When in doubt, add the line — a one-line entry is cheap.
+
 ## Release procedure (summary)
 
 Full walkthrough in `scripts/release.ts` comments. Short version:
 
-1. Land all changes for the release on `main`.
-2. Bump `package.json` `version` and `MCP_SERVER_VERSION` in the same commit.
-3. Bump `SCHEMA_VERSION` if the schema changed.
-4. Add a new `## [x.y.z]` section at the top of `CHANGELOG.md`.
-5. `npx tsx scripts/release.ts --tag` — validates and pushes the tag.
-6. `.github/workflows/release.yml` fires on the tag push and publishes the GitHub Release using the matching CHANGELOG section as the body. No manual step.
+1. Land all changes for the release on `main`. (Each PR should already have appended to `[Unreleased]`.)
+2. Promote `[Unreleased]` to a new `## [x.y.z] — YYYY-MM-DD` section at the top of `CHANGELOG.md`. Add an intro paragraph naming the headline change and a "### Why now" if the release has a coherent narrative. Reset `[Unreleased]` to a placeholder.
+3. Bump `package.json` `version` and `MCP_SERVER_VERSION` in the same commit.
+4. Bump `SCHEMA_VERSION` if the schema changed (or call out the existing bump in the CHANGELOG body if it landed in an earlier PR).
+5. Open a release-prep PR; let CI run; merge to main.
+6. From a clean main: `npx tsx scripts/release.ts --tag` — validates carriers, tags, and pushes.
+7. `.github/workflows/release.yml` fires on the tag push and publishes the GitHub Release using the matching CHANGELOG section as the body. No manual step.
 
 For the rare case of shipping without CI (offline, GH Actions outage), `scripts/release.ts --tag --gh` does the tag push and release publish in one local step. Use one path or the other — the workflow skips a release that already exists, but the script does not, so running both creates a race.
 
