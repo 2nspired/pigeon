@@ -203,7 +203,7 @@ server.registerTool(
 	{
 		title: "Create Card",
 		description:
-			"Create a card. Uses column name (not ID). v4.2: pass `tagSlugs` (strict) and `milestoneId` (strict); legacy `tags` and `milestoneName` still work with auto-create + normalization, and surface a `_deprecated` warning. Both removed in v5.0.0.",
+			"Create a card. Uses column name (not ID). Prefer `tagSlugs` (strict; slugs must already exist — use `createTag` first for new vocabulary) and `milestoneId` (strict UUID). Legacy `tags` and `milestoneName` still work with auto-create + normalization but emit `_deprecated` warnings; slated for removal in the next major version.",
 		inputSchema: {
 			boardId: z.string().describe("Board UUID"),
 			columnName: z.string().describe("Column name (e.g. 'Backlog', 'In Progress')"),
@@ -346,7 +346,7 @@ server.registerTool(
 	{
 		title: "Update Card",
 		description:
-			"Update card fields. Omitted fields unchanged. v4.2: prefer `tagSlugs` (strict) and `milestoneId` (strict); legacy `tags` and `milestoneName` still work with `_deprecated` warnings.",
+			"Update card fields. Omitted fields unchanged. Prefer `tagSlugs` (strict — slugs must already exist) and `milestoneId` (strict UUID, null to unassign). Legacy `tags` and `milestoneName` still work but emit `_deprecated` warnings; slated for removal in the next major version.",
 		inputSchema: {
 			cardId: z.string().describe("Card UUID or #number"),
 			boardId: z
@@ -612,7 +612,8 @@ server.registerTool(
 	"addComment",
 	{
 		title: "Add Comment",
-		description: "Add a comment to a card.",
+		description:
+			"Add a markdown comment to a card. Use for observations, findings, or guidance left for the next agent — comments flow into `getCardContext` so future sessions see them. Prefer `updateCard({ description })` for scope changes; reach for `addComment` when the note is contextual rather than structural.",
 		inputSchema: {
 			cardId: z.string().describe("Card UUID or #number"),
 			boardId: z

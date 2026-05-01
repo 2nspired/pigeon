@@ -140,7 +140,7 @@ Pigeon's MCP server registers under the key `pigeon` and runs over stdio. Ten es
 | `createCard` | Create a card in a column (by name). |
 | `updateCard` | Update card fields; optional `intent`. |
 | `moveCard` | Move a card to a column. Requires `intent`. |
-| `addComment` | Add a comment to a card. |
+| `addComment` | Add a markdown comment to a card. Surfaces in `getCardContext` for future agents. |
 | `registerRepo` | Bind a git repo path to a project (call after briefMe returns needsRegistration). |
 | `checkOnboarding` | Detect DB state, list projects/boards, session-start discovery. |
 | `getTools` | Browse extended tools by category. |
