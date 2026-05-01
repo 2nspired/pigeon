@@ -1,0 +1,195 @@
+---
+title: Cost tracking — how it works
+description: How Pigeon records token usage, attributes it to cards, and turns it into the "Pigeon paid for itself" headline. The math, the rules, the known gaps.
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+The Costs page (`/projects/[projectId]/costs`) is Pigeon's marquee numbers surface — a per-project lens onto what your AI sessions actually cost, what the briefMe loop saved you, and where Pigeon's own tool calls eat into that. This page explains how each number is produced so you can read the headline figures with confidence.
+
+If you haven't wired up token tracking yet, start with the in-app **Set up token tracking** dialog (Pulse strip CTA, or any project's Costs page). This page is for the *what does this number mean?* questions.
+
+<Aside type="note" title="Local-only, opt-in">
+Token tracking only fires when Claude Code's Stop hook is installed (or you call `recordTokenUsage` manually). Pigeon never reads transcript content — only the `message.usage` and `message.model` fields. See [`docs/token-tracking.md`](https://github.com/2nspired/pigeon/blob/main/docs/token-tracking.md) for the long-form setup walkthrough.
+</Aside>
+
+## 1. What gets recorded
+
+Every Claude Code session ends with a Stop hook. That hook reads the JSONL transcript line-by-line, sums `message.usage` per `message.model`, and writes one `TokenUsageEvent` row per (session, model) tuple. Codex and other agents go through the manual `recordTokenUsage` MCP tool — same row shape, same downstream math.
+
+Each row carries a **five-column token split**:
+
+| Column | What it counts | Why it's separate |
+| --- | --- | --- |
+| `inputTokens` | Tokens the model read on its prompt turn | Billed at `inputPerMTok` |
+| `outputTokens` | Tokens the model emitted | Billed at `outputPerMTok` (typically ~5× input) |
+| `cacheReadTokens` | Anthropic prompt-cache hits | Billed at `cacheReadPerMTok` (cheaper than fresh input) |
+| `cacheCreation1hTokens` | Tokens written into the 1-hour cache | Billed at `cacheCreation1hPerMTok` |
+| `cacheCreation5mTokens` | Tokens written into the 5-minute cache | Billed at `cacheCreation5mPerMTok` |
+
+OpenAI-shaped flat input/output pricing collapses to the first two columns — the cache-creation columns just sit at zero. The five-column shape preserves Anthropic prompt-cache fidelity without forcing a different schema per provider.
+
+## 2. How attribution works
+
+`TokenUsageEvent` rows are written by the Stop hook with `cardId = null` — the hook only knows the session's working directory, not which card the agent was working on. Card-level cost surfaces would otherwise sit at $0, so Pigeon closes that gap with **`attributeSession`**, an MCP tool that bulk-writes a `cardId` onto every event for a given `sessionId`.
+
+`attributeSession` is auto-called fire-and-forget from two places:
+
+- **`briefMe`** writes the brief's active card onto every existing row for the session.
+- **`saveHandoff`** writes the touched card when exactly one card was touched in the session.
+
+It's idempotent and last-write-wins — safe to call multiple times. Stop-hook re-runs preserve any prior `cardId` so re-running the transcript ingestion never silently wipes attribution (#202, Wave 1).
+
+### The session-expansion rule
+
+Card-level summaries don't just count rows where `cardId` matches. They expand to **any session that touched the card**. From the doc comment on `getCardSummary`:
+
+> Aggregates events scoped to "any session that touched this card". A session that touched multiple cards contributes to *each* card's total — no fictional split. Returns the same `UsageSummary` shape so the chip renders identically across surfaces.
+
+In practice: if a single session updated #12 *and* #15, that session's tokens count fully toward #12's total **and** fully toward #15's total. The math is intentional — splitting a multi-card session 50/50 (or 30/70, or by line count) would invent a precision Pigeon doesn't have.
+
+### Worked example — one session, two cards
+
+A 60-minute Claude session does the following:
+
+1. Calls `briefMe`. Pigeon resolves the brief's active card as `#12` and auto-attributes any prior rows for the session to `#12`.
+2. Works on #12 (moveCard, addComment, etc.).
+3. Halfway through, the human pivots: "actually let's also nudge #15". The agent moves #15 to In Progress and edits its description.
+4. Session ends. Stop hook writes one `TokenUsageEvent` row with `sessionId = "abc"`, `cardId = "#12"` (set by the earlier briefMe call), and 50,000 input + 10,000 output tokens.
+
+Now look at the totals:
+
+- **`getCardSummary("#12")`** sees `cardId = "#12"` directly → 60,000 tokens count.
+- **`getCardSummary("#15")`** finds no direct `cardId = "#15"` row, but `sessionId = "abc"` shows up in the direct-attribution row for `#12`, so the session's events get pulled in via session-expansion → 60,000 tokens count.
+- **`getProjectSummary`** sees one row for the project → 60,000 tokens count, **once**.
+
+Card totals can sum to more than the project total. That's the design. Both numbers are correct in their direction.
+
+## 3. What "Pigeon overhead" measures
+
+The Pigeon overhead lens (`<PigeonOverheadSection>` on the Costs page) answers a sharp question: **what does it cost the agent to read Pigeon's tool responses?**
+
+Every MCP tool call writes a `ToolCallLog` row, and `responseTokens` on that row is a `chars/4` estimate of the response body. Multiplied by the session's `outputPerMTok` rate, that becomes the dollar number.
+
+From the doc comment on `getPigeonOverhead`:
+
+> A tool call's response is text the agent later reads as model input on the next turn — but for the agent that *just produced* that response (the assistant), the tokens were emitted as output. Sticking to `outputPerMTok` matches how Anthropic bills the assistant turn that emitted the tool result.
+
+### First-seen wins per session
+
+A session can have multiple `TokenUsageEvent` rows when the agent switches models mid-session (Opus → Sonnet, or a sub-agent on a different model). For the overhead lens, Pigeon picks the **first model row seen for the session** as the pricing rate. Mixing rates inside a session would overstate precision — tool-call costs are small enough per call that fan-out to per-row pricing is noise, not signal.
+
+Sessions with no `TokenUsageEvent` rows fall back to `__default__` (zeroes), which produces a clean $0 instead of an inflated estimate.
+
+## 4. What "savings" measures
+
+The headline lens — `<SavingsSection>`, the "Pigeon paid for itself" number — turns the persisted baseline into a dollar-denominated figure. This is where #204's locked decision lives, so read this section carefully.
+
+### Baseline recalibration
+
+`recalibrateBaseline({ projectId })` (MCP tool, or the **Recalibrate baseline** button in the methodology Sheet) measures two payload sizes at the current board state:
+
+- **`naiveBootstrapTokens`** — the size of `getBoard` + `getLatestHandoff` responses. What the agent would have to pull in to reach the same context briefMe produces, if briefMe didn't exist.
+- **`briefMeTokens`** — the actual `briefMe` MCP response token count.
+
+Both use a `chars/4` estimator on the JSON-serialized payload, so the comparison is apples-to-apples. The result persists to `Project.metadata.tokenBaseline`:
+
+```jsonc
+{
+  "tokenBaseline": {
+    "briefMeTokens": 4231,
+    "naiveBootstrapTokens": 18402,
+    "latestHandoffTokens": 612,
+    "measuredAt": "2026-04-30T12:34:56.789Z"
+  }
+}
+```
+
+The baseline is a snapshot, not a live measurement. Recalibrate after significant briefMe prompt changes, after a Pigeon upgrade that changes either side of the comparison, or after significant board growth.
+
+### The savings formula
+
+```
+gross_savings = (naiveBootstrapTokens − briefMeTokens) × inputPerMTok × briefMeCallCount
+net_savings   = gross_savings − pigeonOverheadCost
+```
+
+Where:
+
+- `briefMeCallCount` is the number of `briefMe` `ToolCallLog` rows whose session landed in the period window (7d / 30d / lifetime).
+- `inputPerMTok` is the rate of the project's **most recently used model**. Not historical-spend top model — the model used on the freshest session, so a project that ran one ancient Opus session and a fresh Sonnet session is priced at the Sonnet rate.
+- `pigeonOverheadCost` is `getPigeonOverhead(projectId, period).totalCostUsd` — same window, so numerator and denominator can never drift.
+
+### Why input rate, not output rate
+
+This is the load-bearing decision behind the savings number, locked on 2026-05-01 as #204. From the doc comment on `getSavingsSummary`:
+
+> The avoided tokens here are the briefMe payload the consumer would have otherwise had to *read* on its next turn. Anthropic bills payload reads as input tokens, so the savings are the input-rate cost we did not pay — pricing them at output rate would inflate the headline ~5× under default Anthropic pricing without a defensible billing model behind it. Switching to input rate gives `<SavingsSection>` a single, defensible "what you'd actually pay" number.
+
+The asymmetry with overhead pricing is intentional, not a typo:
+
+| Lens | Rate | Why |
+| --- | --- | --- |
+| **Savings** | `inputPerMTok` | Avoided **input read** on the consumer side — the briefMe payload the next session *would have* read |
+| **Overhead** | `outputPerMTok` | Output the agent *actually emitted* — tool responses land on the assistant side of the bill |
+
+Both framings are correct in their own direction. Same window, two different "whose turn was this?" answers.
+
+### Worked example — a 30-day window
+
+A project has:
+
+- Baseline: `naiveBootstrapTokens = 18,402`, `briefMeTokens = 4,231`. Avoided = **14,171 tokens per call**.
+- 12 `briefMe` calls in the last 30 days.
+- Most recent session ran on `claude-opus-4-7`, which has `inputPerMTok = $15.00`.
+- Pigeon overhead in the same 30-day window: **$0.42**.
+
+Then:
+
+```
+gross_savings = 14,171 × ($15.00 / 1,000,000) × 12 = $2.55
+net_savings   = $2.55 − $0.42 = $2.13
+```
+
+The headline reads **"Pigeon paid for itself: $2.13 in the last 30 days."** When `net_savings` goes negative — typical for low briefMe frequency + high tool-call count workflows — the UI displays the negative number honestly in amber (*"Pigeon cost $X.XX more than it saved this period."*) rather than rounding to zero.
+
+### Conservative framing
+
+The methodology Sheet's Section 03 spells out the assumptions that make the net a lower bound:
+
+- One briefMe-equivalent rebuild per session is assumed. Multi-resume sessions usually save more than this lower bound shows.
+- The dollar rate is the project's *primary* (most recent) model — sessions that ran on a cheaper model in the past are still priced at the current primary rate.
+- Pigeon overhead is over-attributed to the same window, even when the savings window is shorter.
+
+The result: a number you can quote without flinching, even if the literal-truth number is higher.
+
+## 5. Limits and known gaps
+
+A few sharp edges worth knowing about before you read the numbers.
+
+### Card totals can exceed the project total
+
+By design — see the session-expansion rule in [§2](#2-how-attribution-works). Cards are scoped to "any session that touched this card", projects are scoped to "any session in this project". A multi-card session contributes to multiple card totals but only once to the project total.
+
+### Sessions with `cardId = null` show up in project totals but not card totals
+
+If neither `briefMe` nor `saveHandoff` resolved an active card for the session — manual recording paths, very short sessions, sessions that touched zero cards — the row stays at `cardId = null`. It still aggregates into `getProjectSummary`, the Costs page summary strip, and `getDailyCostSeries`, but it never lands in any `getCardSummary`. The Cost-per-shipped-card lens (`<CardDeliverySection>`) carries a permanent caption *"Cards with no attributed token events are excluded"* that flags this case in-app.
+
+If you want to retroactively attribute a session to a card, call the `attributeSession` MCP tool directly with the `sessionId` and `cardId`.
+
+### Lifetime queries are in-memory
+
+`getPigeonOverhead`, `getSavingsSummary`, and the per-card / per-milestone summaries all do their aggregation in-memory after a SQLite scan. For projects with hundreds of thousands of events this would matter; for the typical local-first single-developer project it doesn't. The Costs page caps the per-session log at 10 entries to keep the round-trip lean.
+
+### Pricing defaults can drift
+
+Default rates ship in `src/lib/token-pricing-defaults.ts` with a `PRICING_LAST_VERIFIED` constant. The Costs page's pricing override table renders an amber banner above the table with that date — if it's been months, cross-check the provider's pricing page and override anything that's drifted. Banner is informational; it doesn't gate functionality.
+
+Empty rate fields persist as `0` (useful for OpenAI, where cache-creation columns don't apply). Models with no entry on either side fall through to `__default__` zeroes, which produces a clean $0 cost and an amber "Unknown model" warning row in the override table.
+
+## See also
+
+- [Token tracking long-form reference](https://github.com/2nspired/pigeon/blob/main/docs/token-tracking.md) — agent coverage matrix, full setup walkthrough, FAQ.
+- `src/server/services/token-usage-service.ts` — the canonical implementation. Every formula in this doc is grounded in a function in that file.
+- `src/lib/token-pricing-defaults.ts` — `DEFAULT_PRICING` + `PRICING_LAST_VERIFIED`.
+- The in-app **Savings methodology** Sheet — quick-skim version of [§4](#4-what-savings-measures), reachable from the *How is this calculated?* link in the savings lens.

@@ -87,6 +87,7 @@ export default defineConfig({
 					items: [
 						{ label: "MCP tools", slug: "tools" },
 						{ label: "Slash commands", slug: "slash-commands" },
+						{ label: "Cost tracking", slug: "costs" },
 						{ label: "Integration — /api/state", slug: "integration" },
 					],
 				},

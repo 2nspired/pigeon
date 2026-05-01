@@ -22,6 +22,7 @@ import {
 import { formatRelative } from "@/lib/format-date";
 import {
 	buildTokenTrackingHookSnippet,
+	COST_TRACKING_DOCS_URL,
 	TOKEN_TRACKING_DOCS_URL,
 	TOKEN_TRACKING_HOOK_SCRIPT_PLACEHOLDER,
 } from "@/lib/token-tracking-docs";
@@ -578,7 +579,16 @@ function VerifyMessage({
 
 function ReadMoreFooter() {
 	return (
-		<div className="flex items-center justify-end border-t border-border/50 pt-3">
+		<div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 border-t border-border/50 pt-3">
+			<a
+				href={COST_TRACKING_DOCS_URL}
+				target="_blank"
+				rel="noopener noreferrer"
+				className="inline-flex items-center gap-1 font-mono text-2xs text-muted-foreground/80 transition-colors hover:text-foreground"
+			>
+				See how cost tracking works
+				<ExternalLink className="h-3 w-3" />
+			</a>
 			<a
 				href={TOKEN_TRACKING_DOCS_URL}
 				target="_blank"

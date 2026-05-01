@@ -1,6 +1,6 @@
 "use client";
 
-import { RefreshCw } from "lucide-react";
+import { ExternalLink, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -20,6 +20,7 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { formatRelative } from "@/lib/format-date";
+import { COST_TRACKING_DOCS_URL } from "@/lib/token-tracking-docs";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { cn } from "@/lib/utils";
 import type { RouterOutputs } from "@/trpc/react";
@@ -95,6 +96,27 @@ function Body({ projectId, summary }: { projectId: string; summary: SavingsSumma
 			<MathSection />
 			<ConservativeSection summary={summary} />
 			<RecalibrateSection projectId={projectId} hasBaseline={summary.state === "ready"} />
+			<ReadMoreFooter />
+		</div>
+	);
+}
+
+// Quiet footer link to the docs-site cost-tracking page. The Sheet stays
+// the quick-skim surface; the page is the depth read (worked examples for
+// session expansion, the input-rate rationale from #204, the limits + gaps
+// section). Mirrors `<ReadMoreFooter>` in `token-tracking-setup-dialog`.
+function ReadMoreFooter() {
+	return (
+		<div className="flex items-center justify-end border-t border-border/50 pt-3">
+			<a
+				href={COST_TRACKING_DOCS_URL}
+				target="_blank"
+				rel="noopener noreferrer"
+				className="inline-flex items-center gap-1 font-mono text-2xs text-muted-foreground/80 transition-colors hover:text-foreground"
+			>
+				See how cost tracking works
+				<ExternalLink className="h-3 w-3" />
+			</a>
 		</div>
 	);
 }
