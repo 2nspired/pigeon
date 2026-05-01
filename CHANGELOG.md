@@ -25,6 +25,8 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ### Fixed
 
+- **`src/mcp/staleness.ts` import path so the Next.js bundle resolves.** F3 (#192) introduced a cross-boundary import where `brief-payload-service.ts` (Next.js side) pulls in `staleness.ts` (MCP side). The latter used a NodeNext-style `./db.js` relative import that tsx handles fine but Turbopack cannot resolve through the bundle. Switched to the `@/mcp/db` path alias, which works in both runtimes. Build passes; MCP server unaffected. Caught when rebuilding the launchd service after the foundation cards merged. (#192-followup)
+
 - **Markdown in handoff list items renders properly.** Items in `workingOn` / `findings` / `nextSteps` / `blockers` were emitting literal `**` / `` ` `` characters because only `summary` was wrapped in `<Markdown>`. New `HandoffItemContent` runs each item through ReactMarkdown and walks the rendered tree to swap plain-text `#N` for clickable `CardRefText`, preserving card-ref linkification across nested `strong`/`em`/`code`/`a`. (#188)
 - **Radix `DialogContent` a11y warnings on three sheets.** `HandoffsSheet`, `ActivitySheet`, and the card detail sheet now include an `sr-only` `<SheetDescription>` after `<SheetTitle>`, satisfying radix's screen-reader contract and clearing the "Missing `Description` or `aria-describedby={undefined}`" console warning. Visual layout unchanged. (#189)
 
