@@ -749,8 +749,7 @@ server.registerTool(
 				extended: `${getRegistrySize()} additional tools are behind getTools/runTool. Call getTools() to see categories, getTools({ category }) to list tools, runTool({ tool, params }) to execute.`,
 				workflows:
 					"Named multi-step recipes (sessionStart, sessionEnd, firstSession, recordDecision, searchKnowledge) are listed via `runTool('listWorkflows', { boardId? })` — use these to learn what to do, not just which tool to call.",
-				prompts:
-					"7 MCP prompts are available (resume-session, onboarding, deep-dive, sprint-review, plan-work, setup-project, holistic-review). Prompts are invoked via the MCP prompts/get protocol, not via runTool.",
+				prompts: `${REGISTERED_PROMPTS.length} MCP prompts are available (${REGISTERED_PROMPTS.join(", ")}). Prompts are invoked via the MCP prompts/get protocol, not via runTool.`,
 				manifest:
 					"Machine-readable surface at resource `tracker://server/manifest` — all tool names, categories, descriptions, schema version, and commit SHA.",
 			},
@@ -1345,7 +1344,16 @@ server.registerTool(
 
 // ─── Prompts ───────────────────────────────────────────────────────
 
-server.registerPrompt(
+// Tracks every prompt name as it's registered so the user-facing
+// "N MCP prompts available (...)" string in checkOnboarding stays in
+// lockstep with reality. (#187)
+const REGISTERED_PROMPTS: string[] = [];
+function registerPromptTracked(...args: Parameters<typeof server.registerPrompt>) {
+	REGISTERED_PROMPTS.push(args[0]);
+	return server.registerPrompt(...args);
+}
+
+registerPromptTracked(
 	"resume-session",
 	{
 		title: "Resume Session",
@@ -1498,7 +1506,7 @@ server.registerPrompt(
 	}
 );
 
-server.registerPrompt(
+registerPromptTracked(
 	"deep-dive",
 	{
 		title: "Deep Dive",
@@ -1554,7 +1562,7 @@ server.registerPrompt(
 	}
 );
 
-server.registerPrompt(
+registerPromptTracked(
 	"sprint-review",
 	{
 		title: "Sprint Review",
@@ -1680,7 +1688,7 @@ server.registerPrompt(
 	}
 );
 
-server.registerPrompt(
+registerPromptTracked(
 	"plan-work",
 	{
 		title: "Plan Work",
@@ -1733,7 +1741,7 @@ server.registerPrompt(
 	}
 );
 
-server.registerPrompt(
+registerPromptTracked(
 	"setup-project",
 	{
 		title: "Setup Project",
@@ -1802,7 +1810,7 @@ server.registerPrompt(
 	}
 );
 
-server.registerPrompt(
+registerPromptTracked(
 	"holistic-review",
 	{
 		title: "Holistic Review",
@@ -1901,7 +1909,7 @@ server.registerPrompt(
 	}
 );
 
-server.registerPrompt(
+registerPromptTracked(
 	"onboarding",
 	{
 		title: "Onboarding",

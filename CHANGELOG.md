@@ -14,6 +14,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ### Changed
 
+- **MCP prompts string + connect.sh CLAUDE.md tip now derive from the registry.** `src/mcp/server.ts`'s `checkOnboarding` payload no longer hard-codes `"7 MCP prompts are available (resume-session, …)"` — a thin `registerPromptTracked` wrapper records each name as it registers, and the user-facing string interpolates `REGISTERED_PROMPTS` at runtime. `scripts/connect.sh` likewise stops emitting a hand-maintained heredoc; it shells out to a new `scripts/print-connect-snippet.ts` that reads `ESSENTIAL_TOOLS` + `getAllExtendedTools()` so the count + name list + extended count never drift. Adding/removing a prompt or essential tool now propagates to user-facing copy without manual edits. (#187)
 - **Sessions sheet renamed to Handoffs** — header button, tooltip, sheet title, and empty-state copy all use "Handoffs" vocabulary now that the data sources from the dedicated `Handoff` table (post-#110). Component, state, and import names follow. (#188)
 
 ### Fixed
