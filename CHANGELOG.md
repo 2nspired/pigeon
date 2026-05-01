@@ -10,6 +10,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ### Added
 
+- **`responseTokens` on `ToolCallLog` + first DB-backed test pattern.** Instrumentation now records an estimated response-token count (chars/4) for every MCP tool call across `wrapEssentialHandler` (success + early-rejection paths) and `logToolCall`; catch path defaults to 0 via `?? 0`. New `@@index([sessionId, toolName])` supports the upcoming Pigeon-overhead lens. `db push` is non-destructive — existing rows backfill to 0. Establishes `src/server/services/__tests__/test-db.ts` as the project's first DB-backed Vitest fixture (per-suite temp SQLite, schema applied via `prisma migrate diff`; `:memory:` was unworkable on Prisma 7's better-sqlite3 adapter). Five new locking suites (T1–T5) cover `resolvePricing`, `computeCost`, `aggregateTranscript`, `getCardSummary` session-attribution, and `configHasTokenHook`. (#190)
 - **`note.promoteToCard` tRPC procedure** — single transactional call that creates a card with `metadata.sourceNoteId`, sets the source note's `cardId` back-reference, and writes a `promoted_from_note` activity row. Replaces the previous two-step `card.create` + `note.delete` chain. The Promote modal in `/notes` and the project Notes tab now offers an editable title (pre-filled from the note) and a priority selector, and the source note is **kept** in the scratch space rather than deleted — closes #179 with link-and-keep semantics. (#185)
 
 ### Changed

@@ -395,21 +395,23 @@ model Claim {
 }
 
 model ToolCallLog {
-  id           String   @id @default(uuid())
-  toolName     String   @map("tool_name")
-  toolType     String   @map("tool_type")
-  agentName    String   @map("agent_name")
-  sessionId    String   @map("session_id")
-  durationMs   Int      @map("duration_ms")
-  success      Boolean
-  errorMessage String?  @map("error_message")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id             String   @id @default(uuid())
+  toolName       String   @map("tool_name")
+  toolType       String   @map("tool_type")
+  agentName      String   @map("agent_name")
+  sessionId      String   @map("session_id")
+  durationMs     Int      @map("duration_ms")
+  success        Boolean
+  errorMessage   String?  @map("error_message")
+  responseTokens Int      @default(0) @map("response_tokens")
+  createdAt      DateTime @default(now()) @map("created_at")
 
   @@index([agentName])
   @@index([sessionId])
   @@index([createdAt])
   @@index([toolName, createdAt])
   @@index([agentName, createdAt])
+  @@index([sessionId, toolName])
   @@map("tool_call_log")
 }
 
