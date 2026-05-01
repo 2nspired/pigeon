@@ -1,10 +1,14 @@
 // Shared docs target for the token-tracking setup CTAs (Pulse strip,
 // card-detail empty state, and the in-app setup dialog's "Read more"
-// footer). Single source so all three surfaces stay in sync if AGENTS.md
-// anchors are renamed.
+// footer). Single source so all three surfaces stay in sync.
+//
+// Points at the local `docs/token-tracking.md` long-form companion (#197 U5)
+// — agent coverage matrix, counterfactual methodology, pricing/recalibrate
+// walkthroughs, and the FAQ. The previous AGENTS.md anchor is still the
+// minimal-path reference but the dialog footer wants the full doc.
 
 export const TOKEN_TRACKING_DOCS_URL =
-	"https://github.com/2nspired/pigeon/blob/main/AGENTS.md#token-tracking-96";
+	"https://github.com/2nspired/pigeon/blob/main/docs/token-tracking.md";
 
 // Default placeholder when the server hasn't yet resolved a per-machine
 // script path. The dialog substitutes this for the real absolute path
