@@ -34,6 +34,7 @@ import { api } from "@/trpc/react";
 import { BoardCard } from "./board-card";
 import { BoardColumn } from "./board-column";
 import { BoardPulse } from "./board-pulse";
+import { UpgradePanel } from "./upgrade-panel";
 import { type BoardFilters, BoardToolbar, type SortMode } from "./board-toolbar";
 import { CardDetailSheet } from "./card-detail-sheet";
 import { AddColumnButton } from "./column-header";
@@ -408,6 +409,7 @@ export function BoardView({
 						visibleCards={visibleCards}
 					/>
 
+					<UpgradePanel />
 					<BoardPulse boardId={board.id} projectId={board.projectId} />
 
 					{/* Columns — parking columns are pinned and not reorderable; the
