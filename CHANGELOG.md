@@ -8,7 +8,9 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+
+- **`<TokenTrackingSetupDialog>` no longer falsely reports `NOT CONFIGURED` for project-scoped Stop-hook installs** (#220). `resolveConfigCandidates()` in `src/server/services/token-usage-service.ts` was scanning only the user-scoped paths (`$CLAUDE_CONFIG_DIR/settings.json`, `~/.claude/settings.json`, `~/.claude-alt/settings.json`) — so any user whose Stop hook lived at `<repo>/.claude/settings.local.json` (the legacy paste path that pre-dated #217's `connect.sh` auto-install) opened the Costs-page setup dialog and saw a red "not configured" banner even while events were flowing. The project-scoped paths had been deliberately removed in the #206 housekeeping bundle on the (then-correct) reasoning that `path.resolve(".claude", ...)` would resolve against the *server's* cwd (the launchd install dir at runtime), not the user's repo. That justification went stale in #210 Phase 3 (PR-B), which set `WorkingDirectory=${PROJECT_DIR}` on the launchd plist (`scripts/service.ts:74-75`) so the service runs *from* the repo root in both dev and service mode — `path.resolve(cwd, ".claude", ...)` now correctly hits the user's repo. This card reinstates `<repo>/.claude/settings.json` and `<repo>/.claude/settings.local.json` in the candidate list, refactors `resolveConfigCandidates(cwd?: string)` to accept an injectable cwd so tests don't need `process.chdir`, and replaces the stale "intentionally not resolved" comment with a one-liner pointing at the launchd plist. Four new vitest cases lock the candidate list (project-scoped paths present, user-scoped paths present, `CLAUDE_CONFIG_DIR` override honored, dedupe when env override collides with a standard path). Closes #220.
 
 ## [6.1.0] — 2026-05-01
 
