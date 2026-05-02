@@ -66,8 +66,7 @@ function filterCards(cards: BoardCardType[], filters: BoardFilters): BoardCardTy
 		}
 		if (filters.priority !== "ALL" && card.priority !== filters.priority) return false;
 		if (filters.tag !== "ALL") {
-			const tags: string[] = JSON.parse(card.tags);
-			if (!tags.includes(filters.tag)) return false;
+			if (!card.tags.includes(filters.tag)) return false;
 		}
 		return true;
 	});
@@ -178,7 +177,7 @@ export function BoardView({
 	const availableTags = useMemo(() => {
 		const tagSet = new Set<string>();
 		for (const card of allCards) {
-			for (const tag of JSON.parse(card.tags) as string[]) {
+			for (const tag of card.tags) {
 				tagSet.add(tag);
 			}
 		}

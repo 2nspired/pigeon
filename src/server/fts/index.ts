@@ -19,7 +19,7 @@
  *   Note     → title=note.title,                  content=note.content
  *   Handoff  → title="Handoff by AUTHOR (date)",  content=note.content + findings
  *   Claim    → title="[kind · status] statement", content=body + evidence + payload
- *   Card     → title="#NUM card.title",           content=description + tags
+ *   Card     → title="#NUM card.title",           content=description + tag labels
  *   Comment  → title="Comment on #NUM",           content=comment.content
  *   Doc      → title=relPath,                     content=markdown (truncated to 50KB)
  *
@@ -216,11 +216,18 @@ export async function indexClaim(client: FtsClient, claimId: string): Promise<vo
 export async function indexCard(client: FtsClient, cardId: string): Promise<void> {
 	const card = await client.card.findUnique({
 		where: { id: cardId },
-		select: { id: true, projectId: true, title: true, description: true, number: true, tags: true },
+		select: {
+			id: true,
+			projectId: true,
+			title: true,
+			description: true,
+			number: true,
+			cardTags: { select: { tag: { select: { label: true } } } },
+		},
 	});
 	if (!card) return;
 
-	const tags = JSON.parse(card.tags) as string[];
+	const tags = card.cardTags.map((ct) => ct.tag.label);
 	const content = [card.description ?? "", tags.length > 0 ? `Tags: ${tags.join(", ")}` : ""]
 		.filter(Boolean)
 		.join("\n");
@@ -275,10 +282,16 @@ export async function rebuildIndex(
 	// Source: Cards
 	const cards = await client.card.findMany({
 		where: { projectId },
-		select: { id: true, title: true, description: true, number: true, tags: true },
+		select: {
+			id: true,
+			title: true,
+			description: true,
+			number: true,
+			cardTags: { select: { tag: { select: { label: true } } } },
+		},
 	});
 	for (const card of cards) {
-		const tags = JSON.parse(card.tags) as string[];
+		const tags = card.cardTags.map((ct) => ct.tag.label);
 		const content = [card.description ?? "", tags.length > 0 ? `Tags: ${tags.join(", ")}` : ""]
 			.filter(Boolean)
 			.join("\n");

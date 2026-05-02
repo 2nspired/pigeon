@@ -101,7 +101,7 @@ export default function TimelinePage({
 								</div>
 								<div className="space-y-2 pl-10">
 									{cards.map((card) => {
-										const tags: string[] = JSON.parse(card.tags);
+										const tags = card.tags;
 										const checkDone = card.checklists.filter((c) => c.completed).length;
 										const checkTotal = card.checklists.length;
 										const isDone = doneCardIds.has(card.id);

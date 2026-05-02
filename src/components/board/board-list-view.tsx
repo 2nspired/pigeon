@@ -77,8 +77,7 @@ function filterCards(cards: ListCard[], filters: BoardFilters): ListCard[] {
 		}
 		if (filters.priority !== "ALL" && card.priority !== filters.priority) return false;
 		if (filters.tag !== "ALL") {
-			const tags: string[] = JSON.parse(card.tags);
-			if (!tags.includes(filters.tag)) return false;
+			if (!card.tags.includes(filters.tag)) return false;
 		}
 		return true;
 	});
@@ -198,7 +197,7 @@ export function BoardListView({
 	const availableTags = useMemo(() => {
 		const tagSet = new Set<string>();
 		for (const card of allCards) {
-			for (const tag of JSON.parse(card.tags) as string[]) {
+			for (const tag of card.tags) {
 				tagSet.add(tag);
 			}
 		}
@@ -497,7 +496,7 @@ function DraggableListRow({ card, onClick }: { card: ListCard; onClick: () => vo
 
 function ListRowContent({ card }: { card: ListCard }) {
 	const priority = card.priority as Priority;
-	const tags: string[] = JSON.parse(card.tags);
+	const tags = card.tags;
 	const checklistTotal = card.checklists.length;
 	const checklistDone = card.checklists.filter((c) => c.completed).length;
 	const blockedByCount = card._blockedByCount ?? 0;

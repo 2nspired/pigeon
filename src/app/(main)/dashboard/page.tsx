@@ -313,7 +313,7 @@ export default function DashboardPage() {
 					</div>
 					<div className="divide-y rounded-lg border border-orange-500/20 bg-orange-500/[0.03]">
 						{focusCards.map((card) => {
-							const tags: string[] = JSON.parse(card.tags);
+							const tags = card.tags;
 							const checkTotal = card.checklists.length;
 							const checkDone = card.checklists.filter((c) => c.completed).length;
 							return (
@@ -482,7 +482,7 @@ export default function DashboardPage() {
 								</div>
 								<div className="divide-y rounded-lg border">
 									{visibleCards.map((card) => {
-										const tags: string[] = JSON.parse(card.tags);
+										const tags = card.tags;
 										const checkTotal = card.checklists.length;
 										const checkDone = card.checklists.filter((c) => c.completed).length;
 										return (
