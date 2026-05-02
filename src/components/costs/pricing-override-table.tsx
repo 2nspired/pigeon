@@ -8,6 +8,7 @@ import {
 	coerceRateValue,
 	validateNewModelName,
 } from "@/components/costs/pricing-override-validation";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
 	DEFAULT_PRICING,
 	type ModelPricing,
@@ -35,12 +36,35 @@ const BUILTIN_KEYS = Object.keys(DEFAULT_PRICING)
 
 type RateField = keyof ModelPricing;
 
-const RATE_FIELDS: { key: RateField; label: string }[] = [
-	{ key: "inputPerMTok", label: "Input/MTok" },
-	{ key: "outputPerMTok", label: "Output/MTok" },
-	{ key: "cacheReadPerMTok", label: "Cache Read/MTok" },
-	{ key: "cacheCreation1hPerMTok", label: "Cache 1h/MTok" },
-	{ key: "cacheCreation5mPerMTok", label: "Cache 5m/MTok" },
+const RATE_FIELDS: { key: RateField; label: string; tooltip: string }[] = [
+	{
+		key: "inputPerMTok",
+		label: "Input/MTok",
+		tooltip: "Cost per million input tokens — the prompt sent to the model.",
+	},
+	{
+		key: "outputPerMTok",
+		label: "Output/MTok",
+		tooltip: "Cost per million output tokens — the model's response.",
+	},
+	{
+		key: "cacheReadPerMTok",
+		label: "Cache Read/MTok",
+		tooltip:
+			"Cost per million tokens read from prompt cache. Anthropic's prompt caching lets repeated prefixes be re-read at a steep discount vs. fresh input.",
+	},
+	{
+		key: "cacheCreation1hPerMTok",
+		label: "Cache 1h/MTok",
+		tooltip:
+			"Cost per million tokens written to the 1-hour prompt cache. Longer-lived cache — higher write cost than 5m, amortized across more requests.",
+	},
+	{
+		key: "cacheCreation5mPerMTok",
+		label: "Cache 5m/MTok",
+		tooltip:
+			"Cost per million tokens written to the 5-minute prompt cache. Shorter-lived cache, default for most callers.",
+	},
 ];
 
 // Per-cell working state — strings rather than numbers so an empty input
@@ -317,20 +341,45 @@ function VerifiedBanner() {
 function HeaderRow() {
 	return (
 		<div className="hidden grid-cols-[1.5fr_repeat(5,1fr)_auto] gap-2 border-b border-border/50 pb-1.5 sm:grid">
-			<HeaderCell>Model</HeaderCell>
+			<HeaderCell tooltip="Model identifier (e.g. claude-opus-4-7) — pricing is keyed on this exact string.">
+				Model
+			</HeaderCell>
 			{RATE_FIELDS.map((f) => (
-				<HeaderCell key={f.key}>{f.label}</HeaderCell>
+				<HeaderCell key={f.key} tooltip={f.tooltip}>
+					{f.label}
+				</HeaderCell>
 			))}
 			<HeaderCell>{""}</HeaderCell>
 		</div>
 	);
 }
 
-function HeaderCell({ children }: { children: ReactNode }) {
+function HeaderCell({ children, tooltip }: { children: ReactNode; tooltip?: string }) {
+	if (!tooltip) {
+		return (
+			<div className="font-mono text-2xs uppercase tracking-wide text-muted-foreground/70">
+				{children}
+			</div>
+		);
+	}
 	return (
-		<div className="font-mono text-2xs uppercase tracking-wide text-muted-foreground/70">
-			{children}
-		</div>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					className="cursor-help text-left font-mono text-2xs uppercase tracking-wide text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
+				>
+					{children}
+				</button>
+			</TooltipTrigger>
+			<TooltipContent
+				side="top"
+				sideOffset={6}
+				className="max-w-xs px-3 py-2 text-xs leading-relaxed normal-case tracking-normal"
+			>
+				{tooltip}
+			</TooltipContent>
+		</Tooltip>
 	);
 }
 
