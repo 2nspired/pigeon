@@ -239,12 +239,14 @@ registerExtendedTool("bulkUpdateCards", {
 					where: { id },
 					data: {
 						priority: input.priority as string | undefined,
-						tags: tagResolution.applied ? JSON.stringify(tagResolution.labels) : undefined,
 						milestoneId: milestoneResolution.applied ? milestoneResolution.milestoneId : undefined,
 						metadata: mergedMetadata,
 						lastEditedBy: AGENT_NAME,
 					},
-					include: { milestone: { select: { name: true } } },
+					include: {
+						milestone: { select: { name: true } },
+						cardTags: { include: { tag: { select: { label: true } } } },
+					},
 				});
 
 				if (tagResolution.applied) {
@@ -255,11 +257,14 @@ registerExtendedTool("bulkUpdateCards", {
 				if (meta?._deprecated) {
 					for (const m of meta._deprecated) deprecatedSeen.add(m);
 				}
+				const responseTags = tagResolution.applied
+					? tagResolution.labels
+					: card.cardTags.map((ct) => ct.tag.label);
 				updated.push({
 					ref: `#${card.number}`,
 					title: card.title,
 					priority: card.priority,
-					tags: JSON.parse(card.tags),
+					tags: responseTags,
 					milestone: card.milestone?.name ?? null,
 					...(card.metadata && card.metadata !== "{}" && { metadata: JSON.parse(card.metadata) }),
 					...(meta?._didYouMean ? { _didYouMean: meta._didYouMean } : {}),

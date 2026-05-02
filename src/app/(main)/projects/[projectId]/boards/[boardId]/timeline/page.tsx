@@ -74,7 +74,7 @@ export default function TimelinePage({
 					</Button>
 				</Link>
 				<div>
-					<h1 className="text-lg font-semibold">Timeline</h1>
+					<h1 className="text-2xl font-bold tracking-tight">Timeline</h1>
 					<p className="text-xs text-muted-foreground">
 						{board.project.name} / {board.name}
 					</p>
@@ -101,7 +101,7 @@ export default function TimelinePage({
 								</div>
 								<div className="space-y-2 pl-10">
 									{cards.map((card) => {
-										const tags: string[] = JSON.parse(card.tags);
+										const tags = card.tags;
 										const checkDone = card.checklists.filter((c) => c.completed).length;
 										const checkTotal = card.checklists.length;
 										const isDone = doneCardIds.has(card.id);
@@ -110,7 +110,7 @@ export default function TimelinePage({
 											<div
 												key={card.id}
 												className={`rounded-lg border p-3 transition-colors ${
-													isDone ? "border-green-500/20 bg-green-500/5" : "bg-card"
+													isDone ? "border-success/20 bg-success/5" : "bg-card"
 												}`}
 											>
 												<div className="flex items-start justify-between gap-2">
@@ -133,7 +133,7 @@ export default function TimelinePage({
 																{card.columnName}
 															</Badge>
 															{checkTotal > 0 && (
-																<span className={checkDone === checkTotal ? "text-green-500" : ""}>
+																<span className={checkDone === checkTotal ? "text-success" : ""}>
 																	{checkDone}/{checkTotal} tasks
 																</span>
 															)}

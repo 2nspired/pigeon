@@ -77,8 +77,7 @@ function filterCards(cards: ListCard[], filters: BoardFilters): ListCard[] {
 		}
 		if (filters.priority !== "ALL" && card.priority !== filters.priority) return false;
 		if (filters.tag !== "ALL") {
-			const tags: string[] = JSON.parse(card.tags);
-			if (!tags.includes(filters.tag)) return false;
+			if (!card.tags.includes(filters.tag)) return false;
 		}
 		return true;
 	});
@@ -89,7 +88,7 @@ function getAgeDays(updatedAt: Date): number {
 }
 
 function getAgeIndicator(days: number): { className: string; label: string } | null {
-	if (days >= 7) return { className: "text-orange-500", label: `${days}d` };
+	if (days >= 7) return { className: "text-warning", label: `${days}d` };
 	if (days >= 3) return { className: "text-yellow-500", label: `${days}d` };
 	return null;
 }
@@ -198,7 +197,7 @@ export function BoardListView({
 	const availableTags = useMemo(() => {
 		const tagSet = new Set<string>();
 		for (const card of allCards) {
-			for (const tag of JSON.parse(card.tags) as string[]) {
+			for (const tag of card.tags) {
 				tagSet.add(tag);
 			}
 		}
@@ -497,7 +496,7 @@ function DraggableListRow({ card, onClick }: { card: ListCard; onClick: () => vo
 
 function ListRowContent({ card }: { card: ListCard }) {
 	const priority = card.priority as Priority;
-	const tags: string[] = JSON.parse(card.tags);
+	const tags = card.tags;
 	const checklistTotal = card.checklists.length;
 	const checklistDone = card.checklists.filter((c) => c.completed).length;
 	const blockedByCount = card._blockedByCount ?? 0;
@@ -522,13 +521,13 @@ function ListRowContent({ card }: { card: ListCard }) {
 							{tags.slice(0, 2).map((tag) => (
 								<span
 									key={tag}
-									className="rounded-full border border-border px-1.5 text-[0.625rem] leading-4 text-muted-foreground"
+									className="rounded-full border border-border px-1.5 text-2xs leading-4 text-muted-foreground"
 								>
 									{tag}
 								</span>
 							))}
 							{tags.length > 2 && (
-								<span className="text-[0.625rem] text-muted-foreground">+{tags.length - 2}</span>
+								<span className="text-2xs text-muted-foreground">+{tags.length - 2}</span>
 							)}
 						</div>
 					)}
@@ -547,7 +546,7 @@ function ListRowContent({ card }: { card: ListCard }) {
 				)}
 				{card.stale && (
 					<span
-						className="flex items-center gap-0.5 text-orange-500"
+						className="flex items-center gap-0.5 text-warning"
 						title={`No activity, comments, commits, or checklist changes for ${card.stale.days} days — revive, re-park, or close.`}
 					>
 						<MoonStar className="h-3 w-3" />
@@ -575,7 +574,7 @@ function ListRowContent({ card }: { card: ListCard }) {
 							<span className="h-1.5 w-12 overflow-hidden rounded-full bg-muted">
 								<span
 									className={`block h-full rounded-full transition-all ${
-										checklistDone === checklistTotal ? "bg-emerald-500" : "bg-primary/50"
+										checklistDone === checklistTotal ? "bg-success" : "bg-primary/50"
 									}`}
 									style={{ width: `${(checklistDone / checklistTotal) * 100}%` }}
 								/>

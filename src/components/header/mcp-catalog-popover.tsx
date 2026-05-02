@@ -12,6 +12,7 @@ import {
 	CommandList,
 	CommandSeparator,
 } from "@/components/ui/command";
+import { LoadingRow } from "@/components/ui/skeleton";
 import { slashCommandDocUrl } from "@/lib/doc-url";
 import type { ToolParamInfo } from "@/lib/mcp-types";
 import { cn } from "@/lib/utils";
@@ -141,9 +142,7 @@ export function McpCatalogPopover({
 				autoFocus
 			/>
 			<CommandList className={fullWidth ? "flex-1" : "max-h-[min(32rem,65vh)]"}>
-				{isLoading && (
-					<div className="px-4 py-6 text-center text-xs text-muted-foreground">Loading tools…</div>
-				)}
+				{isLoading && <LoadingRow text="Loading tools…" />}
 
 				{error && (
 					<div className="px-4 py-6 text-center text-xs text-muted-foreground">
@@ -289,7 +288,7 @@ function ParamPreview({ schema }: { schema: Record<string, ToolParamInfo> }) {
 							{info.type}
 						</span>
 						{info.description && (
-							<div className="ml-3 mt-0.5 font-sans text-[10px] text-muted-foreground">
+							<div className="ml-3 mt-0.5 font-sans text-2xs text-muted-foreground">
 								{info.description}
 							</div>
 						)}

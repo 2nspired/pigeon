@@ -26,7 +26,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getHorizon } from "@/lib/column-roles";
 import { PRIORITY_DOT } from "@/lib/priority-colors";
 import type { Priority } from "@/lib/schemas/card-schemas";
@@ -188,7 +188,7 @@ export default function DashboardPage() {
 						</div>
 						<div className="rounded-lg border bg-card p-3">
 							<div className="text-xs font-medium text-muted-foreground">Done</div>
-							<div className="mt-1 text-2xl font-bold text-emerald-600">{stats.done}</div>
+							<div className="mt-1 text-2xl font-bold text-success">{stats.done}</div>
 						</div>
 					</div>
 
@@ -230,66 +230,61 @@ export default function DashboardPage() {
 									{p.milestones.length > 0 ? (
 										<>
 											{/* Stacked milestone bar */}
-											<TooltipProvider>
-												<div className="mt-2 flex h-5 w-full overflow-hidden rounded">
-													{p.milestones.map((ms, idx) => {
-														const done = ms.cells.filter((c) => c === "done").length;
-														const remaining = ms.cells.length - done;
-														const donePct = (done / p.total) * 100;
-														const remainPct = (remaining / p.total) * 100;
-														const green = greens[idx % greens.length];
-														const gray = grays[idx % grays.length];
+											<div className="mt-2 flex h-5 w-full overflow-hidden rounded">
+												{p.milestones.map((ms, idx) => {
+													const done = ms.cells.filter((c) => c === "done").length;
+													const remaining = ms.cells.length - done;
+													const donePct = (done / p.total) * 100;
+													const remainPct = (remaining / p.total) * 100;
+													const green = greens[idx % greens.length];
+													const gray = grays[idx % grays.length];
 
-														return (
-															<Tooltip key={ms.name}>
-																<TooltipTrigger asChild>
-																	<div
-																		className="flex"
-																		style={{ width: `${donePct + remainPct}%` }}
-																	>
-																		{donePct > 0 && (
-																			<div
-																				className={`${green} h-full transition-all`}
-																				style={{
-																					width: `${(donePct / (donePct + remainPct)) * 100}%`,
-																				}}
-																			/>
-																		)}
-																		{remainPct > 0 && (
-																			<div
-																				className={`${gray} h-full transition-all`}
-																				style={{
-																					width: `${(remainPct / (donePct + remainPct)) * 100}%`,
-																				}}
-																			/>
-																		)}
-																	</div>
-																</TooltipTrigger>
-																<TooltipContent side="bottom" className="text-xs">
-																	<p className="font-medium">{ms.name}</p>
-																	<p className="text-muted-foreground">
-																		{done}/{ms.cells.length} done
-																	</p>
-																</TooltipContent>
-															</Tooltip>
-														);
-													})}
-													{unmilestoned > 0 && (
-														<Tooltip>
+													return (
+														<Tooltip key={ms.name}>
 															<TooltipTrigger asChild>
-																<div
-																	className="bg-muted-foreground/15 h-full"
-																	style={{ width: `${(unmilestoned / p.total) * 100}%` }}
-																/>
+																<div className="flex" style={{ width: `${donePct + remainPct}%` }}>
+																	{donePct > 0 && (
+																		<div
+																			className={`${green} h-full transition-all`}
+																			style={{
+																				width: `${(donePct / (donePct + remainPct)) * 100}%`,
+																			}}
+																		/>
+																	)}
+																	{remainPct > 0 && (
+																		<div
+																			className={`${gray} h-full transition-all`}
+																			style={{
+																				width: `${(remainPct / (donePct + remainPct)) * 100}%`,
+																			}}
+																		/>
+																	)}
+																</div>
 															</TooltipTrigger>
 															<TooltipContent side="bottom" className="text-xs">
-																<p className="font-medium">No milestone</p>
-																<p className="text-muted-foreground">{unmilestoned} cards</p>
+																<p className="font-medium">{ms.name}</p>
+																<p className="text-muted-foreground">
+																	{done}/{ms.cells.length} done
+																</p>
 															</TooltipContent>
 														</Tooltip>
-													)}
-												</div>
-											</TooltipProvider>
+													);
+												})}
+												{unmilestoned > 0 && (
+													<Tooltip>
+														<TooltipTrigger asChild>
+															<div
+																className="bg-muted-foreground/15 h-full"
+																style={{ width: `${(unmilestoned / p.total) * 100}%` }}
+															/>
+														</TooltipTrigger>
+														<TooltipContent side="bottom" className="text-xs">
+															<p className="font-medium">No milestone</p>
+															<p className="text-muted-foreground">{unmilestoned} cards</p>
+														</TooltipContent>
+													</Tooltip>
+												)}
+											</div>
 										</>
 									) : (
 										<Progress value={pct} className="mt-2 h-2" />
@@ -305,21 +300,21 @@ export default function DashboardPage() {
 			{focusCards.length > 0 && !hasFilters && (
 				<div className="mb-6">
 					<div className="mb-3 flex items-center gap-2">
-						<Target className="h-4 w-4 text-orange-500" />
+						<Target className="h-4 w-4 text-warning" />
 						<h2 className="text-sm font-semibold">Focus — In Progress & Review</h2>
-						<span className="rounded-full bg-orange-500/10 px-1.5 py-0.5 text-2xs font-medium text-orange-600">
+						<span className="rounded-full bg-warning/10 px-1.5 py-0.5 text-2xs font-medium text-warning">
 							{focusCards.length}
 						</span>
 					</div>
-					<div className="divide-y rounded-lg border border-orange-500/20 bg-orange-500/[0.03]">
+					<div className="divide-y rounded-lg border border-warning/20 bg-warning/[0.03]">
 						{focusCards.map((card) => {
-							const tags: string[] = JSON.parse(card.tags);
+							const tags = card.tags;
 							const checkTotal = card.checklists.length;
 							const checkDone = card.checklists.filter((c) => c.completed).length;
 							return (
 								<div
 									key={card.id}
-									className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-orange-500/[0.05]"
+									className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-warning/[0.05]"
 								>
 									<div
 										className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[card.priority as Priority] ?? PRIORITY_DOT.NONE}`}
@@ -482,7 +477,7 @@ export default function DashboardPage() {
 								</div>
 								<div className="divide-y rounded-lg border">
 									{visibleCards.map((card) => {
-										const tags: string[] = JSON.parse(card.tags);
+										const tags = card.tags;
 										const checkTotal = card.checklists.length;
 										const checkDone = card.checklists.filter((c) => c.completed).length;
 										return (
