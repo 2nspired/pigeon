@@ -15,7 +15,7 @@ type BoardCardProps = {
 		number: number;
 		title: string;
 		priority: string;
-		tags: string;
+		tags: string[];
 		createdBy: string;
 		updatedAt: Date;
 		lastEditedBy: string | null;
@@ -68,7 +68,7 @@ function getAuthorshipPill(
 }
 
 export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
-	const tags: string[] = JSON.parse(card.tags);
+	const tags = card.tags;
 	const priority = card.priority as Priority;
 	const checklistTotal = card.checklists.length;
 	const checklistDone = card.checklists.filter((c) => c.completed).length;

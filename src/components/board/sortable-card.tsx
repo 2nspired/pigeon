@@ -11,7 +11,7 @@ type SortableCardProps = {
 		number: number;
 		title: string;
 		priority: string;
-		tags: string;
+		tags: string[];
 		createdBy: string;
 		updatedAt: Date;
 		lastEditedBy: string | null;

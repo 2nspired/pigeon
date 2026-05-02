@@ -97,13 +97,10 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 
 			utils.card.getById.setData({ id: cardId }, (old) => {
 				if (!old) return old;
-				// Build a cache-compatible patch: tags are stored as JSON strings in cache
-				const { tags, ...rest } = data;
-				const patch: Record<string, unknown> = { ...rest };
-				if (tags !== undefined) {
-					patch.tags = JSON.stringify(tags);
-				}
-				return { ...old, ...patch } as typeof old;
+				// Tags now travel as a string[] on the API surface (the legacy
+				// JSON column was dropped in v5 / #227); the optimistic patch
+				// just mirrors that shape directly.
+				return { ...old, ...data } as typeof old;
 			});
 
 			return { previous };
@@ -286,7 +283,7 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 		[card?.description, handleDescriptionSave]
 	);
 
-	const tags: string[] = card ? JSON.parse(card.tags) : [];
+	const tags: string[] = card ? card.tags : [];
 
 	return (
 		<Sheet
