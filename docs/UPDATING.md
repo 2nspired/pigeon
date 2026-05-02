@@ -92,10 +92,12 @@ If you're running an MCP agent (Claude, Codex, etc.) against Pigeon, restart the
 
 ## When something goes wrong
 
-1. `npm run service:logs` — read the tail. Most errors show up here.
-2. `npm run db:studio` — check the schema matches what the CHANGELOG described.
-3. Restore the backup from step 1 if the DB is in a weird state: `cp data/tracker.db.pre-X.Y.Z data/tracker.db && npm run service:update`.
-4. If none of that helps, open an issue with the error and the version you updated from/to.
+1. `npm run doctor` — eight-check install-health diagnostic; prints a copy-pasteable fix for every failure (legacy MCP keys, hook drift, launchd label drift, schema-vs-package version skew, WAL pressure, FTS5 half-state, etc.). After every `npm run service:update` this runs automatically and the result surfaces on the next `briefMe` via `_upgradeReport` when anything failed or warned.
+2. `npm run service:logs` — read the tail. Most errors show up here.
+3. `npm run db:studio` — check the schema matches what the CHANGELOG described.
+4. Restore the backup from above if the DB is in a weird state: `cp data/tracker.db.pre-X.Y.Z data/tracker.db && npm run service:update`.
+5. Look up the specific failure on the [Troubleshooting page](https://2nspired.github.io/pigeon/troubleshooting/) — covers MCP-not-connecting, `briefMe` failing on missing `repoPath`, schema drift, FTS5 half-state, launchd label drift, stop-hook silently no-op'ing, old MCP tool names, and `_versionMismatch` warnings.
+6. If none of that helps, open an issue with the error, the doctor output, and the version you updated from/to.
 
 ## If you're behind by multiple versions
 

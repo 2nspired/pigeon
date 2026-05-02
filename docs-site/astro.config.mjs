@@ -89,6 +89,7 @@ export default defineConfig({
 						{ label: "Slash commands", slug: "slash-commands" },
 						{ label: "Cost tracking", slug: "costs" },
 						{ label: "Integration — /api/state", slug: "integration" },
+						{ label: "Troubleshooting", slug: "troubleshooting" },
 					],
 				},
 			],

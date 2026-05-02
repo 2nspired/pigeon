@@ -70,6 +70,8 @@ All checks passed.
 
 Run it after install and after every `git pull`. Exit code is `0` on green, `1` on any failure — CI-friendly.
 
+Stuck on something the doctor doesn't fix? See the **[Troubleshooting page](https://2nspired.github.io/pigeon/troubleshooting/)** — one page covering the common failure modes (MCP not connecting, `briefMe` failing on missing `repoPath`, schema drift, FTS5 half-state, launchd label drift, stop-hook silently no-op'ing, old tool names, `_versionMismatch`).
+
 ## Documentation
 
 The full docs site lives at **[2nspired.github.io/pigeon](https://2nspired.github.io/pigeon/)**.
@@ -91,6 +93,7 @@ The full docs site lives at **[2nspired.github.io/pigeon](https://2nspired.githu
 **Reference**
 - [MCP tools](https://2nspired.github.io/pigeon/tools/) — every tool the agent can call (10 essentials + 60+ extended).
 - [Cost tracking](https://2nspired.github.io/pigeon/costs/) — what the Costs page records, how attribution works, and the savings/overhead math.
+- [Troubleshooting](https://2nspired.github.io/pigeon/troubleshooting/) — common failure modes with diagnose + fix steps; lead with `npm run doctor`.
 - [Commands](docs/commands.md) — every npm script with the moment you'd reach for it.
 - [`docs/SURFACES.md`](docs/SURFACES.md) — `tracker.md` vs `CLAUDE.md` vs `AGENTS.md` cheat sheet.
 - [`docs/token-tracking.md`](docs/token-tracking.md) — opt-in token cost capture, methodology, and the per-project Costs page.

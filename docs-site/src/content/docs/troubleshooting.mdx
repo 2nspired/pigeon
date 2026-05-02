@@ -1,0 +1,199 @@
+---
+title: Troubleshooting
+description: When something is broken — start with `npm run doctor`, then look up the failure mode below. One page for stuck operators.
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components";
+
+When Pigeon stops behaving — `briefMe` returns nothing, the MCP server won't connect, the Costs page is empty, the launchd service is silent — start here.
+
+## First-line debug: `npm run doctor`
+
+Before anything else, run:
+
+```bash
+npm run doctor
+```
+
+This is the eight-check install-health diagnostic. It catches the failure modes documented below — legacy MCP key shape, hook drift, launchd label drift, missing `.mcp.json` on connected repos, server-vs-package version skew, missing `tracker.md`, WAL-file phantom-drop pressure, and FTS5 half-state — and prints a copy-pasteable fix for every failure.
+
+```text
+Pigeon Doctor — install health check
+────────────────────────────────────
+✓ MCP registration             PASS
+✓ Hook drift                   PASS
+✓ launchd label                PASS
+✓ Connected repos              PASS
+✓ Server version               PASS
+✓ Per-project tracker.md       PASS
+✓ WAL hygiene                  PASS
+✓ FTS5 sanity                  PASS
+
+8 pass
+All checks passed.
+```
+
+Exit code is `0` when everything passes (warnings included), `1` on any fail. If the doctor identifies the problem and prints a fix, you're done — apply it and re-run.
+
+If the doctor passes but Pigeon still misbehaves, find the symptom below.
+
+<Aside type="tip" title="Post-update health is surfaced automatically">
+	After every `npm run service:update`, Pigeon runs the doctor pass and stashes the result. The next `briefMe` call surfaces a `_upgradeReport` field on the response payload **only when** something failed or warned — clean upgrades produce no payload noise. If your agent flags `_upgradeReport` at session start, the failures are already named there; you don't need to re-run `doctor` first.
+</Aside>
+
+## Common failure modes
+
+### MCP server shows "failed" in Claude Code
+
+**Symptom.** Your agent says the `pigeon` MCP server failed to start, or `getTools` / `briefMe` aren't available.
+
+**Diagnose.**
+
+1. `npm run doctor` — look at the **MCP registration** check. It identifies four states: pigeon registered (good), both pigeon + legacy registered (warn — remove the legacy key), only legacy `project-tracker` registered (fail — v6.0 dropped this key), or no Claude config found at all.
+2. From inside your project: `/mcp` in Claude Code, then try `scripts/pigeon-start.sh` manually to see the stderr.
+3. Check `.mcp.json` exists in the project root: `ls -la .mcp.json` from the repo you opened the agent in.
+
+**Fix.**
+
+- **Missing `.mcp.json`.** Run `/path/to/pigeon/scripts/connect.sh` from inside the project root. This writes `.mcp.json` and installs the slash commands.
+- **Legacy `project-tracker` key.** Open `~/.claude.json` (or `~/.claude-alt/.claude.json`), rename `mcpServers.project-tracker` → `mcpServers.pigeon`, and swap `scripts/mcp-start.sh` → `scripts/pigeon-start.sh` in the command path. Then `npm run migrate-rebrand` to clean up any other stale references.
+- **Restart the agent.** MCP servers load at session start — `.mcp.json` edits do not hot-reload. Quit and reopen Claude Code (or whichever agent) after any config change.
+
+### `briefMe` fails on missing `repoPath`
+
+**Symptom.** `briefMe` returns an error, a "needsRegistration" branch, or `_versionMismatch` warnings instead of a session primer.
+
+This is the most common cause of `briefMe` failing in practice — the project's `repoPath` was never bound, or got unbound, so the tool can't auto-resolve which project owns the current working directory.
+
+**Diagnose.**
+
+1. `npm run doctor` — look at the **Connected repos** check. It iterates every project with a registered `repoPath` and verifies `.mcp.json` is present and uses the new key shape.
+2. Ask the agent to run `checkOnboarding`. If it returns `needsRegistration: true`, the cwd doesn't match any project's `repoPath`.
+
+**Fix.**
+
+- **From inside the project,** ask the agent to run `registerRepo` (or run `scripts/connect.sh` from the repo root). The MCP server records the bind, and the next `briefMe` call resolves cleanly from cwd.
+- **If `repoPath` is bound but stale** (you moved or renamed the directory), clear it via Prisma Studio (`npm run db:studio`) → `Project` table → set `repoPath` to null on the affected row, then re-bind from the new location.
+
+### Schema drift / "table not found" / mid-update wedge
+
+**Symptom.** Prisma errors after `git pull`, missing tables, the UI throws on the first query, or `service:update` aborts complaining about a destructive change.
+
+**Diagnose.**
+
+1. Tail the service logs: `npm run service:logs`. Most schema errors print here on first request.
+2. Open Prisma Studio: `npm run db:studio`. Eyeball the tables against the columns named in `CHANGELOG.md` for the version you just pulled to.
+3. `npm run doctor` — the **WAL hygiene** check warns when `data/tracker.db-wal` is past ~4 MiB. Past that threshold, `prisma db push` has been observed to phantom-drop tables (the v5.0 incident).
+
+**Fix.**
+
+- **Additive schema changes (the common case).** Run `npm run service:update` — it runs `prisma db push` for you, drops the derived FTS5 index, rebuilds, and restarts the service. The FTS index rebuilds itself lazily on first knowledge-search per project.
+- **Destructive schema changes.** `prisma db push` aborts and prints the exact prompt. Run `npx prisma db push` directly so it can prompt for data-loss confirmation. **Back up first** if you're on a MAJOR bump:
+  ```bash
+  cp data/tracker.db data/tracker.db.pre-$(node -p "require('./package.json').version")
+  ```
+- **WAL pressure.** Truncate the WAL before re-running the update:
+  ```bash
+  sqlite3 data/tracker.db "PRAGMA wal_checkpoint(TRUNCATE);"
+  npm run service:update
+  ```
+- **Mid-update wedge.** Restore the backup and start over: `cp data/tracker.db.pre-X.Y.Z data/tracker.db && npm run service:update`. The full sequencing rules — including running migration scripts in CHANGELOG order — are in [docs/UPDATING.md](https://github.com/2nspired/pigeon/blob/main/docs/UPDATING.md).
+
+### FTS5 search returns nothing / half-state
+
+**Symptom.** Knowledge search comes back empty even though you know cards / comments / notes exist with the search terms.
+
+**Diagnose.** `npm run doctor` — the **FTS5 sanity** check. Three failure shapes:
+
+- `knowledge_fts` exists, shadow tables missing → fail (corrupt half-state, doctor's fix is to drop and let the server recreate).
+- `knowledge_fts` missing, shadow tables present → fail (orphaned shadows from a previous phantom-drop).
+- Neither parent nor shadows present → warn (will be created on next MCP server start).
+
+**Fix.**
+
+- **Half-state with orphan shadows.** The doctor's `fix` line names the exact `sqlite3` command. After dropping, restart the service so `initFts5` recreates the virtual table.
+- **Lazy rebuild.** The first knowledge search per project triggers a per-project rebuild from source rows (cards, comments, claims, notes, repo markdown). No manual rebuild step is needed once the table exists.
+
+### macOS launchd service is silent / wrong label
+
+**Symptom.** Nothing on `localhost:3100`, `npm run service:status` shows the service isn't loaded, or two copies are running and fighting for the port.
+
+**Diagnose.**
+
+1. `npm run service:status` — the one-liner.
+2. `npm run doctor` — the **launchd label** check. It catches the v5 → v6 rebrand foot-gun where the legacy `com.2nspired.project-tracker` job is still loaded but the new `com.2nspired.pigeon` job never installed.
+3. `npm run service:logs` — tails stdout/stderr from the launchd-managed process. The first line of any startup error lives here.
+
+**Fix.**
+
+- **Service never installed.** `npm run service:install`.
+- **Legacy job still loaded.** Doctor prints the exact `launchctl bootout` command. Run it, delete the old `.plist`, then `npm run service:install`. The full command:
+  ```bash
+  launchctl bootout gui/$(id -u)/com.2nspired.project-tracker \
+    && rm -f ~/Library/LaunchAgents/com.2nspired.project-tracker.plist \
+    && npm run service:install
+  ```
+- **Service is loaded but the build is stale.** `npm run service:update` rebuilds and restarts.
+- **Code changed but the service didn't update.** `npm run service:update` after every `git pull` when running the service. If you forget, the **Server version** doctor check flags the mismatch (running v6.0.5 vs. package.json v6.1.0 → fail with `npm run service:update` as the fix).
+
+### Stop hook silently no-ops (token tracking)
+
+**Symptom.** The Costs page renders empty, or the token-tracking setup dialog says "RECORDING" but `getProjectSummary` returns `$0`. You added the hook to your Claude config but events aren't landing.
+
+This one is silent by design — the hook fires, can't find what it's looking for, and drops the call without an error in the agent's UI. There are three known traps.
+
+**Diagnose.**
+
+1. **Wrong file.** Claude Code 2.1.x reads hooks from `settings.json` only. The `hooks` key in `.claude.json` is silently ignored. Move the snippet into one of these (in precedence order): `<repo>/.claude/settings.local.json`, `<repo>/.claude/settings.json`, `~/.claude/settings.json`, `~/.claude-alt/settings.json`, `$CLAUDE_CONFIG_DIR/settings.json`.
+2. **Wrong type.** Use `type: "command"` (running `scripts/stop-hook.sh` as a subprocess). `type: "mcp_tool"` no-ops without error in CC 2.1.x for this hook config.
+3. **Stale `server` field on the hook entry.** If a `mcp_tool` hook still references `"server": "project-tracker"`, it silently no-ops post-rename. The doctor's **Hook drift** check finds these.
+4. **Script not executable.** `chmod +x scripts/stop-hook.sh`.
+5. **Diagnostic log.** The hook writes a line to `<repo>/data/stop-hook.log` on every fire (success or fail). `tail -f data/stop-hook.log` while you trigger a Stop event.
+
+**Fix.** Re-paste the snippet from the in-app **Token tracking setup** dialog (Costs page → "Set up token tracking"). It embeds your machine's absolute path, names the right file, and uses `type: "command"`. Click **Re-check** in the dialog after pasting; the same status pill flips to green when events start landing. Full reference: [docs/token-tracking.md](https://github.com/2nspired/pigeon/blob/main/docs/token-tracking.md).
+
+### Old MCP tool name returns "tool not found"
+
+**Symptom.** A prompt, slash command, hook, or saved transcript references a tool name that the v6+ server rejects with `tool not found`.
+
+**Diagnose.** This is almost always a pre-v6 tool name surviving in someone's prompt or hook config. The most common offender is `endSession` (renamed `saveHandoff` in v5.2, alias removed in v6.0).
+
+**Fix.** Look the old name up in [docs/MIGRATION-HISTORY.md](https://github.com/2nspired/pigeon/blob/main/docs/MIGRATION-HISTORY.md) — it covers every rename, consolidation, and removal across pre-v6 history with the new canonical name. Update the prompt or hook, restart the agent.
+
+### `briefMe` shows `_versionMismatch`
+
+**Symptom.** `briefMe` returns a session primer with a `_versionMismatch` warning attached, even though the doctor passes.
+
+**Diagnose.** The agent's MCP client cached the server manifest at session start, but the server has been rebuilt mid-session (typically because `npm run service:update` ran in another window).
+
+**Fix.** Restart the agent. The MCP client re-fetches the manifest on reconnect and the warning clears.
+
+### "Things were working yesterday" — full reset
+
+**Symptom.** Multiple things broken at once after a long break, or after a major version bump you didn't notice.
+
+**Diagnose.**
+
+```bash
+git log --oneline HEAD..origin/main | head -20   # what landed since you last pulled
+cat CHANGELOG.md | head -100                     # major bumps + migration notes
+npm run doctor                                   # current install health
+```
+
+**Fix.** Follow [docs/UPDATING.md](https://github.com/2nspired/pigeon/blob/main/docs/UPDATING.md) end-to-end. The short version: back up the DB, `git pull`, run any migration scripts named in the CHANGELOG **in order** (don't skip versions), then `npm run service:update`. The post-update doctor pass (which `service:update` runs automatically) will surface anything still wrong via `briefMe._upgradeReport` on your next session.
+
+## When the doctor doesn't catch it
+
+If `npm run doctor` is all green but Pigeon is still misbehaving:
+
+1. `npm run service:logs` — tail the launchd service stdout/stderr. Most runtime errors print here.
+2. `npm run db:studio` — eyeball the schema and recent rows.
+3. Check the browser console at [localhost:3100](http://localhost:3100) — UI errors with stack traces land there.
+4. File an issue at [github.com/2nspired/pigeon/issues](https://github.com/2nspired/pigeon/issues) with: the doctor output, the version you're on (`node -p "require('./package.json').version"`), and the relevant log tail.
+
+## Read next
+
+- **[Quickstart](../quickstart/)** — fresh-install path.
+- **[Anti-patterns](../anti-patterns/)** — the workflow pitfalls (a different category from the install-and-config failures above).
+- **[Updating](https://github.com/2nspired/pigeon/blob/main/docs/UPDATING.md)** — what to run after `git pull`.
+- **[MCP migration history](https://github.com/2nspired/pigeon/blob/main/docs/MIGRATION-HISTORY.md)** — old tool names that no longer resolve.
