@@ -15,7 +15,7 @@ type BoardCardProps = {
 		number: number;
 		title: string;
 		priority: string;
-		tags: string;
+		tags: string[];
 		createdBy: string;
 		updatedAt: Date;
 		lastEditedBy: string | null;
@@ -36,7 +36,7 @@ function getAgeDays(updatedAt: Date): number {
 }
 
 function getAgeIndicator(days: number): { className: string; label: string } | null {
-	if (days >= 7) return { className: "text-orange-500", label: `${days}d` };
+	if (days >= 7) return { className: "text-warning", label: `${days}d` };
 	if (days >= 3) return { className: "text-yellow-500", label: `${days}d` };
 	return null;
 }
@@ -68,7 +68,7 @@ function getAuthorshipPill(
 }
 
 export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
-	const tags: string[] = JSON.parse(card.tags);
+	const tags = card.tags;
 	const priority = card.priority as Priority;
 	const checklistTotal = card.checklists.length;
 	const checklistDone = card.checklists.filter((c) => c.completed).length;
@@ -135,7 +135,7 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 
 				{authorship && (
 					<span
-						className="inline-flex items-center gap-1.5 text-[0.625rem] leading-4 text-muted-foreground"
+						className="inline-flex items-center gap-1.5 text-2xs leading-4 text-muted-foreground"
 						title={authorship.tooltip}
 					>
 						<ActorDot
@@ -152,13 +152,13 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 						{tags.slice(0, 3).map((tag) => (
 							<span
 								key={tag}
-								className="rounded-full border border-border px-1.5 text-[0.625rem] leading-4 text-muted-foreground"
+								className="rounded-full border border-border px-1.5 text-2xs leading-4 text-muted-foreground"
 							>
 								{tag}
 							</span>
 						))}
 						{tags.length > 3 && (
-							<span className="rounded-full border border-border px-1.5 text-[0.625rem] leading-4 text-muted-foreground">
+							<span className="rounded-full border border-border px-1.5 text-2xs leading-4 text-muted-foreground">
 								+{tags.length - 3}
 							</span>
 						)}
@@ -182,7 +182,7 @@ export function BoardCard({ card, showScore, onClick }: BoardCardProps) {
 						)}
 						{card.stale && (
 							<span
-								className="flex items-center gap-0.5 text-orange-500"
+								className="flex items-center gap-0.5 text-warning"
 								title={`No activity, comments, commits, or checklist changes for ${card.stale.days} days — revive, re-park, or close.`}
 							>
 								<MoonStar className="h-3 w-3" />

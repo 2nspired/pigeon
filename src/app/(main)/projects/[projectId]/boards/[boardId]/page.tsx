@@ -26,8 +26,9 @@ import { BoardView } from "@/components/board/board-view";
 import { HandoffsSheet } from "@/components/board/handoffs-sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SegmentedControl, SegmentedControlItem } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useBoardEvents } from "@/hooks/use-board-events";
 import type { BoardView as BoardViewType } from "@/lib/board-views";
 import { api } from "@/trpc/react";
@@ -240,6 +241,8 @@ export default function BoardPage({
 	}, [board, selectedCardId]);
 
 	if (isLoading) {
+		// Column width pinned to BoardColumn's w-84 so the skeleton doesn't
+		// pop +48px wider when data lands (#244 — was w-72 in the original).
 		return (
 			<div className="flex h-full flex-col">
 				<div className="border-b px-4 py-3">
@@ -247,7 +250,7 @@ export default function BoardPage({
 				</div>
 				<div className="flex flex-1 gap-4 p-4">
 					{Array.from({ length: 3 }).map((_, i) => (
-						<Skeleton key={i} className="h-96 w-72 shrink-0" />
+						<Skeleton key={i} className="h-96 w-84 shrink-0" />
 					))}
 				</div>
 			</div>
@@ -276,7 +279,7 @@ export default function BoardPage({
 	};
 
 	return (
-		<TooltipProvider>
+		<>
 			<div className="flex h-[calc(100dvh-3.5rem-1px)] flex-col">
 				<div className="flex items-center gap-3 border-b px-4 py-2">
 					<Tooltip>
@@ -297,34 +300,30 @@ export default function BoardPage({
 						</div>
 						<p className="text-xs text-muted-foreground">{board.project.name}</p>
 					</div>
-					<div className="flex items-center rounded-md border">
+					<SegmentedControl
+						type="single"
+						size="icon"
+						value={viewMode}
+						onValueChange={(v) => v && setViewMode(v as "kanban" | "list")}
+						aria-label="Board layout"
+					>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Button
-									variant={viewMode === "kanban" ? "secondary" : "ghost"}
-									size="sm"
-									className="h-8 rounded-r-none border-0 px-2"
-									onClick={() => setViewMode("kanban")}
-								>
-									<Columns3 className="h-3.5 w-3.5" />
-								</Button>
+								<SegmentedControlItem value="kanban" aria-label="Board view">
+									<Columns3 />
+								</SegmentedControlItem>
 							</TooltipTrigger>
 							<TooltipContent>Board view</TooltipContent>
 						</Tooltip>
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<Button
-									variant={viewMode === "list" ? "secondary" : "ghost"}
-									size="sm"
-									className="h-8 rounded-l-none border-0 px-2"
-									onClick={() => setViewMode("list")}
-								>
-									<List className="h-3.5 w-3.5" />
-								</Button>
+								<SegmentedControlItem value="list" aria-label="List view">
+									<List />
+								</SegmentedControlItem>
 							</TooltipTrigger>
 							<TooltipContent>List view</TooltipContent>
 						</Tooltip>
-					</div>
+					</SegmentedControl>
 					<DefaultBoardToggle
 						projectId={projectId}
 						boardId={board.id}
@@ -432,6 +431,6 @@ export default function BoardPage({
 					<BoardListView board={board} {...viewProps} />
 				)}
 			</div>
-		</TooltipProvider>
+		</>
 	);
 }

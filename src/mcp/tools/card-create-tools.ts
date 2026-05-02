@@ -109,7 +109,6 @@ registerExtendedTool("bulkCreateCards", {
 						title: input.title as string,
 						description: input.description as string | undefined,
 						priority: (input.priority as string) ?? "NONE",
-						tags: JSON.stringify(tagResolution.applied ? tagResolution.labels : []),
 						milestoneId:
 							milestoneResolution.applied && milestoneResolution.milestoneId !== null
 								? milestoneResolution.milestoneId
@@ -263,11 +262,20 @@ registerExtendedTool("createCardFromTemplate", {
 					title: fullTitle,
 					description: tmpl.description,
 					priority: tmpl.priority,
-					tags: JSON.stringify(tmpl.tags),
 					createdBy: "AGENT",
 					position: (maxPos._max.position ?? -1) + 1,
 				},
 			});
+
+			// Resolve template tags through CardTag junction (post-#227 — Card.tags JSON column dropped).
+			if (tmpl.tags.length > 0) {
+				const templateTagResolution = await resolveTagsForWrite(db, board.projectId, {
+					tags: tmpl.tags,
+				});
+				if (templateTagResolution.ok && templateTagResolution.applied) {
+					await syncCardTags(db, card.id, templateTagResolution.tagIds);
+				}
+			}
 
 			for (let i = 0; i < tmpl.checklist.length; i++) {
 				await db.checklistItem.create({

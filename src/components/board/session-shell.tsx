@@ -55,14 +55,14 @@ export function CardRefText({
 export const ACCENT_STYLES = {
 	muted: { border: "", text: "text-muted-foreground", bg: "" },
 	violet: {
-		border: "border-l-4 border-l-violet-500/40",
-		text: "text-violet-700 dark:text-violet-300",
+		border: "border-l-4 border-l-accent-violet/40",
+		text: "text-accent-violet",
 		bg: "",
 	},
 	red: {
-		border: "border-l-4 border-l-red-500/60",
-		text: "text-red-700 dark:text-red-400",
-		bg: "bg-red-500/5",
+		border: "border-l-4 border-l-danger/60",
+		text: "text-danger",
+		bg: "bg-danger/5",
 	},
 } as const;
 
@@ -105,29 +105,5 @@ export function CollapsibleSection({
 			</summary>
 			<div className="px-6 pb-2 pt-0.5">{children}</div>
 		</details>
-	);
-}
-
-// ─── Filter chip ──────────────────────────────────────────────────
-
-export function FilterChip({
-	active,
-	onClick,
-	children,
-}: {
-	active: boolean;
-	onClick: () => void;
-	children: React.ReactNode;
-}) {
-	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className={`rounded-full px-2 py-0.5 text-2xs transition-colors ${
-				active ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted/60"
-			}`}
-		>
-			{children}
-		</button>
 	);
 }
