@@ -28,27 +28,15 @@ type CostsPageProps = {
 
 // Client component owning the data fetches for the Costs page.
 //
-// Board-scope plumbing (#200 Phase 2a + 3): when `boardId` is set, the two
-// scope-aware queries (`getProjectSummary`, `getDailyCostSeries`) pass it
-// through so the summary strip + sparkline reflect that board only. The
-// other sections (`<SavingsSection>`, `<PigeonOverheadSection>`,
-// `<CardDeliverySection>`, `<PricingOverrideTable>`) deliberately keep
-// project-only signatures — they're not yet board-aware (Phase 1b
-// territory). To stay honest with the user we render a `(project-wide)`
-// Badge in their headers via the `scope` prop (Phase 3 D7).
-//
-// In board mode we also fetch the project-wide summary IN ADDITION to the
-// board-scoped one. We need both for the SummaryStrip's Board's-share cell
-// (Phase 3, C3 — `(boardTotal / projectTotal) * 100` with a >0 guard) and
-// also for the empty-state branch in <SavingsSection>'s Statement (Phase 3
-// N2 — "no board-attributed sessions yet" link out to project totals).
-//
-// Cache key safety (A3): React Query passes the input object straight to
-// `JSON.stringify` for hashing. `JSON.stringify({ projectId, boardId:
-// undefined })` strips the `undefined`, so the project-only call key
-// equals `JSON.stringify({ projectId })`. The ternary on the input object
-// is therefore not required for correctness — but we keep it explicit so
-// the call sites read as "we ask different questions in different modes."
+// Board-scope plumbing (#200) was deferred in #225 — the page renders
+// project-wide regardless of `?board=` until card-attribution of Stop-hook
+// events is automated. The `boardId` prop is preserved on `CostsPageProps`
+// (route plumbing unchanged) but ignored by the data fetches and child
+// rendering. `?from=` continues to drive the breadcrumb's first-segment
+// back-link via `fromBoard`. The deep-dive lenses (`<SavingsSection>`,
+// `<PigeonOverheadSection>`, `<CardDeliverySection>`) along with their
+// backing tRPC procedures were removed in #236 — the page now renders
+// just `<SummaryStrip>` and `<PricingOverrideTable>`.
 export function CostsPage({
 	projectId,
 	projectName,
