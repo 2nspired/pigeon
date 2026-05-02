@@ -28,33 +28,7 @@ See [docs/SURFACES.md](docs/SURFACES.md) for a full breakdown.
 
 ## Intent on Writes
 
-When you call a write tool that changes board state, include a short **`intent`** string saying *why* you're doing it — one sentence, ≤120 chars, user-visible on the card and in the activity strip.
-
-**Why:** Humans watching the board see actions flow in real time. Without intent, a move from `In Progress` → `Review` is silent noise. With it, they read *why* and decide whether to step in.
-
-**Where it applies:**
-
-| Tool | `intent` | Notes |
-|---|---|---|
-| `moveCard` | **required** | Every move needs a reason (WIP stall, ready for review, parked, etc.) |
-| `deleteCard` | **required** | Intent gates a destructive action; it's not persisted after cascade |
-| `updateCard` | optional | Pass when the edit reflects a decision or discovery, not just a mechanical fix |
-
-**Examples:**
-
-```
-moveCard({ cardId: "#42", columnName: "Review", intent: "Tests green, ready for user to verify before merge" })
-moveCard({ cardId: "#42", columnName: "Parking Lot", intent: "Parked — waiting on design decision from #39" })
-updateCard({ cardId: "#42", priority: "HIGH", intent: "Bumped after user reported it blocks the Q2 launch" })
-```
-
-**Don't:**
-
-- Restate what the tool did (`"Moving to Done"`) — the column transition already shows that
-- Use intent as a changelog (`"Fixed typo"`) — that's the commit message's job
-- Leave it blank on `moveCard` to satisfy the type — write a real reason or don't move the card
-
-When you provide `intent`, the UI flashes a 10-second banner on the card so the human sees it live. Activity-strip entries render it in italic below the action.
+See [`docs/AGENT-GUIDE.md`](docs/AGENT-GUIDE.md) for the universal `intent` rule. Pigeon-internal note: when `intent` is provided, the UI flashes a 10-second banner on the card so the human sees it live, and activity-strip entries render it in italic below the action.
 
 ## Project Status
 
@@ -186,13 +160,9 @@ The index auto-initializes on first query. It covers repo `*.md` files up to 100
 
 ## Column Definitions
 
-| Column | Purpose | When to move here |
-|---|---|---|
-| **Backlog** | All known work, ordered by priority. The **top 3 positions** are treated as human-pinned and surface ahead of score-ranked cards in `briefMe.topWork` (`source: "pinned"`). Drag a card to the top to signal "I want this next." | When identifying future work, OR when promoting a card to "this is what I want done next" — drag it to the top of Backlog |
-| **In Progress** | Actively being worked on right now. Limit to 2-3 cards to stay focused. | When you start writing code or doing real work on it |
-| **Review** | Code is written, needs human review, testing, or verification. Not present on all boards. | When the agent finishes implementation and wants the user to check |
-| **Done** | Shipped, merged, verified. No more work needed. | After human confirms it's good, or after merging |
-| **Parking Lot** | Ideas, maybes, "what if we..." — not committed to. Low-cost storage for thoughts that might become real work later. | When someone has an idea but it's not actionable yet |
+See [`docs/AGENT-GUIDE.md`](docs/AGENT-GUIDE.md) for the column conventions (Backlog top-3 = pinned, In Progress limit, Review/Done semantics, Parking Lot).
+
+**Pigeon-side migration history:**
 
 > **Note (#97):** The legacy "Up Next" column was removed. Its function (human-priority queue) is now expressed by **position in Backlog** — top 3 = pinned. This keeps columns as pure workflow stages and avoids duplicating the `priority` field.
 
@@ -200,59 +170,19 @@ The index auto-initializes on first query. It covers repo `*.md` files up to 100
 
 ## When to Use the Board
 
-**Start of conversation** — Call `briefMe` for a session primer (handoff, top work, pulse). For deeper exploration, use `getBoard` with `summary: true` or `excludeDone: true` to reduce payload. You can also filter to specific columns with `columns: ["Backlog", "In Progress"]`. The first three Backlog cards are the agent's recommended next-up — `briefMe.topWork` flags them with `source: "pinned"`.
-
-**Planning phase** — Use `bulkCreateCards` (not individual createCard calls) to lay out planned work. Add checklist items for sub-tasks. This is where the user sees your plan before you start coding.
-
-**Meaningful milestones** — Move cards when you start real work ("In Progress") and when you finish ("Done" or "Review"). Don't move cards for every small step.
-
-**Decisions and blockers** — Use `addComment` to record decisions that would otherwise get lost between conversations. Things like: "Chose X approach because Y", "Blocked on Z", "User confirmed they want A not B".
-
-**End of conversation** — Update card states to reflect where things landed. Future conversations pick up from here.
+See [`docs/AGENT-GUIDE.md`](docs/AGENT-GUIDE.md) for the session lifecycle (`briefMe` → work → `addComment` → `saveHandoff`).
 
 ## Planning a Card
 
-When the user wants you to plan a card (vague backlog item, parking-lot idea, etc.), call `planCard`:
-
-```
-runTool("planCard", { boardId, cardId: "#N" })
-```
-
-Or, in Claude Code, the `/plan-card N` slash command does the same thing.
-
-**What it does.** Returns the full card context (description, comments, relations, decisions, commits), the project's `tracker.md` policy (body prompt + per-column prompts), an `investigation_hints` object (URLs, file paths, `#nnn` card refs, code symbols extracted from the description), and a fixed `protocol` string that walks you through synthesizing the plan.
-
-**The four locked sections.** Every planned card ends up with these level-2 headings, in this order:
-
-1. `## Why now` — trigger or motivation
-2. `## Plan` — concrete steps (numbered when order matters)
-3. `## Out of scope` — what you considered and deferred
-4. `## Acceptance` — testable verification criteria
-
-Consistency is the point. Future agents (and humans) skim any card and find the plan in the same place.
-
-**Workflow.** Investigate using the hints → draft the plan in chat (chat is draft, card is publish) → on explicit user confirmation, `updateCard` writes it to the description and `moveCard` promotes it to In Progress.
-
-**`PLAN_EXISTS` warning.** If the description already contains the locked headers, `planCard` refuses to return a `protocol` — surface the warning to the user. Don't silently overwrite a published plan; ask whether to revise it or remove the headers and start fresh.
+See [`docs/AGENT-GUIDE.md`](docs/AGENT-GUIDE.md) for the `planCard` four-section protocol and the chat-is-draft, card-is-publish workflow.
 
 ## When NOT to Use the Board
 
-- Don't update after every small code change — git tracks that
-- Don't add comments that just say "updated file X" — that's in the diff
-- Don't call getBoard repeatedly in the same conversation — the state is in your context
-- Don't create cards for trivial tasks that will be done in 2 minutes
+See [`docs/AGENT-GUIDE.md`](docs/AGENT-GUIDE.md) for negative-space guidance.
 
 ## What Goes Where
 
-| Information | Where it belongs |
-|---|---|
-| What needs to be done | Cards in Backlog (drag the most important to the top — top 3 surface as `pinned` in briefMe) |
-| Current work breakdown | Checklist items on the active card |
-| Architecture decisions | Comment on the relevant card |
-| "Why did we choose X?" | Comment on the card |
-| Ideas for later | Card in Parking Lot |
-| Bug or issue found during work | New card with priority set |
-| What changed in code | Git commit (not the board) |
+See [`docs/AGENT-GUIDE.md`](docs/AGENT-GUIDE.md) for the information-routing table.
 
 ## Linking Commits to Cards
 
@@ -268,28 +198,7 @@ Do this as part of your end-of-work flow, not after every small commit.
 
 ## Efficiency Tips
 
-### Reducing Token Usage
-- Use `getBoard` with `summary: true` for lightweight views (no descriptions or checklist items)
-- Use `getBoard` with `excludeDone: true` to skip Done/Parking columns — often the bulk of payload
-- Use `getBoard` with `columns: ["Backlog", "In Progress"]` to fetch only the columns you need
-- One `getBoard` call at conversation start gives you everything — don't call it repeatedly
-
-### Bulk Operations
-- Use `bulkCreateCards` instead of multiple `createCard` calls
-- Use `bulkUpdateCards` to set priority, tagSlugs, or milestoneId on multiple cards at once (legacy `tags` / `milestoneName` accepted with `_deprecated` warning through v4.2)
-- Use `bulkAddChecklistItems` to add checklist items to one or more cards in one call
-- Batch your board updates — don't interleave code work with constant board updates
-
-### Board Health
-- Use `auditBoard` to find cards missing priority, tags, milestones, or checklists
-- Use `updateCard` with `milestoneId` (preferred since v4.2) for milestone assignment; legacy `milestoneName` still works with case-insensitive normalization
-- Use `listMilestones` to see completion percentage per milestone + `_governanceHints` for triage targets
-
-### General
-- Reference cards by `#number` (e.g. `#7`) instead of UUIDs — the agent and human both use this
-- Use `createCardFromTemplate` for common patterns (Bug Report, Feature, Spike, Tech Debt, Epic)
-- Use the `resume-session` prompt at conversation start for a structured overview
-- `checkOnboarding` returns project and board lists inline — no need for follow-up `listProjects`/`listBoards` calls
+See [`docs/AGENT-GUIDE.md`](docs/AGENT-GUIDE.md) for the universal token-saving and bulk-operation tips. Pigeon-internal extras: `auditBoard` finds cards missing priority/tags/milestones/checklists; `createCardFromTemplate` (Bug Report, Feature, Spike, Tech Debt, Epic) is faster than hand-rolling.
 
 ## Connecting to a Project
 
@@ -319,7 +228,7 @@ If you're adopting Pigeon and want to read the guide directly, start with [`docs
 ## Token Tracking (#96)
 
 Per-session token cost surfaces on cards (Token cost section in card detail),
-in `briefMe`'s pulse line, on the Sessions sheet, and on the per-project
+in `briefMe`'s pulse line, on the Handoffs sheet, and on the per-project
 **Costs page** at `/projects/<projectId>/costs` — four lenses: overhead,
 "Pigeon paid for itself" savings, cost-per-shipped-card, and model
 breakdown. Tracking is opt-in per agent — Pigeon never reads your transcript
