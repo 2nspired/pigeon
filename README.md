@@ -96,7 +96,7 @@ The full docs site lives at **[2nspired.github.io/pigeon](https://2nspired.githu
 - [Troubleshooting](https://2nspired.github.io/pigeon/troubleshooting/) — common failure modes with diagnose + fix steps; lead with `npm run doctor`.
 - [Commands](docs/commands.md) — every npm script with the moment you'd reach for it.
 - [`docs/SURFACES.md`](docs/SURFACES.md) — `tracker.md` vs `CLAUDE.md` vs `AGENTS.md` cheat sheet.
-- [`docs/token-tracking.md`](docs/token-tracking.md) — opt-in token cost capture, methodology, and the per-project Costs page.
+- [`docs/token-tracking.md`](docs/token-tracking.md) — operator setup for opt-in token cost capture (Stop hook wiring, silent-drop debugging).
 - [AGENTS.md](AGENTS.md) — contributor reference for agent conventions.
 
 ## Releases & upgrades

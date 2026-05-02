@@ -182,7 +182,7 @@ A rollback exists through step 4. After step 7 the migration is permanent.
 
 ## Out of Scope for This RFC
 
-- Multi-user `authorId`/`audienceId` (still deferred, per `docs/DESIGN-CONTEXT-MODEL.md`)
+- Multi-user `authorId`/`audienceId` (still deferred, per `docs/archive/DESIGN-CONTEXT-MODEL.md`)
 - Vocabulary canonicalization / alias resolution across claims
 - Branch-local facts (hard problem #3 in the design doc — the two-primitive collapse does not address it, but also does not make it harder)
 - Changing the `activity` table, `comment` table, or `cardRelation` table — those are card-adjacent, not knowledge-primitives
