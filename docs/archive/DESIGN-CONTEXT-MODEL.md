@@ -1,5 +1,7 @@
 # Context Model
 
+> **Archived 2026-05-01.** Design narrative through Phase 4 — the schema described below (`PersistentContextEntry`, `CodeFact`, `MeasurementFact`, `version Int @default(0)` optimistic locking) has since consolidated into `Note` + `Claim` + `Handoff` with last-write-wins semantics. See the Note + Claim primitives and Last-Write-Wins sections in `AGENTS.md` for the current model. Kept for historical reference of the design rationale that produced today's primitives.
+
 > If the human can't see it and correct it in the surface where they'd naturally encounter it, the agent shouldn't trust it.
 
 Pigeon is the first persistent project-knowledge tool whose data model assumes an agent is one of the users, not just an observer.

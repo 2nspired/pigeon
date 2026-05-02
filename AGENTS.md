@@ -234,8 +234,10 @@ in `briefMe`'s pulse line, on the Handoffs sheet, and on the per-project
 breakdown. Tracking is opt-in per agent — Pigeon never reads your transcript
 on its own.
 
-Token tracking: see [`docs/token-tracking.md`](docs/token-tracking.md) for the
-full coverage matrix and methodology.
+Token tracking: see [`docs/token-tracking.md`](docs/token-tracking.md) for
+operator setup (Stop hook + silent-drop debugging) and the docs-site
+[`/costs/`](https://2nspired.github.io/pigeon/costs/) page for the
+methodology (attribution, savings formula, pricing decisions).
 
 ### Claude Code (automatic)
 

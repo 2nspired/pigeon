@@ -2,10 +2,12 @@
 // card-detail empty state, and the in-app setup dialog's "Read more"
 // footer). Single source so all three surfaces stay in sync.
 //
-// Points at the local `docs/token-tracking.md` long-form companion (#197 U5)
-// — agent coverage matrix, counterfactual methodology, pricing/recalibrate
-// walkthroughs, and the FAQ. The previous AGENTS.md anchor is still the
-// minimal-path reference but the dialog footer wants the full doc.
+// Points at the local `docs/token-tracking.md` operator setup guide
+// — Stop-hook wiring, agent coverage matrix, silent-drop debugging.
+// Conceptual content (attribution, savings formula, pricing decisions,
+// limits) lives in the docs-site `/costs/` page (COST_TRACKING_DOCS_URL
+// below) — these are intentionally split so the dialog footer points at
+// the operator how-to and the methodology Sheet points at the narrative.
 
 export const TOKEN_TRACKING_DOCS_URL =
 	"https://github.com/2nspired/pigeon/blob/main/docs/token-tracking.md";
@@ -13,8 +15,8 @@ export const TOKEN_TRACKING_DOCS_URL =
 // Docs-site page that explains the cost surface — what gets recorded, how
 // attribution works, what overhead/savings measure, and the input-rate
 // decision (#204). Linked from `<SavingsMethodologySheet>` and from
-// `<TokenTrackingSetupDialog>`'s "Read more" footer alongside the long-form
-// docs/token-tracking.md companion.
+// `<TokenTrackingSetupDialog>`'s "Read more" footer alongside the operator
+// setup guide at docs/token-tracking.md.
 export const COST_TRACKING_DOCS_URL = "https://2nspired.github.io/pigeon/costs/";
 
 // Default placeholder when the server hasn't yet resolved a per-machine
