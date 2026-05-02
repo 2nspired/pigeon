@@ -40,6 +40,12 @@ type SetupState = "loading" | "not-configured" | "no-events" | "stale" | "workin
 // snippet treated as an editor block with a "tab" header showing the
 // destination path.
 
+// TODO(#217): teach the dialog the user-level vs project-level distinction
+// with two paste paths. The connect.sh side now installs the Stop hook into
+// `~/.claude-alt/settings.json` so this dialog should rarely surface for
+// connect.sh users — but for users who skip connect.sh we should make it
+// obvious that the user-level path is the right default.
+
 // All inline mentions go through `<InlineCode>` so paths, JSON keys, and
 // hint anchors render at one consistent weight instead of inheriting the
 // browser default `<code>` styling.
