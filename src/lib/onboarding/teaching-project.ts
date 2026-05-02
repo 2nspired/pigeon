@@ -140,11 +140,11 @@ export const teachingProject = {
 		{
 			title: "Track your costs",
 			description: [
-				"**What:** Pigeon captures token usage per session and surfaces it as a per-project Costs page with four lenses: **overhead** (what Pigeon's own MCP responses cost you), **savings** (what `briefMe` saved vs. cold-loading the full board), **cost-per-shipped-card** (run-rate for delivery), and **model breakdown** (where the spend went).",
-				"**Why it matters:** Knowing your token spend turns *Pigeon costs context tokens* into *Pigeon paid for itself* — measurable savings, not vibes. The Costs page is the one place where the value prop is concrete.",
+				"**What:** Pigeon captures token usage per session and surfaces it as a per-project Costs page with two surfaces today: a **summary strip** (lifetime cost, last-7-days sparkline, sessions count, tracking-since) and the per-model **pricing override table** so you can pin rates to whatever your provider actually charges. Per-card and per-session detail surfaces stay reachable via `<TokenCostChip>` and `<PigeonOverheadChip>` on the board's session/card sheets. Other deep-dive lenses (Pigeon-overhead breakdown, savings, cost-per-shipped-card) are deferred until card-attribution is automated end-to-end (#225).",
+				"**Why it matters:** Knowing your token spend turns *Pigeon costs context tokens* into *I can see exactly what this is costing me*. The Costs page is the one place where the spend is concrete.",
 				"**Try it (UI):** Open `/projects/<projectId>/costs` from this project's settings, or click Costs in the Project switcher. If it's empty, follow the in-page setup prompt to wire the Stop hook (one-time, ~30s).",
-				'**Try it (agent):** `briefMe()` returns a `tokenPulse` object with `totalCostUsd` + `sessionCount`. For the savings lens specifically: `runTool({ tool: "getSavingsSummary", params: { projectId } })` — and `runTool({ tool: "recalibrateBaseline", params: { projectId } })` to refresh the baseline if the board has grown a lot since setup.',
-				"**Outcome:** You can see per-card and per-session cost without leaving the app. The savings lens shows the dollar figure Pigeon kept out of your context window.",
+				'**Try it (agent):** `briefMe()` returns a `tokenPulse` object with `totalCostUsd` + `sessionCount`. To refresh the savings baseline after the board has grown: `runTool({ tool: "recalibrateBaseline", params: { projectId } })`.',
+				"**Outcome:** You can see lifetime cost + a recent-spend sparkline + per-session/per-card overhead chips without leaving the app.",
 			].join("\n\n"),
 			column: "Backlog",
 			priority: "MEDIUM",

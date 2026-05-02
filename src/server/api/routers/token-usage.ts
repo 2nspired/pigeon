@@ -89,25 +89,6 @@ export const tokenUsageRouter = createTRPCRouter({
 			return result.data;
 		}),
 
-	// Cost-per-shipped-card lens for the Costs page (#196 U4). Joins
-	// `Card.completedAt IS NOT NULL` to attributed token spend (same
-	// session-expansion rule as `getCardSummary`) and returns headline
-	// avg/total + top-5 list + previous-period avg for the delta arrow.
-	getCardDeliveryMetrics: publicProcedure
-		.input(
-			z.object({
-				projectId: z.string().uuid(),
-				period: z.enum(["7d", "30d", "lifetime"]).default("30d"),
-			})
-		)
-		.query(async ({ input }) => {
-			const result = await tokenUsageService.getCardDeliveryMetrics(input.projectId, input.period);
-			if (!result.success) {
-				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
-			}
-			return result.data;
-		}),
-
 	getDiagnostics: publicProcedure.query(async () => {
 		const result = await tokenUsageService.getDiagnostics();
 		if (!result.success) {
@@ -148,24 +129,6 @@ export const tokenUsageRouter = createTRPCRouter({
 			return result.data;
 		}),
 
-	// Pigeon overhead — total cost of MCP tool *responses* over a window,
-	// grouped by tool name. Drives the U2 "Pigeon overhead" section on the
-	// Costs page. #194
-	getPigeonOverhead: publicProcedure
-		.input(
-			z.object({
-				projectId: z.string().uuid(),
-				period: z.enum(["7d", "30d", "lifetime"]).default("7d"),
-			})
-		)
-		.query(async ({ input }) => {
-			const result = await tokenUsageService.getPigeonOverhead(input.projectId, input.period);
-			if (!result.success) {
-				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
-			}
-			return result.data;
-		}),
-
 	// Per-session Pigeon overhead — used by `<PigeonOverheadChip>` on
 	// session-detail surfaces. Returns 0/0 (not an error) when the session
 	// has no `ToolCallLog` rows so the chip can self-hide. #194
@@ -186,30 +149,6 @@ export const tokenUsageRouter = createTRPCRouter({
 		.input(z.object({ cardId: z.string().uuid() }))
 		.query(async ({ input }) => {
 			const result = await tokenUsageService.getCardPigeonOverhead(input.cardId);
-			if (!result.success) {
-				throw new TRPCError({
-					code: result.error.code === "NOT_FOUND" ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
-					message: result.error.message,
-				});
-			}
-			return result.data;
-		}),
-
-	// "Pigeon paid for itself" surface (#195 U3). Combines the F3 baseline
-	// (`Project.metadata.tokenBaseline`) with `briefMe` call count + period
-	// Pigeon overhead to produce a net savings number — honest, including
-	// when net is negative. Returns `state: "no-baseline"` when the project
-	// has not been recalibrated; the UI flips to a Recalibrate CTA in that
-	// state.
-	getSavingsSummary: publicProcedure
-		.input(
-			z.object({
-				projectId: z.string().uuid(),
-				period: z.enum(["7d", "30d", "lifetime"]).default("30d"),
-			})
-		)
-		.query(async ({ input }) => {
-			const result = await tokenUsageService.getSavingsSummary(input.projectId, input.period);
 			if (!result.success) {
 				throw new TRPCError({
 					code: result.error.code === "NOT_FOUND" ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",

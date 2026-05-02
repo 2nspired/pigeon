@@ -67,7 +67,9 @@ Card totals can sum to more than the project total. That's the design. Both numb
 
 ## 3. What "Pigeon overhead" measures
 
-The Pigeon overhead lens (`<PigeonOverheadSection>` on the Costs page) answers a sharp question: **what does it cost the agent to read Pigeon's tool responses?**
+> **Deferred (#225 / #236).** The project-wide Pigeon-overhead lens (`<PigeonOverheadSection>`) and its `getPigeonOverhead` procedure were removed from the rendered Costs page (#225) and then deleted from the codebase (#236) until card-attribution of Stop-hook events is automated end-to-end. The per-session and per-card variants — `getSessionPigeonOverhead` / `getCardPigeonOverhead` powering `<PigeonOverheadChip>` and `<CardPigeonOverheadChip>` on session/card surfaces — are still live. The methodology below describes the pre-removal design.
+
+The Pigeon overhead lens (`<PigeonOverheadSection>`, formerly on the Costs page) answered a sharp question: **what does it cost the agent to read Pigeon's tool responses?**
 
 Every MCP tool call writes a `ToolCallLog` row, and `responseTokens` on that row is a `chars/4` estimate of the response body. Multiplied by the session's `outputPerMTok` rate, that becomes the dollar number.
 
@@ -83,11 +85,13 @@ Sessions with no `TokenUsageEvent` rows fall back to `__default__` (zeroes), whi
 
 ## 4. What "savings" measures
 
-The headline lens — `<SavingsSection>`, the "Pigeon paid for itself" number — turns the persisted baseline into a dollar-denominated figure. This is where #204's locked decision lives, so read this section carefully.
+> **Deferred (#225 / #236).** The savings lens (`<SavingsSection>`) and its backing `getSavingsSummary` procedure were removed from the rendered Costs page (#225) and then deleted from the codebase (#236) — the persisted baseline (`Project.metadata.tokenBaseline`) and the `recalibrateBaseline` MCP/tRPC mutation that writes it both stay live, so the methodology below remains computable; it's just not surfaced as a UI lens until card-attribution is automated end-to-end.
+
+The headline lens — `<SavingsSection>`, the "Pigeon paid for itself" number — turned the persisted baseline into a dollar-denominated figure. This is where #204's locked decision lives, so read this section carefully even while the lens is dormant.
 
 ### Baseline recalibration
 
-`recalibrateBaseline({ projectId })` (MCP tool, or the **Recalibrate baseline** button in the methodology Sheet) measures two payload sizes at the current board state:
+`recalibrateBaseline({ projectId })` (MCP tool — the methodology Sheet that previously hosted the Recalibrate button was removed alongside `<SavingsSection>` in #236) measures two payload sizes at the current board state:
 
 - **`naiveBootstrapTokens`** — the size of `getBoard` + `getLatestHandoff` responses. What the agent would have to pull in to reach the same context briefMe produces, if briefMe didn't exist.
 - **`briefMeTokens`** — the actual `briefMe` MCP response token count.
@@ -173,13 +177,13 @@ By design — see the session-expansion rule in [§2](#2-how-attribution-works).
 
 ### Sessions with `cardId = null` show up in project totals but not card totals
 
-If neither `briefMe` nor `saveHandoff` resolved an active card for the session — manual recording paths, very short sessions, sessions that touched zero cards — the row stays at `cardId = null`. It still aggregates into `getProjectSummary`, the Costs page summary strip, and `getDailyCostSeries`, but it never lands in any `getCardSummary`. The Cost-per-shipped-card lens (`<CardDeliverySection>`) carries a permanent caption *"Cards with no attributed token events are excluded"* that flags this case in-app.
+If neither `briefMe` nor `saveHandoff` resolved an active card for the session — manual recording paths, very short sessions, sessions that touched zero cards — the row stays at `cardId = null`. It still aggregates into `getProjectSummary`, the Costs page summary strip, and `getDailyCostSeries`, but it never lands in any `getCardSummary`. (The Cost-per-shipped-card lens / `<CardDeliverySection>` that previously carried a permanent caption *"Cards with no attributed token events are excluded"* was removed in #236.)
 
 If you want to retroactively attribute a session to a card, call the `attributeSession` MCP tool directly with the `sessionId` and `cardId`.
 
 ### Lifetime queries are in-memory
 
-`getPigeonOverhead`, `getSavingsSummary`, and the per-card / per-milestone summaries all do their aggregation in-memory after a SQLite scan. For projects with hundreds of thousands of events this would matter; for the typical local-first single-developer project it doesn't. The Costs page caps the per-session log at 10 entries to keep the round-trip lean.
+The per-card / per-milestone summaries do their aggregation in-memory after a SQLite scan. For projects with hundreds of thousands of events this would matter; for the typical local-first single-developer project it doesn't.
 
 ### Pricing defaults can drift
 

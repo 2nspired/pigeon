@@ -14,9 +14,10 @@ export const TOKEN_TRACKING_DOCS_URL =
 
 // Docs-site page that explains the cost surface — what gets recorded, how
 // attribution works, what overhead/savings measure, and the input-rate
-// decision (#204). Linked from `<SavingsMethodologySheet>` and from
-// `<TokenTrackingSetupDialog>`'s "Read more" footer alongside the operator
-// setup guide at docs/token-tracking.md.
+// decision (#204). Linked from `<TokenTrackingSetupDialog>`'s "Read more"
+// footer alongside the operator setup guide at docs/token-tracking.md.
+// (Was also linked from `<SavingsMethodologySheet>` until that component
+// was removed alongside the savings lens in #236.)
 export const COST_TRACKING_DOCS_URL = "https://2nspired.github.io/pigeon/costs/";
 
 // Default placeholder when the server hasn't yet resolved a per-machine

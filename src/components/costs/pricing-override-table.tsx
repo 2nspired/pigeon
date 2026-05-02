@@ -84,10 +84,12 @@ type NewRow = {
 // state until "Save pricing" — at which point we flatten the working set
 // into the `tokenUsage.updatePricing` mutation payload.
 //
-// Ordering note: this component is mounted *after* the lenses on the costs
-// page so it lives below the analytics surface — pricing is configuration,
-// not a metric, and this keeps the visual hierarchy "metrics first, knobs
-// after". Coordinated with U3 (#195 SavingsSection) which inserts before us.
+// Ordering note: this component is mounted after `<SummaryStrip>` on the
+// costs page so it lives below the metrics surface — pricing is
+// configuration, not a metric, and this keeps the visual hierarchy
+// "metrics first, knobs after". (Pre-#236 it was also preceded by the
+// `<SavingsSection>` / `<PigeonOverheadSection>` / `<CardDeliverySection>`
+// lenses, which were removed alongside their backing procedures.)
 export function PricingOverrideTable({ projectId: _projectId, projectSummary }: Props) {
 	const utils = api.useUtils();
 	const { data: pricing, isLoading } = api.tokenUsage.getPricing.useQuery(undefined, {

@@ -46,8 +46,9 @@ describe("formatBoardShare (C3 guard)", () => {
 	it("handles a zero board total gracefully (0.0%, not '—')", () => {
 		// Important — board mode with no attributed events but a populated
 		// project should still display a real number, not the placeholder.
-		// The empty-state branch in <SavingsSection> handles the user-facing
-		// messaging; the strip just shows the math.
+		// (`<SavingsSection>` previously owned the user-facing empty-state
+		// messaging here; it was deleted in #236 along with the rest of the
+		// dormant lenses, but the math here stays the same.)
 		expect(formatBoardShare(0, 100)).toBe("0.0%");
 	});
 });

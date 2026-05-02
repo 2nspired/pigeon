@@ -742,205 +742,6 @@ async function getDailyCostSeries(
 	}
 }
 
-// ─── Card delivery metrics (#196 U4) ───────────────────────────────
-//
-// "Shipped" definition for this surface: `Card.completedAt IS NOT NULL` —
-// `card-service.ts` stamps that field on entry to a Done-role column and
-// clears it on exit, so it's the stable source of truth (Activity rows are
-// not consulted). We join shipped cards to their attributed token spend so
-// the Costs page can render "12 cards shipped, $7 avg, ↑ from $5 last
-// period" without an agent having to eyeball the board.
-//
-// Cost attribution mirrors `getCardSummary`'s session-expansion rule: any
-// `TokenUsageEvent` directly attributed to the card *plus* any event whose
-// `sessionId` was anchored to the card via the same direct-attribution
-// chain. F2's `attributeSession` MCP tool closes most of the un-attributed
-// gap — events that still lack a `cardId` after that are intentionally
-// excluded ("no AI involvement on record"). Cards with $0 cost are dropped
-// from the headline so they don't dilute the average.
-
-export type CardDeliveryPeriod = "7d" | "30d" | "lifetime";
-
-export type CardDeliveryEntry = {
-	cardId: string;
-	cardNumber: number;
-	cardTitle: string;
-	completedAt: Date;
-	totalCostUsd: number;
-};
-
-export type CardDeliveryMetrics = {
-	shippedCount: number;
-	avgCostUsd: number;
-	totalCostUsd: number;
-	top5: CardDeliveryEntry[];
-	periodLabel: CardDeliveryPeriod;
-	periodStartDate: Date | null;
-	previousPeriodAvgCostUsd: number | null;
-};
-
-const PERIOD_DAYS: Record<Exclude<CardDeliveryPeriod, "lifetime">, number> = {
-	"7d": 7,
-	"30d": 30,
-};
-
-// Sum the cost of a shipped card using the same "session-expansion" rule
-// `getCardSummary` applies — direct rows + session-shared rows. Returns 0
-// when no events resolve, in which case the caller filters this card out
-// of the avg/total math (see exclusion note above).
-async function sumCardCost(
-	cardId: string,
-	projectId: string,
-	pricing: Record<string, ModelPricing>
-): Promise<number> {
-	const directRows = await db.tokenUsageEvent.findMany({
-		where: { cardId },
-		select: { sessionId: true },
-	});
-	const sessionIds = Array.from(new Set(directRows.map((r) => r.sessionId)));
-	if (sessionIds.length === 0) {
-		// No direct attribution → no cost to count for this card. Skipping
-		// the second query saves a roundtrip on the (large) shipped-but-no-
-		// AI-involvement subset of cards.
-		return 0;
-	}
-	const events = await db.tokenUsageEvent.findMany({
-		where: {
-			projectId,
-			OR: [{ cardId }, { sessionId: { in: sessionIds } }],
-		},
-		select: {
-			model: true,
-			inputTokens: true,
-			outputTokens: true,
-			cacheReadTokens: true,
-			cacheCreation1hTokens: true,
-			cacheCreation5mTokens: true,
-		},
-	});
-	let total = 0;
-	for (const event of events) total += computeCost(event, pricing);
-	return total;
-}
-
-// Average cost over shipped+priced cards in `[periodStart, periodEnd)`.
-// Returns null when no priced cards land in the window — used by the
-// previous-period comparison so the caller can hide the delta arrow when
-// the prior window is empty rather than rendering a meaningless "↑ from $0".
-async function avgCostForWindow(
-	projectId: string,
-	periodStart: Date,
-	periodEnd: Date,
-	pricing: Record<string, ModelPricing>
-): Promise<number | null> {
-	const cards = await db.card.findMany({
-		where: {
-			projectId,
-			completedAt: { gte: periodStart, lt: periodEnd },
-		},
-		select: { id: true },
-	});
-	if (cards.length === 0) return null;
-	let pricedCount = 0;
-	let totalCost = 0;
-	for (const card of cards) {
-		const cost = await sumCardCost(card.id, projectId, pricing);
-		if (cost > 0) {
-			pricedCount += 1;
-			totalCost += cost;
-		}
-	}
-	if (pricedCount === 0) return null;
-	return totalCost / pricedCount;
-}
-
-async function getCardDeliveryMetrics(
-	projectId: string,
-	period: CardDeliveryPeriod
-): Promise<ServiceResult<CardDeliveryMetrics>> {
-	try {
-		const pricing = await loadPricing(db);
-		const now = new Date();
-
-		// Window math: 7d → [now-7d, now); 30d → [now-30d, now). Lifetime
-		// uses null so the Prisma where-clause skips the lower bound.
-		const periodStartDate =
-			period === "lifetime"
-				? null
-				: new Date(now.getTime() - PERIOD_DAYS[period] * 24 * 60 * 60 * 1000);
-
-		const cards = await db.card.findMany({
-			where: {
-				projectId,
-				completedAt: periodStartDate ? { gte: periodStartDate, not: null } : { not: null },
-			},
-			select: { id: true, number: true, title: true, completedAt: true },
-		});
-
-		// Compute cost per card serially. Cards-shipped-per-period is bounded
-		// in the dozens for any realistic Pigeon project, so a parallel
-		// `Promise.all` would just hammer SQLite without a meaningful win.
-		const entries: CardDeliveryEntry[] = [];
-		let totalCostUsd = 0;
-		let pricedCount = 0;
-		let shippedCount = 0;
-		for (const card of cards) {
-			if (!card.completedAt) continue; // satisfies TS narrowing
-			shippedCount += 1;
-			const cost = await sumCardCost(card.id, projectId, pricing);
-			if (cost <= 0) continue; // exclude $0 cards from headline math
-			pricedCount += 1;
-			totalCostUsd += cost;
-			entries.push({
-				cardId: card.id,
-				cardNumber: card.number,
-				cardTitle: card.title,
-				completedAt: card.completedAt,
-				totalCostUsd: cost,
-			});
-		}
-
-		const top5 = entries.sort((a, b) => b.totalCostUsd - a.totalCostUsd).slice(0, 5);
-		const avgCostUsd = pricedCount > 0 ? totalCostUsd / pricedCount : 0;
-
-		// Previous-period comparison: same window length, immediately before
-		// the current one. Hidden for lifetime (no "previous lifetime"). The
-		// avgCostForWindow helper returns null when the prior window has zero
-		// priced cards — UI uses that to suppress the delta arrow rather than
-		// drawing a phantom comparison against $0.
-		let previousPeriodAvgCostUsd: number | null = null;
-		if (period !== "lifetime" && periodStartDate) {
-			const days = PERIOD_DAYS[period];
-			const prevStart = new Date(periodStartDate.getTime() - days * 24 * 60 * 60 * 1000);
-			previousPeriodAvgCostUsd = await avgCostForWindow(
-				projectId,
-				prevStart,
-				periodStartDate,
-				pricing
-			);
-		}
-
-		return {
-			success: true,
-			data: {
-				shippedCount,
-				avgCostUsd,
-				totalCostUsd,
-				top5,
-				periodLabel: period,
-				periodStartDate,
-				previousPeriodAvgCostUsd,
-			},
-		};
-	} catch (error) {
-		console.error("[TOKEN_USAGE_SERVICE] getCardDeliveryMetrics error:", error);
-		return {
-			success: false,
-			error: { code: "QUERY_FAILED", message: "Failed to load card delivery metrics." },
-		};
-	}
-}
-
 // ─── Setup diagnostics ─────────────────────────────────────────────
 
 export type SetupConfigPath = {
@@ -1340,12 +1141,13 @@ async function recalibrateBaseline(projectId: string): Promise<ServiceResult<Bas
 	}
 }
 
-// ─── Pigeon overhead lens (#194 U2) ────────────────────────────────
+// ─── Pigeon overhead helpers (#194 U2) ─────────────────────────────
 //
 // Surfaces the cost of Pigeon's own MCP tool *responses* — what the
 // agent paid in `outputPerMTok` to read tool results. F1 (#190) added
-// `responseTokens` (chars/4 of the result body) on `ToolCallLog`; this
-// section turns those bytes into a dollar number, grouped per tool.
+// `responseTokens` (chars/4 of the result body) on `ToolCallLog`; the
+// helpers below turn those bytes into a dollar number on a per-session
+// or per-card basis.
 //
 // Pricing rule: a tool call's response is text the agent later reads as
 // model input on the next turn — but for the agent that *just produced*
@@ -1355,127 +1157,12 @@ async function recalibrateBaseline(projectId: string): Promise<ServiceResult<Bas
 // from the `model` of any TokenUsageEvent for that session; sessions
 // with no token rows fall back to `__default__` (zero) so an unwired
 // project produces a clean $0 instead of an inflated estimate.
-
-export type PigeonOverheadByTool = {
-	toolName: string;
-	callCount: number;
-	avgResponseTokens: number;
-	totalCostUsd: number;
-};
-
-export type PigeonOverheadResult = {
-	totalResponseTokens: number;
-	totalCostUsd: number;
-	byTool: PigeonOverheadByTool[];
-	sessionCount: number;
-};
-
-export type PigeonOverheadPeriod = "7d" | "30d" | "lifetime";
-
-function periodCutoff(period: PigeonOverheadPeriod): Date | null {
-	if (period === "lifetime") return null;
-	const days = period === "7d" ? 7 : 30;
-	return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-}
-
-async function getPigeonOverhead(
-	projectId: string,
-	period: PigeonOverheadPeriod
-): Promise<ServiceResult<PigeonOverheadResult>> {
-	try {
-		const cutoff = periodCutoff(period);
-
-		// Resolve the session set the period applies to via TokenUsageEvent —
-		// the canonical source of "sessions in this project". A session
-		// counts as in-period when *any* event for it landed in the window.
-		// Lifetime: every distinct sessionId for this project.
-		const sessionRows = await db.tokenUsageEvent.findMany({
-			where: { projectId, ...(cutoff ? { recordedAt: { gte: cutoff } } : {}) },
-			select: { sessionId: true, model: true },
-		});
-		if (sessionRows.length === 0) {
-			return {
-				success: true,
-				data: { totalResponseTokens: 0, totalCostUsd: 0, byTool: [], sessionCount: 0 },
-			};
-		}
-
-		// Pick a representative model per session for pricing. Sessions can
-		// have multiple model rows (subagent or model switch); we take the
-		// first one — the cost contribution per tool call is small enough
-		// that mixing rates inside a session would overstate precision.
-		const sessionModel = new Map<string, string>();
-		for (const row of sessionRows) {
-			if (!sessionModel.has(row.sessionId)) sessionModel.set(row.sessionId, row.model);
-		}
-		const sessionIds = Array.from(sessionModel.keys());
-
-		const [logs, pricing] = await Promise.all([
-			// `ToolCallLog` has no `projectId` column — sessionId scoping is safe
-			// today because `sessionIds` is derived from this project's
-			// `TokenUsageEvent` rows (caller-provided sessionIds are
-			// project-scoped at write time), so a cross-project sessionId
-			// collision would have to be deliberate. If multi-project sessionId
-			// reuse becomes possible, add a JOIN through the corresponding
-			// token-usage rows here so we can't leak another project's overhead.
-			db.toolCallLog.findMany({
-				where: { sessionId: { in: sessionIds } },
-				select: { toolName: true, sessionId: true, responseTokens: true },
-			}),
-			loadPricing(db),
-		]);
-
-		type ToolAcc = { callCount: number; totalResponseTokens: number; totalCostUsd: number };
-		const byToolMap = new Map<string, ToolAcc>();
-		let totalResponseTokens = 0;
-		let totalCostUsd = 0;
-
-		for (const log of logs) {
-			const model = sessionModel.get(log.sessionId);
-			if (!model) continue;
-			const rates = pricing[model] ?? pricing.__default__ ?? DEFAULT_PRICING_DEFAULT;
-			const cost = (log.responseTokens / 1_000_000) * rates.outputPerMTok;
-			totalResponseTokens += log.responseTokens;
-			totalCostUsd += cost;
-
-			const existing = byToolMap.get(log.toolName) ?? {
-				callCount: 0,
-				totalResponseTokens: 0,
-				totalCostUsd: 0,
-			};
-			existing.callCount += 1;
-			existing.totalResponseTokens += log.responseTokens;
-			existing.totalCostUsd += cost;
-			byToolMap.set(log.toolName, existing);
-		}
-
-		const byTool: PigeonOverheadByTool[] = Array.from(byToolMap.entries())
-			.map(([toolName, acc]) => ({
-				toolName,
-				callCount: acc.callCount,
-				avgResponseTokens:
-					acc.callCount === 0 ? 0 : Math.round(acc.totalResponseTokens / acc.callCount),
-				totalCostUsd: acc.totalCostUsd,
-			}))
-			.sort((a, b) => b.totalCostUsd - a.totalCostUsd);
-
-		return {
-			success: true,
-			data: {
-				totalResponseTokens,
-				totalCostUsd,
-				byTool,
-				sessionCount: sessionIds.length,
-			},
-		};
-	} catch (error) {
-		console.error("[TOKEN_USAGE_SERVICE] getPigeonOverhead error:", error);
-		return {
-			success: false,
-			error: { code: "QUERY_FAILED", message: "Failed to load Pigeon overhead." },
-		};
-	}
-}
+//
+// History: this section used to also expose `getPigeonOverhead`, the
+// project-wide period-windowed lens that backed `<PigeonOverheadSection>`
+// on the Costs page. That procedure + its component were removed in
+// #236. The per-session and per-card variants stay — they back the
+// `<PigeonOverheadChip>` / `<CardPigeonOverheadChip>` surfaces.
 
 // Card-scoped variant of `getSessionPigeonOverhead` — aggregates Pigeon
 // tool overhead across every session that touched this card, using the
@@ -1501,10 +1188,9 @@ async function getCardPigeonOverhead(
 			return { success: true, data: { totalCostUsd: 0, callCount: 0 } };
 		}
 
-		// Pick a representative model per session — same approach as
-		// `getPigeonOverhead`: first event's model wins. Scope to this card's
-		// project so a session-id collision across projects doesn't resolve
-		// pricing from the wrong project.
+		// Pick a representative model per session — first event's model wins.
+		// Scope to this card's project so a session-id collision across
+		// projects doesn't resolve pricing from the wrong project.
 		const eventRows = await db.tokenUsageEvent.findMany({
 			where: { sessionId: { in: sessionIds }, projectId: card.projectId },
 			select: { sessionId: true, model: true },
@@ -1536,245 +1222,6 @@ async function getCardPigeonOverhead(
 		return {
 			success: false,
 			error: { code: "QUERY_FAILED", message: "Failed to load card overhead." },
-		};
-	}
-}
-
-// ─── Savings summary (#195 U3) ─────────────────────────────────────
-//
-// "Pigeon paid for itself" — turns the F3 baseline (`Project.metadata.
-// tokenBaseline`) into a dollar-denominated headline by:
-//   1. counting how many `briefMe` calls fired in the period
-//      (`ToolCallLog.toolName = 'briefMe'` joined to sessions whose token
-//      events landed in-window),
-//   2. multiplying the per-call savings (naiveBootstrap − briefMe) ×
-//      project's primary `inputPerMTok` rate × that count,
-//   3. subtracting `getPigeonOverhead`'s totalCostUsd over the same window
-//      so the headline is *net* (gross savings minus what Pigeon's tool
-//      responses themselves cost the agent in output tokens).
-//
-// Why input rate, not output rate (#204, locked 2026-05-01):
-// The avoided tokens here are the briefMe payload the consumer would have
-// otherwise had to *read* on its next turn. Anthropic bills payload reads
-// as input tokens, so the savings are the input-rate cost we did not pay
-// — pricing them at output rate would inflate the headline ~5× under
-// default Anthropic pricing without a defensible billing model behind it.
-// Switching to input rate gives `<SavingsSection>` a single, defensible
-// "what you'd actually pay" number.
-//
-// Asymmetry with `getPigeonOverhead`: overhead stays priced at
-// `outputPerMTok` because the agent *emits* tool responses (those tokens
-// land on the assistant side of the bill). Both framings are correct in
-// their own direction — savings = avoided input read on the consumer
-// side, overhead = output the agent actually produced. The asymmetry is
-// load-bearing, not a typo.
-//
-// Conservative framing: we assume one briefMe-equivalent rebuild per
-// session would have been needed in the naive case (i.e. `briefMeCallCount`
-// stands in for "sessions that benefited from Pigeon"). This under-counts
-// savings on multi-resume sessions and intentionally over-attributes
-// overhead to the same window; the resulting net is a lower bound the UI
-// renders honestly even when negative.
-
-export type SavingsPeriod = "7d" | "30d" | "lifetime";
-
-export type SavingsSessionEntry = {
-	sessionId: string;
-	savingsUsd: number;
-	pigeonCostUsd: number;
-	recordedAt: Date;
-};
-
-export type SavingsSummary =
-	| { state: "no-baseline" }
-	| {
-			state: "ready";
-			netSavingsUsd: number;
-			grossSavingsUsd: number;
-			pigeonOverheadUsd: number;
-			briefMeCallCount: number;
-			baseline: {
-				measuredAt: string;
-				naiveBootstrapTokens: number;
-				briefMeTokens: number;
-			};
-			period: SavingsPeriod;
-			perSessionLog: SavingsSessionEntry[];
-	  };
-
-// Reads the persisted baseline blob, returning null when the project
-// hasn't been recalibrated yet OR when the blob exists but is missing the
-// fields the savings math depends on. Keeps "no-baseline" as a single
-// surface state — the UI doesn't need to distinguish "no metadata" from
-// "metadata but no baseline keys".
-function readTokenBaseline(metadataRaw: string | null | undefined): {
-	measuredAt: string;
-	naiveBootstrapTokens: number;
-	briefMeTokens: number;
-} | null {
-	if (!metadataRaw) return null;
-	const parsed = safeParseJson(metadataRaw);
-	const baseline = parsed.tokenBaseline;
-	if (!baseline || typeof baseline !== "object" || Array.isArray(baseline)) return null;
-	const b = baseline as Record<string, unknown>;
-	const measuredAt = typeof b.measuredAt === "string" ? b.measuredAt : null;
-	const naiveBootstrapTokens =
-		typeof b.naiveBootstrapTokens === "number" && Number.isFinite(b.naiveBootstrapTokens)
-			? b.naiveBootstrapTokens
-			: null;
-	const briefMeTokens =
-		typeof b.briefMeTokens === "number" && Number.isFinite(b.briefMeTokens)
-			? b.briefMeTokens
-			: null;
-	if (measuredAt === null || naiveBootstrapTokens === null || briefMeTokens === null) return null;
-	return { measuredAt, naiveBootstrapTokens, briefMeTokens };
-}
-
-function savingsCutoff(period: SavingsPeriod): Date | null {
-	if (period === "lifetime") return null;
-	const days = period === "7d" ? 7 : 30;
-	return new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-}
-
-async function getSavingsSummary(
-	projectId: string,
-	period: SavingsPeriod
-): Promise<ServiceResult<SavingsSummary>> {
-	try {
-		// Step 1: baseline gate. Without `tokenBaseline.{naive,brief}Tokens`,
-		// the savings math has no input — surface the "no-baseline" state so
-		// the UI can render the Recalibrate CTA in place of fake numbers.
-		const project = await db.project.findUnique({
-			where: { id: projectId },
-			select: { metadata: true },
-		});
-		if (!project) {
-			return { success: false, error: { code: "NOT_FOUND", message: "Project not found." } };
-		}
-		const baseline = readTokenBaseline(project.metadata);
-		if (!baseline) {
-			return { success: true, data: { state: "no-baseline" } };
-		}
-
-		// Step 2: scope to the period via TokenUsageEvent — same convention
-		// used by `getPigeonOverhead`. A session counts as in-period when any
-		// of its events landed in the window.
-		const cutoff = savingsCutoff(period);
-		const eventRows = await db.tokenUsageEvent.findMany({
-			where: { projectId, ...(cutoff ? { recordedAt: { gte: cutoff } } : {}) },
-			select: { sessionId: true, model: true, recordedAt: true },
-			orderBy: { recordedAt: "desc" },
-		});
-
-		const sessionFirstModel = new Map<string, string>();
-		const sessionLatestEvent = new Map<string, Date>();
-		// `eventRows` is ordered by `recordedAt` desc (see query above), so the
-		// first row we see per `sessionId` is already the most recent — a plain
-		// `has()` guard is sufficient. No `> existing` comparison needed.
-		for (const row of eventRows) {
-			if (!sessionFirstModel.has(row.sessionId)) sessionFirstModel.set(row.sessionId, row.model);
-			if (!sessionLatestEvent.has(row.sessionId))
-				sessionLatestEvent.set(row.sessionId, row.recordedAt);
-		}
-		const sessionIds = Array.from(sessionFirstModel.keys());
-
-		// Pricing: prefer the most-recent session's model rate as "primary",
-		// falling back to `__default__` when no sessions exist in-window.
-		// This is honest about uncertainty — a project with one ancient opus
-		// session and a fresh sonnet session should price savings at sonnet.
-		const pricing = await loadPricing(db);
-		const primaryModel = eventRows.length > 0 ? (eventRows[0]?.model ?? null) : null;
-		const primaryRates =
-			(primaryModel && pricing[primaryModel]) || pricing.__default__ || DEFAULT_PRICING_DEFAULT;
-		// Savings are priced at the consumer-side *input* rate — the avoided
-		// briefMe payload would have been read as input tokens on the next
-		// turn (see doc comment above for the rationale + asymmetry note).
-		const inputPerMTok = primaryRates.inputPerMTok;
-
-		// Step 3: count briefMe calls in this period (sessions in-window
-		// that called the briefMe MCP tool). One row per call.
-		const briefMeLogs =
-			sessionIds.length > 0
-				? await db.toolCallLog.findMany({
-						where: {
-							sessionId: { in: sessionIds },
-							toolName: "briefMe",
-						},
-						select: { sessionId: true, createdAt: true },
-					})
-				: [];
-		const briefMeCallCount = briefMeLogs.length;
-
-		// Step 4: gross savings — per-call delta × call count × project rate.
-		const perCallSavingsTokens = baseline.naiveBootstrapTokens - baseline.briefMeTokens;
-		const grossSavingsUsd =
-			(Math.max(0, perCallSavingsTokens) * inputPerMTok * briefMeCallCount) / 1_000_000;
-
-		// Step 5: Pigeon overhead over the same window — reuses the U2
-		// service so the numerator and denominator can never drift.
-		const overheadResult = await getPigeonOverhead(projectId, period);
-		const pigeonOverheadUsd = overheadResult.success ? overheadResult.data.totalCostUsd : 0;
-
-		const netSavingsUsd = grossSavingsUsd - pigeonOverheadUsd;
-
-		// Step 6: per-session log — last 10 sessions in-window, recordedAt
-		// desc. Each entry's `savingsUsd` is the per-session contribution
-		// (calls in this session × per-call dollar savings) and
-		// `pigeonCostUsd` is the session's overhead via
-		// `getSessionPigeonOverhead` for the trimmed top-10.
-		const briefMeBySession = new Map<string, number>();
-		for (const log of briefMeLogs) {
-			briefMeBySession.set(log.sessionId, (briefMeBySession.get(log.sessionId) ?? 0) + 1);
-		}
-
-		const orderedSessions = Array.from(sessionLatestEvent.entries())
-			.sort((a, b) => b[1].getTime() - a[1].getTime())
-			.slice(0, 10);
-
-		// Pre-compute per-session overhead in parallel. Sequential awaits here
-		// fired up to 10 round-trips per Costs-page render; `Promise.all` keeps
-		// the math identical (results array is index-aligned with
-		// `orderedSessions`) while collapsing latency to a single batch.
-		const sessionOverheads = await Promise.all(
-			orderedSessions.map(([sessionId]) => getSessionPigeonOverhead(sessionId))
-		);
-		const perSessionLog: SavingsSessionEntry[] = orderedSessions.map(
-			([sessionId, recordedAt], i) => {
-				const calls = briefMeBySession.get(sessionId) ?? 0;
-				const savingsUsd = (Math.max(0, perCallSavingsTokens) * inputPerMTok * calls) / 1_000_000;
-				const sessionOverhead = sessionOverheads[i];
-				const pigeonCostUsd = sessionOverhead?.success ? sessionOverhead.data.totalCostUsd : 0;
-				return {
-					sessionId,
-					savingsUsd,
-					pigeonCostUsd,
-					recordedAt,
-				};
-			}
-		);
-
-		return {
-			success: true,
-			data: {
-				state: "ready",
-				netSavingsUsd,
-				grossSavingsUsd,
-				pigeonOverheadUsd,
-				briefMeCallCount,
-				baseline: {
-					measuredAt: baseline.measuredAt,
-					naiveBootstrapTokens: baseline.naiveBootstrapTokens,
-					briefMeTokens: baseline.briefMeTokens,
-				},
-				period,
-				perSessionLog,
-			},
-		};
-	} catch (error) {
-		console.error("[TOKEN_USAGE_SERVICE] getSavingsSummary error:", error);
-		return {
-			success: false,
-			error: { code: "QUERY_FAILED", message: "Failed to load savings summary." },
 		};
 	}
 }
@@ -1837,15 +1284,12 @@ export const tokenUsageService = {
 	getCardSummary,
 	getMilestoneSummary,
 	getDailyCostSeries,
-	getCardDeliveryMetrics,
 	getDiagnostics,
 	getPricing,
 	updatePricing,
 	recalibrateBaseline,
-	getPigeonOverhead,
 	getSessionPigeonOverhead,
 	getCardPigeonOverhead,
-	getSavingsSummary,
 };
 
 /** Test seam: lets unit tests exercise the hook-detection logic without
