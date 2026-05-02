@@ -1,9 +1,18 @@
+import { readFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "./db.js";
 import { buildServerManifest } from "./manifest.js";
 import { generateStatusMarkdown } from "./tools/status-tools.js";
 import { toToon } from "./toon.js";
+
+// Repo root resolved from this file's location, not process.cwd(), so the
+// resolution is stable regardless of how the server was launched. The
+// agent-guide resource reads `docs/AGENT-GUIDE.md` relative to this root.
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const AGENT_GUIDE_PATH = resolve(REPO_ROOT, "docs/AGENT-GUIDE.md");
 
 /**
  * Register MCP resources — read-only views of tracker data.
@@ -35,6 +44,47 @@ export function registerResources(server: McpServer) {
 					},
 				],
 			};
+		}
+	);
+
+	// ─── Agent guide resource ──────────────────────────────────────
+	// Project-agnostic best-practices guide for any AI agent using Pigeon.
+	// Modeled on the server-manifest resource (static URI, single read).
+	// Handler does live `fs.readFile` at request time — no copy, no cache —
+	// so edits to docs/AGENT-GUIDE.md surface immediately without a restart.
+	server.registerResource(
+		"agent-guide",
+		"tracker://server/agent-guide",
+		{
+			title: "Pigeon Agent Guide",
+			description:
+				"Project-agnostic best-practices guide for any AI agent using Pigeon (column conventions, intent on writes, planCard workflow, handoff cadence).",
+			mimeType: "text/markdown",
+		},
+		async (uri) => {
+			try {
+				const text = await readFile(AGENT_GUIDE_PATH, "utf8");
+				return {
+					contents: [
+						{
+							uri: uri.href,
+							text,
+							mimeType: "text/markdown",
+						},
+					],
+				};
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				return {
+					contents: [
+						{
+							uri: uri.href,
+							text: `Failed to read agent guide at ${AGENT_GUIDE_PATH}: ${message}`,
+							mimeType: "text/plain",
+						},
+					],
+				};
+			}
 		}
 	);
 
