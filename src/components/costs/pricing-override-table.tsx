@@ -125,7 +125,7 @@ export function PricingOverrideTable({ projectId: _projectId, projectSummary }: 
 
 	if (isLoading || !pricing) {
 		return (
-			<Section step="05" title="Pricing">
+			<Section step="01" title="Pricing">
 				<p className="text-xs text-muted-foreground">Loading pricing…</p>
 			</Section>
 		);
@@ -232,7 +232,7 @@ export function PricingOverrideTable({ projectId: _projectId, projectSummary }: 
 	const isSaving = updatePricing.isPending;
 
 	return (
-		<Section step="05" title="Pricing">
+		<Section step="01" title="Pricing">
 			<VerifiedBanner />
 
 			{/* Visually a table; semantically a stack of labelled rows. We
