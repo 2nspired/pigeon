@@ -21,6 +21,12 @@ export const reorderMilestonesSchema = z.object({
 	orderedIds: z.array(z.string().uuid()),
 });
 
+export const mergeMilestonesSchema = z.object({
+	fromMilestoneId: z.string().uuid(),
+	intoMilestoneId: z.string().uuid(),
+});
+
 export type CreateMilestoneInput = z.infer<typeof createMilestoneSchema>;
 export type UpdateMilestoneInput = z.infer<typeof updateMilestoneSchema>;
 export type ReorderMilestonesInput = z.infer<typeof reorderMilestonesSchema>;
+export type MergeMilestonesInput = z.infer<typeof mergeMilestonesSchema>;
