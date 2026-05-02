@@ -10,7 +10,7 @@ You see a board. The agent reads and writes the same board through MCP. Nothing 
 
 [Documentation](https://2nspired.github.io/pigeon/) · [Quickstart](https://2nspired.github.io/pigeon/quickstart/) · [The session loop](https://2nspired.github.io/pigeon/workflow/) · [Why local-first?](https://2nspired.github.io/pigeon/why/)
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-1a73e8?style=flat-square)](LICENSE) [![MCP](https://img.shields.io/badge/MCP-stdio-3f51b5?style=flat-square)](https://modelcontextprotocol.io) [![Local-first](https://img.shields.io/badge/storage-SQLite%20on%20disk-444?style=flat-square)](docs/how-it-works.md)
+[![License: MIT](https://img.shields.io/badge/license-MIT-1a73e8?style=flat-square)](LICENSE) [![MCP](https://img.shields.io/badge/MCP-stdio-3f51b5?style=flat-square)](https://modelcontextprotocol.io) [![Local-first](https://img.shields.io/badge/storage-SQLite%20on%20disk-444?style=flat-square)](https://2nspired.github.io/pigeon/concepts/)
 
 <br />
 
@@ -26,18 +26,33 @@ Coding-agent conversations end. The question isn't *whether* — it's **what car
 
 The metaphor is in the name — agent A wraps a session with `saveHandoff`; the homing pigeon flies the message across the gap; agent B catches it at `briefMe` and starts in-context. Same SQLite file backs the kanban UI you drag cards around in and the MCP surface your agent calls. Nothing leaves your machine.
 
-For the long-form design narrative — the two readers, the board, the `tracker.md` policy contract, the MCP surface — see [docs/how-it-works.md](docs/how-it-works.md).
+For the long-form design narrative — the two readers, the board, the `tracker.md` policy contract, the MCP surface — see [Concepts](https://2nspired.github.io/pigeon/concepts/).
 
 ## 60-second install
+
+Common setup, every platform:
 
 ```bash
 git clone https://github.com/2nspired/pigeon.git
 cd pigeon
 npm install
 npm run setup            # creates the DB; optionally seeds the Learn Pigeon tutorial
-npm run service:install  # macOS: registers a launchd service on :3100
-                         # other platforms: npm run dev (foreground on :3000)
+```
+
+Then start the UI — pick the block for your platform:
+
+**macOS** — installs a persistent launchd service on `:3100`, always available, restarts on crash:
+
+```bash
+npm run service:install
 npm run doctor           # verifies the install (8-check diagnostic)
+```
+
+**Linux / Windows / WSL** — runs the foreground dev server on `:3000` (you re-run it each shell):
+
+```bash
+npm run dev              # leave running; open http://localhost:3000
+npm run doctor           # in a second terminal — verifies the install
 ```
 
 Then, from inside any project you want to track:
@@ -46,7 +61,7 @@ Then, from inside any project you want to track:
 /path/to/pigeon/scripts/connect.sh
 ```
 
-That writes a `.mcp.json` in the project's repo root. Start a new chat with your agent in that directory and ask it to run `briefMe`.
+That writes a `.mcp.json` in the project's repo root, installs Pigeon's slash commands, and installs the Stop hook. Start a new chat with your agent in that directory and ask it to run `briefMe`.
 
 ## Verify with `npm run doctor`
 
@@ -80,8 +95,7 @@ The full docs site lives at **[2nspired.github.io/pigeon](https://2nspired.githu
 - [Quickstart](https://2nspired.github.io/pigeon/quickstart/) — clone, install, connect, first `briefMe` call.
 
 **Concepts**
-- [How it works](docs/how-it-works.md) — the session loop, two readers, board, tracker.md, MCP surface.
-- [Mental model](https://2nspired.github.io/pigeon/concepts/) — sessions, handoffs, the briefMe loop, the deprecation calendar.
+- [Concepts](https://2nspired.github.io/pigeon/concepts/) — the session loop, two readers, board, tracker.md, MCP surface, sessions/handoffs/briefMe loop.
 - [Design rationale](https://2nspired.github.io/pigeon/why/) — why local-first, why MCP-native.
 
 **How-to**
@@ -91,7 +105,7 @@ The full docs site lives at **[2nspired.github.io/pigeon](https://2nspired.githu
 - [Avoid anti-patterns](https://2nspired.github.io/pigeon/anti-patterns/) — common pitfalls and the fixes.
 
 **Reference**
-- [MCP tools](https://2nspired.github.io/pigeon/tools/) — every tool the agent can call (10 essentials + 60+ extended).
+- [MCP tools](https://2nspired.github.io/pigeon/tools/) — every tool the agent can call (10 essentials + 65+ extended).
 - [Cost tracking](https://2nspired.github.io/pigeon/costs/) — what the Costs page records, how attribution works, and the savings/overhead math.
 - [Troubleshooting](https://2nspired.github.io/pigeon/troubleshooting/) — common failure modes with diagnose + fix steps; lead with `npm run doctor`.
 - [Commands](docs/commands.md) — every npm script with the moment you'd reach for it.

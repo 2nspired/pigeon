@@ -56,7 +56,7 @@ Both clients read and write the *same* SQLite file. The UI broadcasts changes ov
 A naive agent-facing API would either dump every tool into context (expensive) or force the agent to discover tools through trial and error (slow). The tracker splits the difference:
 
 - **10 essential tools** are always loaded. They cover the hot path: start a session, create a card, update it, move it, comment on it, save a handoff at the end.
-- **50+ extended tools** live behind two meta-tools: `getTools` browses them by category, `runTool` executes them by name.
+- **65+ extended tools** live behind two meta-tools: `getTools` browses them by category, `runTool` executes them by name.
 
 ```mermaid
 flowchart TB
@@ -97,7 +97,7 @@ Agents don't persist memory between conversations. The tracker doesn't try to fa
 
 This is a subtle but important distinction. It means:
 
-- **You can see the handoff.** It's a row in the `session_handoff` table. You can read it, edit it, delete it.
+- **You can see the handoff.** It's a row in the `Handoff` table. You can read it, edit it, delete it.
 - **The format is stable.** `summary`, `workingOn`, `findings`, `nextSteps`, `blockers` — not free-form prose the next agent has to interpret.
 - **It's composable with git.** `saveHandoff` runs `syncGitActivity` by default, so commits referencing `#N` get linked to cards automatically. Your git history is the other half of the handoff. (Pass `syncGit: false` for a mid-session checkpoint that skips the sync.)
 
