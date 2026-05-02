@@ -983,7 +983,7 @@ export type SetupDiagnostics = {
 // shell env, so a CLAUDE_CONFIG_DIR set in ~/.zshrc won't be visible here
 // unless the user re-exports it via the plist. The standard-paths fallback
 // covers ~95% of installs without configuration.
-function resolveConfigCandidates(): string[] {
+function resolveConfigCandidates(cwd: string = process.cwd()): string[] {
 	const home = homedir();
 	const candidates: string[] = [];
 	const envOverride = process.env.CLAUDE_CONFIG_DIR;
@@ -992,13 +992,11 @@ function resolveConfigCandidates(): string[] {
 	}
 	candidates.push(path.join(home, ".claude", "settings.json"));
 	candidates.push(path.join(home, ".claude-alt", "settings.json"));
-	// NOTE: project-scoped `<repo>/.claude/settings*.json` lookups are
-	// intentionally NOT resolved here. `path.resolve(".claude", ...)` resolves
-	// against the *server's* cwd (the launchd install dir at runtime), not the
-	// user's repo, so it produced false negatives in the diagnostic. The user-
-	// scoped paths above cover ~95% of installs; for the remainder, surface
-	// the missing-config state and let the user paste manually rather than
-	// lying about a path we can't reliably reach.
+	// Project-scoped paths: launchd plist sets `WorkingDirectory` to the repo
+	// root (see `scripts/service.ts:74-75`), so `path.resolve(cwd, ".claude", ...)`
+	// hits the user's repo in both dev and service mode.
+	candidates.push(path.resolve(cwd, ".claude", "settings.json"));
+	candidates.push(path.resolve(cwd, ".claude", "settings.local.json"));
 	// Dedupe in case env override resolves to one of the standards.
 	return Array.from(new Set(candidates));
 }
@@ -1858,4 +1856,9 @@ export const tokenUsageService = {
  * `resolveBoardScopeWhere` is also exposed here so #200 Phase 1a tests
  * can pin the where-clause shape directly without round-tripping through
  * a query — keeps the unit "what does this helper return?" honest. */
-export const __testing__ = { configHasTokenHook, aggregateTranscript, resolveBoardScopeWhere };
+export const __testing__ = {
+	configHasTokenHook,
+	aggregateTranscript,
+	resolveBoardScopeWhere,
+	resolveConfigCandidates,
+};

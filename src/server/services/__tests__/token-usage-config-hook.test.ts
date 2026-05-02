@@ -1,7 +1,9 @@
+import { homedir } from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { __testing__ } from "@/server/services/token-usage-service";
 
-const { configHasTokenHook } = __testing__;
+const { configHasTokenHook, resolveConfigCandidates } = __testing__;
 
 describe("configHasTokenHook", () => {
 	it("recognizes a command-style Stop hook pointing at scripts/stop-hook.sh", () => {
@@ -76,5 +78,77 @@ describe("configHasTokenHook", () => {
 			},
 		};
 		expect(configHasTokenHook(cfg)).toBe(true);
+	});
+});
+
+describe("resolveConfigCandidates", () => {
+	const FAKE_CWD = "/tmp/fake-repo";
+	const home = homedir();
+
+	it("includes project-scoped <cwd>/.claude/settings.json and settings.local.json", () => {
+		const prevOverride = process.env.CLAUDE_CONFIG_DIR;
+		delete process.env.CLAUDE_CONFIG_DIR;
+		try {
+			const candidates = resolveConfigCandidates(FAKE_CWD);
+			expect(candidates).toContain(path.resolve(FAKE_CWD, ".claude", "settings.json"));
+			expect(candidates).toContain(path.resolve(FAKE_CWD, ".claude", "settings.local.json"));
+		} finally {
+			if (prevOverride === undefined) {
+				delete process.env.CLAUDE_CONFIG_DIR;
+			} else {
+				process.env.CLAUDE_CONFIG_DIR = prevOverride;
+			}
+		}
+	});
+
+	it("includes user-scoped ~/.claude/settings.json and ~/.claude-alt/settings.json", () => {
+		const prevOverride = process.env.CLAUDE_CONFIG_DIR;
+		delete process.env.CLAUDE_CONFIG_DIR;
+		try {
+			const candidates = resolveConfigCandidates(FAKE_CWD);
+			expect(candidates).toContain(path.join(home, ".claude", "settings.json"));
+			expect(candidates).toContain(path.join(home, ".claude-alt", "settings.json"));
+		} finally {
+			if (prevOverride === undefined) {
+				delete process.env.CLAUDE_CONFIG_DIR;
+			} else {
+				process.env.CLAUDE_CONFIG_DIR = prevOverride;
+			}
+		}
+	});
+
+	it("honors CLAUDE_CONFIG_DIR env override", () => {
+		const prevOverride = process.env.CLAUDE_CONFIG_DIR;
+		const overrideDir = "/tmp/fake-claude-config";
+		process.env.CLAUDE_CONFIG_DIR = overrideDir;
+		try {
+			const candidates = resolveConfigCandidates(FAKE_CWD);
+			expect(candidates).toContain(path.join(overrideDir, "settings.json"));
+		} finally {
+			if (prevOverride === undefined) {
+				delete process.env.CLAUDE_CONFIG_DIR;
+			} else {
+				process.env.CLAUDE_CONFIG_DIR = prevOverride;
+			}
+		}
+	});
+
+	it("dedupes when env override resolves to a standard path", () => {
+		const prevOverride = process.env.CLAUDE_CONFIG_DIR;
+		// Point env override at the user-default `~/.claude` — both paths should
+		// produce the same candidate, but the result should contain it only once.
+		process.env.CLAUDE_CONFIG_DIR = path.join(home, ".claude");
+		try {
+			const candidates = resolveConfigCandidates(FAKE_CWD);
+			const userDefault = path.join(home, ".claude", "settings.json");
+			const occurrences = candidates.filter((c) => c === userDefault).length;
+			expect(occurrences).toBe(1);
+		} finally {
+			if (prevOverride === undefined) {
+				delete process.env.CLAUDE_CONFIG_DIR;
+			} else {
+				process.env.CLAUDE_CONFIG_DIR = prevOverride;
+			}
+		}
 	});
 });
