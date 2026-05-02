@@ -1,9 +1,11 @@
 import { z } from "zod";
+import { createMilestoneService } from "@/lib/services/milestone";
 import { editDistance as nameDistance, slugify as slugifyName } from "@/lib/slugify";
-import { milestoneService } from "@/server/services/milestone-service";
 import { db } from "../db.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { err, errWithToolHint, ok, safeExecute } from "../utils.js";
+
+const milestoneService = createMilestoneService(db);
 
 registerExtendedTool("createMilestone", {
 	category: "milestones",
