@@ -13,9 +13,9 @@
 // v5.0.0 will remove the legacy params and shrink these helpers.
 
 import type { PrismaClient } from "prisma/generated/client";
+import { resolveOrCreateMilestone } from "@/lib/services/milestone";
 import { createTagService } from "@/lib/services/tag";
 import { editDistance, slugify } from "@/lib/slugify";
-import { resolveOrCreateMilestone as resolveOrCreateMilestoneSvc } from "@/server/services/milestone-service";
 
 export type TagSuggestion = { id: string; slug: string; label: string; distance: number };
 
@@ -243,11 +243,7 @@ export async function resolveMilestoneForWrite(
 			ignoredLegacy: false,
 		};
 	}
-	const result = await resolveOrCreateMilestoneSvc(
-		prisma,
-		projectId,
-		input.milestoneName as string
-	);
+	const result = await resolveOrCreateMilestone(prisma, projectId, input.milestoneName as string);
 	if (!result.success) {
 		return { ok: false, error: result.error.message };
 	}

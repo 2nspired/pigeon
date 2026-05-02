@@ -1,4 +1,3 @@
-import { resolveOrCreateMilestone as resolveOrCreateMilestoneService } from "@/server/services/milestone-service";
 import { db } from "./db.js";
 import { toToon } from "./toon.js";
 
@@ -138,23 +137,6 @@ export async function resolveCardRef(ref: string, projectId?: string): Promise<R
 export async function resolveCardId(ref: string, projectId?: string): Promise<string | null> {
 	const result = await resolveCardRef(ref, projectId);
 	return result.ok ? result.id : null;
-}
-
-/**
- * Resolve a milestone by name within a project. Creates it if it doesn't
- * exist. Delegates to `milestone-service.resolveOrCreateMilestone` (v4.2)
- * which case-insensitively dedupes via `slugify()`. Discards the
- * `_didYouMean` neighbours — callers that want them should use the
- * service-layer function directly. Behaviour-compat note: pre-v4.2 this
- * used exact-byte name matching; "Getting Started" and "getting started"
- * now resolve to the same milestone.
- */
-export async function resolveOrCreateMilestone(projectId: string, name: string): Promise<string> {
-	const result = await resolveOrCreateMilestoneService(db, projectId, name);
-	if (!result.success) {
-		throw new Error(result.error.message);
-	}
-	return result.data.id;
 }
 
 /**
