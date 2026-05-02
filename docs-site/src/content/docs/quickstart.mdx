@@ -132,14 +132,16 @@ The web UI supports a small set of shortcuts. More may be added over time.
 
 Arrow-key card navigation honors the active filters, hidden roles, and sort mode of the view you're in. It won't fire while a text input, select, or dialog has focus, so it stays out of the way while you're editing.
 
-## Things that sometimes go wrong
+## When something goes wrong
 
-- **MCP shows "failed" in Claude Code** — run `/mcp`, then try `scripts/mcp-start.sh` manually from inside your project. Restart Claude Code after any `.mcp.json` change; MCP servers load at session start, they don't hot-reload.
-- **Database is empty after clone** — `data/tracker.db` is gitignored so each install is fresh. Run `npm run setup` or `npm run dev` to create it.
-- **Schema mismatch warning in `briefMe`** — `npx prisma db push` adds any new tables without losing data.
+Run `npm run doctor` first — it's the eight-check install diagnostic and prints a copy-pasteable fix for every failure. Then look up the symptom on the [Troubleshooting page](../troubleshooting/), which covers the common failure modes (MCP not connecting, `briefMe` failing on missing `repoPath`, FTS5 half-state, schema drift, launchd label drift, stop-hook silently no-op'ing, old tool names that no longer resolve).
+
+Two install-stage gotchas that aren't on the troubleshooting page because they only fire once:
+
+- **Database is empty after clone** — `data/tracker.db` is gitignored, so each install is fresh. Run `npm run setup` or `npm run dev` to create it.
 - **Forked the repo and docs won't deploy** — the GH Pages workflow requires `Settings → Pages → Source → GitHub Actions`. Set this once per fork before the first push.
 
-Still stuck? See the [anti-patterns page](../anti-patterns/) for the usual suspects.
+For workflow-level pitfalls (skipping `briefMe`, prose-instead-of-structure handoffs), see the [anti-patterns page](../anti-patterns/) — that's a different category from the install-and-config failures the troubleshooting page covers.
 
 ## Read next
 
