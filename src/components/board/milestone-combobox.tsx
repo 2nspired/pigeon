@@ -114,7 +114,7 @@ export function MilestoneCombobox({
 			<PopoverContent className="w-72 p-0" align="start">
 				<Command shouldFilter={false}>
 					<CommandInput
-						placeholder="Search or create milestone..."
+						placeholder="Search or create milestone…"
 						value={query}
 						onValueChange={setQuery}
 						autoFocus

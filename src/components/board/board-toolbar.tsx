@@ -96,7 +96,7 @@ export function BoardToolbar({
 				<Input
 					value={filters.search}
 					onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
-					placeholder="Search cards..."
+					placeholder="Search cards…"
 					className="h-8 pl-8 text-sm"
 				/>
 			</div>

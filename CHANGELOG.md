@@ -11,6 +11,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 ### Changed
 
 - **v6.2.0 release reconciliation — merge `origin/v6.2` into `origin/main`.** The v6.2.0 release commit (32e229b) was tagged on main without first merging the v6.2 development branch, leaving 15 commits stranded on `origin/v6.2` (#227-#244, #255, #237). This brings them forward so main reflects what v6.2.0 was intended to ship. Conflict resolution: accepted main's deletion of 4 dormant Costs sub-components (#236) and `extended-tools.ts` (#235's split); combined `<StepSection>` (#238) with `<LoadingRow>` (#244) on the `<PricingOverrideTable>` loading state. Follow-up: the `card-tools.ts` module created by #235's split still carries the legacy `isDoneColumnLike` helper that #229 had consolidated — needs a small refactor to swap that last call-site to `hasRole(col, "done")`.
+- Normalize three-dot ellipsis `...` to single character `…` in search-input placeholders (#264)
 
 ## [6.2.0] — 2026-05-02
 
