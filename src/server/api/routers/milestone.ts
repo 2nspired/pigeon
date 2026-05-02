@@ -3,6 +3,7 @@ import { z } from "zod";
 import { emitMilestoneChanged } from "@/lib/events";
 import {
 	createMilestoneSchema,
+	mergeMilestonesSchema,
 	reorderMilestonesSchema,
 	updateMilestoneSchema,
 } from "@/lib/schemas/milestone-schemas";
@@ -63,6 +64,19 @@ export const milestoneRouter = createTRPCRouter({
 			throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
 		}
 		emitMilestoneChanged(result.data.projectId, result.data.id);
+		return result.data;
+	}),
+
+	// Merge one milestone into another (same project). Wraps the existing
+	// service method that backs the MCP `mergeMilestones` tool, so the UI
+	// triage path stays in lockstep with the agent path. Returns
+	// `{ rewroteCount, projectId }` so callers can surface "rewrote N cards".
+	merge: publicProcedure.input(mergeMilestonesSchema).mutation(async ({ input }) => {
+		const result = await milestoneService.merge(input);
+		if (!result.success) {
+			throw new TRPCError({ code: "BAD_REQUEST", message: result.error.message });
+		}
+		emitMilestoneChanged(result.data.projectId, input.intoMilestoneId);
 		return result.data;
 	}),
 });

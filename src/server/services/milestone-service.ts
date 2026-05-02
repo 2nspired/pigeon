@@ -9,10 +9,25 @@ import { editDistance, slugify } from "@/lib/slugify";
 import { db } from "@/server/db";
 import type { ServiceResult } from "@/server/services/types/service-result";
 
+// v4.2 governance hints surfaced on `list` results, mirroring the MCP
+// `listMilestones` tool. Hints are computed once and bundled with each
+// milestone so the UI can render badges without a second round-trip.
+//   singletonAfterDays: milestone has exactly one card and is older than
+//     SINGLETON_DAYS — likely premature.
+//   possibleMerge: peers within Levenshtein 2 of this milestone's slug —
+//     candidates for merge to collapse near-duplicate vocabulary.
+export type MilestoneGovernanceHints = {
+	singletonAfterDays?: number;
+	possibleMerge?: Array<{ id: string; name: string; distance: number }>;
+};
+
 type MilestoneWithCounts = Milestone & {
 	_count: { cards: number };
 	cardsByStatus: { now: number; later: number; done: number };
+	_governanceHints?: MilestoneGovernanceHints;
 };
+
+const SINGLETON_DAYS = 60;
 
 export type MilestoneResolveResult = {
 	id: string;
@@ -117,13 +132,53 @@ async function list(projectId: string): Promise<ServiceResult<MilestoneWithCount
 			},
 		});
 
-		const data = milestones.map((m) => {
+		// Pre-compute slugs once so the hint-computation pass is O(n²) without
+		// touching the slugify function repeatedly. n is the per-project
+		// milestone count (typically <20), well within budget.
+		const slugged = milestones.map((m) => ({
+			id: m.id,
+			name: m.name,
+			slug: slugify(m.name),
+		}));
+		const NOW = Date.now();
+
+		const data = milestones.map((m, i) => {
 			const cardsByStatus = { now: 0, later: 0, done: 0 };
 			for (const card of m.cards) {
 				cardsByStatus[getHorizon(card.column)]++;
 			}
 			const { cards: _, ...rest } = m;
-			return { ...rest, cardsByStatus };
+
+			const total = m._count.cards;
+			const ageDays = Math.floor((NOW - m.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+			const possibleMerge: Array<{ id: string; name: string; distance: number }> = [];
+			const mineSlug = slugged[i].slug;
+			if (mineSlug) {
+				for (let j = 0; j < slugged.length; j++) {
+					if (j === i) continue;
+					const other = slugged[j];
+					if (!other.slug) continue;
+					const distance = editDistance(mineSlug, other.slug, 2);
+					if (distance <= 2) {
+						possibleMerge.push({ id: other.id, name: other.name, distance });
+					}
+				}
+				possibleMerge.sort((a, b) => a.distance - b.distance);
+			}
+
+			const hints: MilestoneGovernanceHints = {};
+			if (total === 1 && ageDays > SINGLETON_DAYS) {
+				hints.singletonAfterDays = ageDays;
+			}
+			if (possibleMerge.length > 0) {
+				hints.possibleMerge = possibleMerge;
+			}
+
+			return {
+				...rest,
+				cardsByStatus,
+				...(Object.keys(hints).length > 0 && { _governanceHints: hints }),
+			};
 		});
 
 		return { success: true, data };
