@@ -74,7 +74,7 @@ export default function TimelinePage({
 					</Button>
 				</Link>
 				<div>
-					<h1 className="text-lg font-semibold">Timeline</h1>
+					<h1 className="text-2xl font-bold tracking-tight">Timeline</h1>
 					<p className="text-xs text-muted-foreground">
 						{board.project.name} / {board.name}
 					</p>

@@ -53,7 +53,7 @@ export default function RoadmapPage({
 					</Button>
 				</Link>
 				<div className="flex-1">
-					<h1 className="text-lg font-semibold">Roadmap</h1>
+					<h1 className="text-2xl font-bold tracking-tight">Roadmap</h1>
 					<p className="text-xs text-muted-foreground">
 						{board.project.name} / {board.name}
 					</p>
