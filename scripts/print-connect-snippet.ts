@@ -19,7 +19,11 @@ export function buildConnectSnippet(): string {
 	return `  ## Project Tracking
 
   This project uses Pigeon (a kanban board with MCP integration) for context
-  continuity across AI sessions.
+  continuity across AI sessions. **Full agent guide:** read once at session
+  start, then refer back as needed —
+  \`docs/AGENT-GUIDE.md\` in the Pigeon repo, or via MCP at
+  \`tracker://server/agent-guide\` (project-agnostic, kept in sync with the
+  running server).
 
   **Session lifecycle:** Call \`briefMe()\` at the start of each conversation
   for a one-shot session primer (handoff, top work, blockers, pulse). Call

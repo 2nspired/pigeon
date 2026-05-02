@@ -81,6 +81,34 @@ export async function getCurrentHeadSha(): Promise<string | null> {
 	return readHeadSha();
 }
 
+/**
+ * Resources that don't depend on database state — always present, always
+ * advertised. Database-derived resources (boards, cards, handoffs, decisions,
+ * status) are intentionally omitted from this list because their availability
+ * is per-row; clients discover them via the MCP `resources/list` protocol.
+ *
+ * When you add a static resource to `src/mcp/resources.ts`, add it here so
+ * `briefMe`/`checkOnboarding` make it discoverable in the manifest.
+ */
+export const STATIC_RESOURCES: Array<{
+	uri: string;
+	mimeType: string;
+	description: string;
+}> = [
+	{
+		uri: "tracker://server/manifest",
+		mimeType: "application/json",
+		description:
+			"Machine-readable snapshot of this MCP server's version, schema, commit, and full tool surface.",
+	},
+	{
+		uri: "tracker://server/agent-guide",
+		mimeType: "text/markdown",
+		description:
+			"Project-agnostic guide for any AI agent using Pigeon. Live `fs.readFile` of docs/AGENT-GUIDE.md — no copy, no cache.",
+	},
+];
+
 export type ServerManifest = {
 	version: string;
 	schemaVersion: number;
@@ -97,6 +125,7 @@ export type ServerManifest = {
 		readOnly: boolean;
 		destructive: boolean;
 	}>;
+	resources: Array<{ uri: string; mimeType: string; description: string }>;
 };
 
 export async function buildServerManifest(): Promise<ServerManifest> {
@@ -111,5 +140,6 @@ export async function buildServerManifest(): Promise<ServerManifest> {
 		},
 		essentials: ESSENTIAL_TOOLS,
 		extended,
+		resources: STATIC_RESOURCES,
 	};
 }

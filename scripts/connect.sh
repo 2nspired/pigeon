@@ -195,6 +195,12 @@ if [ -f "$MCP_FILE" ]; then
     echo "Pigeon is already configured in $MCP_FILE"
     install_slash_commands
     install_stop_hook
+    echo ""
+    echo "Up-to-date snippet for this project's CLAUDE.md / AGENTS.md:"
+    echo ""
+    (cd "$TRACKER_ROOT" && npx tsx scripts/print-connect-snippet.ts)
+    echo ""
+    echo "Older snippet detected? Replace it with the above — full guide at \`tracker://server/agent-guide\` (or docs/AGENT-GUIDE.md)."
     exit 0
   fi
 
