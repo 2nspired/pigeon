@@ -8,6 +8,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+## [6.2.1] — 2026-05-02
+
+Hygiene patch on top of v6.2.0 — settles the v6.2 reconciliation merge, finishes the #260 layering refactor (5 of 6 clusters land), drops the dormant `Label` Prisma tables, and adopts the new higher-level CHANGELOG entry style going forward (#271). `npm run service:update` runs `prisma db push` automatically.
+
 ### Changed
 
 - Reconciled the v6.2.0 release branch into `main` so the 15 commits stranded on `origin/v6.2` (#227–#244, #255, #237) land on the trunk and `main` reflects what v6.2.0 was meant to ship. (#194)
