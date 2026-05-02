@@ -109,7 +109,7 @@ export function TagCombobox({ projectId, currentTags, onChange }: TagComboboxPro
 					<PopoverContent className="w-72 p-0" align="start">
 						<Command shouldFilter={false}>
 							<CommandInput
-								placeholder="Search or create tag..."
+								placeholder="Search or create tag…"
 								value={query}
 								onValueChange={setQuery}
 								autoFocus
