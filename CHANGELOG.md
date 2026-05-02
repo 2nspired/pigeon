@@ -8,6 +8,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+### Added
+
+- Landed the Attribution Engine pure-function core (`src/lib/services/attribution.ts`) — picks one card per session via a 5-tier heuristic (explicit → single In-Progress → session-recent-touch → session-commit → unattributed). Multi-In-Progress sessions short-circuit to `unattributed` per the orchestrator-mode gate. Cluster head for the v6.3 charter; write-path wiring + backfill follow in #269 and #270. (#268)
+
 ## [6.2.1] — 2026-05-02
 
 Hygiene patch on top of v6.2.0 — settles the v6.2 reconciliation merge, finishes the #260 layering refactor (5 of 6 clusters land), drops the dormant `Label` Prisma tables, and adopts the new higher-level CHANGELOG entry style going forward (#271). `npm run service:update` runs `prisma db push` automatically.
