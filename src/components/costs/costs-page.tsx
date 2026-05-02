@@ -2,10 +2,7 @@
 
 import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setup-dialog";
 import { CostsBreadcrumb } from "@/components/costs/breadcrumb";
-import { CardDeliverySection } from "@/components/costs/card-delivery-section";
-import { PigeonOverheadSection } from "@/components/costs/pigeon-overhead-section";
 import { PricingOverrideTable } from "@/components/costs/pricing-override-table";
-import { SavingsSection } from "@/components/costs/savings-section";
 import { SummaryStrip } from "@/components/costs/summary-strip";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -122,9 +119,6 @@ export function CostsPage({
 			) : projectSummary && dailyCost ? (
 				<>
 					<SummaryStrip projectSummary={projectSummary} dailyCost={dailyCost} />
-					<SavingsSection projectId={projectId} />
-					<PigeonOverheadSection projectId={projectId} scope="project" />
-					<CardDeliverySection projectId={projectId} scope="project" />
 					<PricingOverrideTable projectId={projectId} projectSummary={projectSummary} />
 				</>
 			) : null}
