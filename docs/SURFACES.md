@@ -84,5 +84,5 @@ In Claude Code, the `/plan-card N` slash command is a thin wrapper that invokes 
 
 ## See also
 
-- [RFC #111: tracker.md as in-repo policy contract](RFC-WORKFLOW.md) — the design doc
+- [RFC #111: tracker.md as in-repo policy contract](archive/RFC-WORKFLOW.md) — the design doc
 - [AGENTS.md](../AGENTS.md) — contributor reference

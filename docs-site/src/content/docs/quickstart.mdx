@@ -73,7 +73,13 @@ You need:
 	/path/to/pigeon/scripts/connect.sh
 	```
 
-	This writes a `.mcp.json` in the project root pointing at the tracker. Next time your agent starts a session in that directory, the tracker tools are available.
+	This does three things in one pass:
+
+	- Writes a `.mcp.json` in the project root pointing at the tracker so your agent finds the MCP server.
+	- Installs Pigeon's **slash commands** (`/brief-me`, `/handoff`, `/plan-card`) into `.claude/commands/` so they show up in Claude Code's slash-command menu for this project.
+	- Installs the **Stop hook** into `.claude/settings.json` so the per-session token usage gets recorded to the Costs page automatically.
+
+	It's idempotent — re-running on a project that's already connected just refreshes whatever drifted. Run it on every project you want to track; run it again any time you upgrade Pigeon. Doing so is the right move on every project, every time.
 
 	Using a non-Claude agent?
 
@@ -107,6 +113,10 @@ flowchart LR
 ## After the wizard
 
 Once you have a board running, the next thing to read is **[The session loop](../workflow/)** — it's the workflow the whole tool is built around.
+
+<Aside type="tip" title="Coming back after an upgrade?">
+	If you've used Pigeon before, head to the **[Costs page](../costs/)** for the v6.1 token-tracking lens — sparkline of recent spend, per-model pricing override table, and (once attribution lands) cost per shipped card.
+</Aside>
 
 If you want to give your agent a nudge toward using the tracker consistently, drop a short `Project Tracking` section into your project's `CLAUDE.md` (or `AGENTS.md`). Example:
 
