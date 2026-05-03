@@ -26,6 +26,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ### Changed
 
+- docs-site accent retargeted from indigo to `--accent-violet` (#287, implements decision from #281). Six accent tokens on `:root` and `:root[data-theme="dark"]` in `docs-site/src/styles/custom.css` now reference the same violet hue (oklch ~295) the app uses for AI/agent semantic surfaces; component files are unchanged because they were already token-driven. Paper-grid substrate survives at slightly lower alpha to match prior intensity.
 - Renamed the `resume-session` MCP prompt to `resume-board` to avoid collision with Claude Code's built-in `/resume` slash command. The Pigeon flow loads board state for a fresh chat — semantically distinct from Claude's chat-resume — so the new name disambiguates without changing behavior. Hand-maintained references in `tools.mdx`, onboarding copy, and the tutorial seeder were updated alongside the registration. (#169)
 
 ## [6.2.1] — 2026-05-02
