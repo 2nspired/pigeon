@@ -8,6 +8,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+## [6.4.0] — 2026-05-02
+
+The "Talkable" charter — Pigeon repositioned as a self-hosting MCP for AI-assisted development. 21 cards: PO export (#136) and Pulse v2 (#157) feature builds; 4 design-system codify cards (#278 motion tokens, #279 design showcase, #280 Dot/Sparkline + violet, #287 docs accent); 5 documentation cards (G1 README #285, G2 #283, G3 docs-site rewrite #286, G4 core docs #284, G5 hygiene #282); 4 architectural decisions (#209, #266, #167, #281); polish (#165 drawer mobile, #169 resume rename, #173 hygiene panel, #265 board screenshot, #276 Costs explainer); bug fix #277 (PigeonOverhead schema migration). `npm run service:update` runs `prisma db push` automatically.
+
 ### Fixed
 
 - PigeonOverheadSection no longer silently hides when TokenUsageEvent ingestion is sparse — `tool_call_log` now carries `projectId` directly (stamped at write time by the MCP server) instead of bridging through `token_usage_event` for project discovery. The bridge collapsed to `[]` when the Stop hook didn't fire (or `resolveProjectIdFromCwd` returned null at hook time), zeroing the section even when MCP overhead was real. `npm run service:update` runs `prisma db push` automatically; run `npx tsx scripts/backfill-tool-call-log-projectid.ts` once after to attribute historical rows. (#277)
