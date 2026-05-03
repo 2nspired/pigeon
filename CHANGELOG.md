@@ -14,6 +14,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ### Added
 
+- Motion tokens (`--motion-fast: 120ms` / `--motion-base: 180ms` / `--motion-slow: 280ms` / `--motion-ease-standard: cubic-bezier(0.2, 0, 0, 1)`) registered via `@theme inline` so Tailwind exposes `duration-fast` / `duration-base` / `duration-slow` / `ease-standard` utilities. Pattern follows Linear / Vercel / shadcn — three durations for the common state-change buckets, one easing curve. Backed by a new `raw-transition-all` design-lint rule (allowlist: `ui/button.tsx`) so the next casual `transition-all` fails CI. (#278)
 - Landed the Attribution Engine pure-function core (`src/lib/services/attribution.ts`) — picks one card per session via a 5-tier heuristic (explicit → single In-Progress → session-recent-touch → session-commit → unattributed). Multi-In-Progress sessions short-circuit to `unattributed` per the orchestrator-mode gate. Cluster head for the v6.3 charter; write-path wiring + backfill follow in #269 and #270. (#268)
 - Wired the Attribution Engine into both `recordTokenUsage` paths (`recordManual` + `recordFromTranscript`); each write now persists `signal` + `signalConfidence` columns on `TokenUsageEvent` for the #213 unattributed-gap counter. Stop-hook re-runs prefer fresh single-In-Progress attribution over stale `attributeSession` cardIds while still preserving prior attribution when the engine returns null. Tail signals 3+4 deferred to #272. `npm run service:update` runs `prisma db push` automatically. (#269)
 - Added the unattributed-gap card to the Costs page — splits the gap into two architecturally distinct buckets (engine-decided `unattributed` vs pre-engine `preEngine` rows) so the user sees whether a gap is "review your workflow" or "old data from before #269." Hidden when both buckets are empty. Backed by a new `attributionBreakdown` field on `getProjectSummary`. Unblocks the 30-day re-evaluation window for #270 (historical backfill) and #272 (tail signals 3+4). (#213)
@@ -29,6 +30,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 - Renamed the `resume-session` MCP prompt to `resume-board` to avoid collision with Claude Code's built-in `/resume` slash command. The Pigeon flow loads board state for a fresh chat — semantically distinct from Claude's chat-resume — so the new name disambiguates without changing behavior. Hand-maintained references in `tools.mdx`, onboarding copy, and the tutorial seeder were updated alongside the registration. (#169)
 - AGENTS.md split: contributor reference vs. universal AGENT-GUIDE.md (#246 finished). CLAUDE.md tightened to lead with self-hosting + #260 layering rule (#283).
+- Replaced casual `transition-all` callsites with explicit transition lists (`transition-[width]` on progress bars, `transition-[transform,opacity]` on the theme-toggle icons, `transition-[box-shadow,border-color]` on board cards, etc.) so layout properties don't get pulled into the animation by accident. `ui/button.tsx` keeps `transition-all` intentionally and is allowlisted by the new lint rule. (#278)
 
 ### Chore
 
