@@ -24,6 +24,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 - Revived the Card Delivery section on the Costs page — surfaces median cost-per-shipped-card and the top-5 most expensive cards by aggregated cost. Uses direct cardId attribution only (no session-expansion); post-#269 attribution makes the simpler aggregation honest. Distinct from the per-session Top-N lens (#211) — different unit, different question. Was dropped in #236. (#275)
 - PO export — download Costs page card-delivery data as CSV or Markdown (#136).
 - MIT LICENSE file (#282).
+- Costs page Resources link + cost-attribution explainer in docs-site (#276). The Costs page header carries a "How is this calculated?" link to the existing `/costs` Starlight page; each section header (`<SummaryStrip>`, `<UnattributedGapCard>`, `<SavingsSection>`, `<PigeonOverheadSection>`, `<CardDeliverySection>`, `<TopSessionsSection>`, `<PricingOverrideTable>`) carries a `?` icon that deep-links to the matching anchor. The explainer was rewritten end-to-end to cover the Attribution Engine (#268, #269), the 3-bucket gap (#213), per-section math, and the orphan-tool-call-log overhead drag introduced by #277, with a mermaid decision-tree diagram and file:line references throughout.
 
 ### Changed
 

@@ -16,6 +16,7 @@
  */
 
 import { ChevronDown } from "lucide-react";
+import { SectionHelpLink } from "@/components/costs/section-help-link";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -50,7 +51,13 @@ export function CardDeliverySection({ metrics, projectId, boardId }: CardDeliver
 		<section className="space-y-3">
 			<header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
 				<div>
-					<h2 className="text-sm font-medium">Card delivery</h2>
+					<div className="flex items-center gap-1.5">
+						<h2 className="text-sm font-medium">Card delivery</h2>
+						<SectionHelpLink
+							anchor="card-delivery"
+							label="How are card delivery metrics calculated?"
+						/>
+					</div>
 					<p className="text-2xs text-muted-foreground">
 						Per-card spend across attributed sessions. Direct attribution only (post-#269).
 					</p>
