@@ -99,11 +99,7 @@ export function BoardPulse({ boardId, projectId }: { boardId: string; projectId:
 		weekCost:
 			hasWeekCost && dailyCost ? (
 				<>
-					<Sparkline
-						data={dailyCost.dailyCostUsd}
-						tone="cost"
-						label="Daily cost sparkline"
-					/>
+					<Sparkline data={dailyCost.dailyCostUsd} tone="cost" label="Daily cost sparkline" />
 					<span className="tabular-nums text-muted-foreground">
 						<span className="font-medium text-foreground">{formatCost(weekCost)}</span> spent
 					</span>
