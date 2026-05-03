@@ -39,6 +39,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 - Renamed the `resume-session` MCP prompt to `resume-board` to avoid collision with Claude Code's built-in `/resume` slash command. The Pigeon flow loads board state for a fresh chat — semantically distinct from Claude's chat-resume — so the new name disambiguates without changing behavior. Hand-maintained references in `tools.mdx`, onboarding copy, and the tutorial seeder were updated alongside the registration. (#169)
 - AGENTS.md split: contributor reference vs. universal AGENT-GUIDE.md (#246 finished). CLAUDE.md tightened to lead with self-hosting + #260 layering rule (#283).
 - Replaced casual `transition-all` callsites with explicit transition lists (`transition-[width]` on progress bars, `transition-[transform,opacity]` on the theme-toggle icons, `transition-[box-shadow,border-color]` on board cards, etc.) so layout properties don't get pulled into the animation by accident. `ui/button.tsx` keeps `transition-all` intentionally and is allowlisted by the new lint rule. (#278)
+- README rewrite — hero, badge row, comparison table, persona block (#285). Asset-blocked items (demo GIF, dark logo, product-screenshot OG) flagged as TODOs.
 
 ### Chore
 
