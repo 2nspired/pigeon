@@ -245,7 +245,7 @@ export default function DashboardPage() {
 																<div className="flex" style={{ width: `${donePct + remainPct}%` }}>
 																	{donePct > 0 && (
 																		<div
-																			className={`${green} h-full transition-all`}
+																			className={`${green} h-full transition-[width]`}
 																			style={{
 																				width: `${(donePct / (donePct + remainPct)) * 100}%`,
 																			}}
@@ -253,7 +253,7 @@ export default function DashboardPage() {
 																	)}
 																	{remainPct > 0 && (
 																		<div
-																			className={`${gray} h-full transition-all`}
+																			className={`${gray} h-full transition-[width]`}
 																			style={{
 																				width: `${(remainPct / (donePct + remainPct)) * 100}%`,
 																			}}
