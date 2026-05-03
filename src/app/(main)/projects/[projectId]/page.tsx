@@ -80,6 +80,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { useDocumentTitle } from "@/hooks/use-document-title";
 import { hasRole } from "@/lib/column-roles";
 import { formatDate } from "@/lib/format-date";
 import { COLOR_CLASSES } from "@/lib/project-colors";
@@ -239,6 +240,8 @@ export default function ProjectPage({ params }: { params: Promise<{ projectId: s
 
 	const { data: project } = api.project.getById.useQuery({ id: projectId });
 	const { data: boards, isLoading: boardsLoading } = api.board.list.useQuery({ projectId });
+
+	useDocumentTitle(project?.name ?? null);
 
 	const projectColor = (project?.color as ProjectColor) || "slate";
 

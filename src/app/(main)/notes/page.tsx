@@ -38,6 +38,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useDocumentTitle } from "@/hooks/use-document-title";
 import { formatDate } from "@/lib/format-date";
 import { type Priority, priorityValues } from "@/lib/schemas/card-schemas";
 import { api } from "@/trpc/react";
@@ -45,6 +46,8 @@ import { api } from "@/trpc/react";
 // ─── Page ──────────────────────────────────────────────────────────
 
 export default function NotesPage() {
+	useDocumentTitle("Notes");
+
 	const [createOpen, setCreateOpen] = useState(false);
 	const [viewingId, setViewingId] = useState<string | null>(null);
 	const [editingId, setEditingId] = useState<string | null>(null);

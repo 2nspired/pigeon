@@ -46,6 +46,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useDocumentTitle } from "@/hooks/use-document-title";
 import { COLOR_CLASSES } from "@/lib/project-colors";
 import { PROJECT_COLORS, type ProjectColor } from "@/lib/schemas/project-schemas";
 import { api } from "@/trpc/react";
@@ -77,6 +78,8 @@ function ColorPicker({
 }
 
 export default function ProjectsPage() {
+	useDocumentTitle("Projects");
+
 	const [deleteId, setDeleteId] = useState<string | null>(null);
 	const [editId, setEditId] = useState<string | null>(null);
 	const [editName, setEditName] = useState("");
