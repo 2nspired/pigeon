@@ -8,6 +8,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+### Fixed
+
+- Browser tab title now reflects the current project, board, and surface (e.g. `Project Tracker Dev · Pigeon Dev - Pigeon`, `Roadmap · Retry Labs · Main - Pigeon`, `Costs · Project Tracker Dev - Pigeon`) instead of always showing `Pigeon`. Multiple Pigeon instances open across browser tabs are now distinguishable at a glance. Implemented via a `useDocumentTitle` hook that tolerates Next's App Router metadata sync via a `MutationObserver` re-apply, plus a project-name extension to the existing server-side `generateMetadata` on the Costs route. (#289)
+
 ## [6.5.0] — 2026-05-02
 
 Polish + hygiene cleanup on top of v6.4.0 — clears the 8 deferred user-input asks (CoC, security reporting, logos, real dark screenshots) and refreshes the SECURITY.md supported-versions table.

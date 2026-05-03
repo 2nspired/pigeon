@@ -28,12 +28,15 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useDocumentTitle } from "@/hooks/use-document-title";
 import { getHorizon } from "@/lib/column-roles";
 import { PRIORITY_DOT } from "@/lib/priority-colors";
 import type { Priority } from "@/lib/schemas/card-schemas";
 import { api } from "@/trpc/react";
 
 export default function DashboardPage() {
+	useDocumentTitle("Dashboard");
+
 	const [search, setSearch] = useState("");
 	const [priority, setPriority] = useState("ALL");
 

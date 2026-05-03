@@ -9,6 +9,7 @@ import { RoadmapView } from "@/components/roadmap/roadmap-view";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBoardEvents } from "@/hooks/use-board-events";
+import { useDocumentTitle } from "@/hooks/use-document-title";
 import { api } from "@/trpc/react";
 
 export default function RoadmapPage({
@@ -24,6 +25,8 @@ export default function RoadmapPage({
 		{ id: boardId },
 		{ refetchInterval }
 	);
+
+	useDocumentTitle(board ? `Roadmap · ${board.project.name} · ${board.name}` : "Roadmap");
 
 	if (isLoading) {
 		return (

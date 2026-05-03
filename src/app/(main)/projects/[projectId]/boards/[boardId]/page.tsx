@@ -30,6 +30,7 @@ import { SegmentedControl, SegmentedControlItem } from "@/components/ui/segmente
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useBoardEvents } from "@/hooks/use-board-events";
+import { useDocumentTitle } from "@/hooks/use-document-title";
 import type { BoardView as BoardViewType } from "@/lib/board-views";
 import { api } from "@/trpc/react";
 
@@ -231,6 +232,8 @@ export default function BoardPage({
 		{ id: boardId },
 		{ refetchInterval }
 	);
+
+	useDocumentTitle(board ? `${board.project.name} · ${board.name}` : null);
 
 	// If the selected card disappears (deleted, moved to another board), clear it
 	// so CardDetailSheet doesn't stay open against a 404.

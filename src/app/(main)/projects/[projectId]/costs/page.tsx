@@ -91,14 +91,21 @@ export async function generateMetadata({
 	searchParams: Promise<CostsRouteSearchParams>;
 }): Promise<Metadata> {
 	const [{ projectId }, { board: boardParam }] = await Promise.all([params, searchParams]);
-	if (!boardParam) return { title: "Costs" };
+
+	const project = await db.project.findUnique({
+		where: { id: projectId },
+		select: { name: true },
+	});
+	if (!project) return { title: "Costs" };
+
+	if (!boardParam) return { title: `Costs · ${project.name}` };
 
 	const board = await db.board.findUnique({
 		where: { id: boardParam },
 		select: { name: true, projectId: true },
 	});
-	if (!board || board.projectId !== projectId) return { title: "Costs" };
-	return { title: `Costs · ${board.name}` };
+	if (!board || board.projectId !== projectId) return { title: `Costs · ${project.name}` };
+	return { title: `Costs · ${project.name} · ${board.name}` };
 }
 
 export default async function CostsRoute({

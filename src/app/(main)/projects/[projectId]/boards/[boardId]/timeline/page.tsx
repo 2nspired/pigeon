@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBoardEvents } from "@/hooks/use-board-events";
+import { useDocumentTitle } from "@/hooks/use-document-title";
 import { hasRole } from "@/lib/column-roles";
 import { formatDate } from "@/lib/format-date";
 import { api } from "@/trpc/react";
@@ -24,6 +25,8 @@ export default function TimelinePage({
 		{ id: boardId },
 		{ refetchInterval }
 	);
+
+	useDocumentTitle(board ? `Timeline · ${board.project.name} · ${board.name}` : "Timeline");
 
 	if (isLoading) {
 		return (
