@@ -2,6 +2,7 @@
 	"name": "pigeon-mcp",
 	"version": "6.2.1",
 	"private": true,
+	"license": "MIT",
 	"scripts": {
 		"dev": "tsx scripts/dev.ts",
 		"setup": "tsx scripts/setup.mts",
