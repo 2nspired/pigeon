@@ -32,6 +32,8 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ### Changed
 
+- Re-shot `board-overview.png` post-Up-Next-removal so the docs-site hero reflects the current 4-column board layout (Parking Lot / Backlog / In Progress / Done). (#265)
+
 - docs-site accent retargeted from indigo to `--accent-violet` (#287, implements decision from #281). Six accent tokens on `:root` and `:root[data-theme="dark"]` in `docs-site/src/styles/custom.css` now reference the same violet hue (oklch ~295) the app uses for AI/agent semantic surfaces; component files are unchanged because they were already token-driven. Paper-grid substrate survives at slightly lower alpha to match prior intensity.
 - `<Sparkline>` API codified — new `tone` prop (`cost` / `success` / `info` / `warning` / `danger`) replaces the per-class `strokeClassName` / `fillClassName` / `dotClassName` overrides. Default flipped from raw `stroke-emerald-500` to `stroke-success` (token-backed). The pre-#280 string-class path is preserved as `unsafeStrokeClass` / `unsafeFillClass` / `unsafeDotClass` with deprecation notes — no production callers use it. (#280)
 - Renamed the `resume-session` MCP prompt to `resume-board` to avoid collision with Claude Code's built-in `/resume` slash command. The Pigeon flow loads board state for a fresh chat — semantically distinct from Claude's chat-resume — so the new name disambiguates without changing behavior. Hand-maintained references in `tools.mdx`, onboarding copy, and the tutorial seeder were updated alongside the registration. (#169)
@@ -180,6 +182,8 @@ Both are non-destructive — `prisma db push` applies cleanly. `service:update` 
 
 ### Changed
 
+- Re-shot `board-overview.png` post-Up-Next-removal so the docs-site hero reflects the current 4-column board layout (Parking Lot / Backlog / In Progress / Done). (#265)
+
 - **`token-usage-service.ts` housekeeping bundle.** Five small cleanups in the same file, none individually card-worthy:
 	- `getSavingsSummary`: dropped the dead `> existing` guard in the per-session loop — `eventRows` is already `orderBy: { recordedAt: "desc" }`, so the first occurrence of a sessionId is the most-recent and the comparison never overwrote. Replaced with a plain `has()` check + comment.
 	- `getSavingsSummary`: parallelized the trimmed top-10 `getSessionPigeonOverhead` lookups via `Promise.all` (was sequential `await` inside the loop, up to 10 round-trips per Costs-page render).
@@ -244,6 +248,8 @@ Phase 1 of #179 (note-list default filter, #108) and the `endSession` deprecatio
 
 ### Changed
 
+- Re-shot `board-overview.png` post-Up-Next-removal so the docs-site hero reflects the current 4-column board layout (Parking Lot / Backlog / In Progress / Done). (#265)
+
 - **BREAKING — handoffs extracted from `Note` table.** `note.list`, `listNotes` MCP tool, and the public `NOTE_KINDS` enum no longer accept `kind: "handoff"`. Reads/writes go through `db.handoff`, the existing `handoff.*` tRPC router, and the `saveHandoff` MCP tool (wire shape unchanged for callers — `agentName` / `summary` / `workingOn` / `findings` / `nextSteps` / `blockers`). Sessions Sheet UI sources from the new table. (#179)
 - Header "MCP" pill renamed to "Commands" (`Command` icon); popover/sheet title and copy lead with slash commands. Cmd-K search pill gains a tooltip pointing at `?` for the full catalog. (#156)
 
@@ -295,6 +301,8 @@ Two adoption-friction reports landed in the same week — both traced to the sam
 - **CI: MCP registration check workflow** (#146). Extracts the tool registration into a barrel + adds a CI gate so a tool added to a registry but missing from the catalog fails the build.
 
 ### Changed
+
+- Re-shot `board-overview.png` post-Up-Next-removal so the docs-site hero reflects the current 4-column board layout (Parking Lot / Backlog / In Progress / Done). (#265)
 
 - **Essential tool `endSession` → `saveHandoff`.** Same shape, same semantics. Essential tool count stays at 10. Tool description, MCP catalog row, and onboarding strings updated.
 - **`/handoff` slash command** now calls `saveHandoff`. No user-facing change to the keystroke.
@@ -370,6 +378,8 @@ First post-rebrand release. Focus: install-health diagnostics (so the v5.0 migra
   - `[Unreleased]` link footer compared from `v4.0.0`; rebased to `v5.1.0...HEAD`. Added missing `[5.1.0]`, `[5.0.0]`, `[4.2.0]`, `[4.1.0]` link references.
 
 ### Changed
+
+- Re-shot `board-overview.png` post-Up-Next-removal so the docs-site hero reflects the current 4-column board layout (Parking Lot / Backlog / In Progress / Done). (#265)
 
 - `package.json` `version` 5.0.0 → 5.1.0.
 
@@ -629,6 +639,8 @@ The backfill is idempotent — rows already migrated are skipped. The script now
 
 ### Changed
 
+- Re-shot `board-overview.png` post-Up-Next-removal so the docs-site hero reflects the current 4-column board layout (Parking Lot / Backlog / In Progress / Done). (#265)
+
 - `SCHEMA_VERSION` 8 → 9.
 - `MCP_SERVER_VERSION` 2.5.0 → 3.0.0.
 - `getCard` MCP tool now reads decisions from `Claim` (same response shape — `{id, title, status}`).
@@ -650,6 +662,8 @@ The Note table widens to carry any author/kind/metadata payload. Still additive 
 
 ### Changed
 
+- Re-shot `board-overview.png` post-Up-Next-removal so the docs-site hero reflects the current 4-column board layout (Parking Lot / Backlog / In Progress / Done). (#265)
+
 - `SCHEMA_VERSION` 6 → 7.
 - `MCP_SERVER_VERSION` 2.4.0 → 2.5.0.
 
@@ -664,6 +678,8 @@ First cut of the unified knowledge primitive — the `Claim` row type, with MCP 
 
 ### Changed
 
+- Re-shot `board-overview.png` post-Up-Next-removal so the docs-site hero reflects the current 4-column board layout (Parking Lot / Backlog / In Progress / Done). (#265)
+
 - `SCHEMA_VERSION` 5 → 6.
 - `MCP_SERVER_VERSION` 2.3.0 → 2.4.0.
 
@@ -675,6 +691,8 @@ First cut of the unified knowledge primitive — the `Claim` row type, with MCP 
 - `briefMe` essential tool (session primer with pulse, handoff, top work, open decisions).
 
 ### Changed
+
+- Re-shot `board-overview.png` post-Up-Next-removal so the docs-site hero reflects the current 4-column board layout (Parking Lot / Backlog / In Progress / Done). (#265)
 
 - `MCP_SERVER_VERSION` 2.2.0 → 2.3.0.
 
