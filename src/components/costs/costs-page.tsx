@@ -4,6 +4,7 @@ import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setu
 import { CostsBreadcrumb } from "@/components/costs/breadcrumb";
 import { PigeonOverheadSection } from "@/components/costs/pigeon-overhead-section";
 import { PricingOverrideTable } from "@/components/costs/pricing-override-table";
+import { SavingsSection } from "@/components/costs/savings-section";
 import { SummaryStrip } from "@/components/costs/summary-strip";
 import { TopSessionsSection } from "@/components/costs/top-sessions-section";
 import { UnattributedGapCard } from "@/components/costs/unattributed-gap-card";
@@ -77,6 +78,13 @@ export function CostsPage({
 		{ projectId, boardId },
 		{ staleTime: 60_000 }
 	);
+	// Pigeon savings — briefMe vs naive bootstrap (#273 — revived from #236).
+	// Read from `Project.metadata.tokenBaseline`; recomputed on demand by
+	// the section's own "Recalibrate" button.
+	const { data: savingsSummary } = api.tokenUsage.getSavingsSummary.useQuery(
+		{ projectId },
+		{ staleTime: 60_000 }
+	);
 
 	const isLoading = summaryLoading || dailyLoading;
 	const hasNoData =
@@ -135,6 +143,9 @@ export function CostsPage({
 						dailyShare={dailyShare?.dailyShare}
 					/>
 					<UnattributedGapCard projectSummary={projectSummary} />
+					{savingsSummary !== undefined ? (
+						<SavingsSection projectId={projectId} summary={savingsSummary} />
+					) : null}
 					{pigeonOverhead ? <PigeonOverheadSection overhead={pigeonOverhead} /> : null}
 					{topSessions ? (
 						<TopSessionsSection topSessions={topSessions} projectId={projectId} />

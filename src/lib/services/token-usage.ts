@@ -184,6 +184,15 @@ export type BaselineResult = {
 	measuredAt: string;
 };
 
+/**
+ * Pre-computed savings snapshot read straight from
+ * `Project.metadata.tokenBaseline` (#274). The numbers are persisted by
+ * `recalibrateBaseline`; this reader exists so the Costs page can render
+ * the lens without re-running the (expensive) buildBriefPayload measure
+ * on every render. `null` = never been recalibrated for this project.
+ */
+export type SavingsSummary = BaselineResult | null;
+
 // ─── Internal: row insert shape (used by recordFromTranscript) ─────
 
 type InsertRow = {
@@ -1420,6 +1429,59 @@ export function createTokenUsageService(prisma: PrismaClient) {
 	// (regex on static `from "@/server/..."` imports) is satisfied, and any
 	// MCP-side caller that invokes `recalibrateBaseline` resolves the server
 	// module in-process the same way the pre-refactor singleton did.
+	// Cheap reader for the persisted baseline (#273). Returns whatever
+	// `recalibrateBaseline` last wrote to `Project.metadata.tokenBaseline`,
+	// or `null` if it's never been computed. Backs the Costs page's
+	// `<SavingsSection>` — the section calls this on every render, so
+	// keeping it a JSON parse (no re-measurement) is load-bearing.
+	async function getSavingsSummary(projectId: string): Promise<ServiceResult<SavingsSummary>> {
+		try {
+			const project = await prisma.project.findUnique({
+				where: { id: projectId },
+				select: { metadata: true },
+			});
+			if (!project) {
+				return { success: false, error: { code: "NOT_FOUND", message: "Project not found." } };
+			}
+			const meta = safeParseJson(project.metadata ?? "{}");
+			const raw = meta.tokenBaseline;
+			if (!raw || typeof raw !== "object") {
+				return { success: true, data: null };
+			}
+			const tb = raw as Record<string, unknown>;
+			const briefMeTokens = typeof tb.briefMeTokens === "number" ? tb.briefMeTokens : null;
+			const naiveBootstrapTokens =
+				typeof tb.naiveBootstrapTokens === "number" ? tb.naiveBootstrapTokens : null;
+			const measuredAt = typeof tb.measuredAt === "string" ? tb.measuredAt : null;
+			if (briefMeTokens === null || naiveBootstrapTokens === null || measuredAt === null) {
+				// Partial / corrupted baseline — surface as "not yet measured"
+				// rather than fabricate numbers.
+				return { success: true, data: null };
+			}
+			const savings = naiveBootstrapTokens - briefMeTokens;
+			const savingsPct = naiveBootstrapTokens > 0 ? savings / naiveBootstrapTokens : 0;
+			return {
+				success: true,
+				data: {
+					briefMeTokens,
+					naiveBootstrapTokens,
+					...(typeof tb.latestHandoffTokens === "number"
+						? { latestHandoffTokens: tb.latestHandoffTokens }
+						: {}),
+					savings,
+					savingsPct,
+					measuredAt,
+				},
+			};
+		} catch (error) {
+			console.error("[TOKEN_USAGE_SERVICE] getSavingsSummary error:", error);
+			return {
+				success: false,
+				error: { code: "QUERY_FAILED", message: "Failed to load savings summary." },
+			};
+		}
+	}
+
 	async function recalibrateBaseline(projectId: string): Promise<ServiceResult<BaselineResult>> {
 		try {
 			// Lazy-import to avoid a top-level cycle (brief-payload-service
@@ -1737,6 +1799,7 @@ export function createTokenUsageService(prisma: PrismaClient) {
 		getPricing,
 		updatePricing,
 		recalibrateBaseline,
+		getSavingsSummary,
 		getSessionPigeonOverhead,
 		getCardPigeonOverhead,
 		getProjectPigeonOverhead,

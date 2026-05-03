@@ -152,6 +152,23 @@ export const tokenUsageRouter = createTRPCRouter({
 			return result.data;
 		}),
 
+	// Read the persisted baseline from Project.metadata.tokenBaseline.
+	// Cheap (one row read + JSON parse); backs `<SavingsSection>` on the
+	// Costs page (#273). Returns `null` when the baseline has never been
+	// measured for this project — the UI renders a "Recalibrate" prompt.
+	getSavingsSummary: publicProcedure
+		.input(z.object({ projectId: z.string().uuid() }))
+		.query(async ({ input }) => {
+			const result = await tokenUsageService.getSavingsSummary(input.projectId);
+			if (!result.success) {
+				throw new TRPCError({
+					code: result.error.code === "NOT_FOUND" ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+					message: result.error.message,
+				});
+			}
+			return result.data;
+		}),
+
 	// Measure briefMe payload vs. naive bootstrap and persist on
 	// Project.metadata.tokenBaseline. Backs the "Pigeon paid for itself"
 	// surface — invoked from the project settings page (and via the MCP
