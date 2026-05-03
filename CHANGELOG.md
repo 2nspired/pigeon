@@ -26,6 +26,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 - PO export — download Costs page card-delivery data as CSV or Markdown (#136).
 - MIT LICENSE file (#282).
 - Costs page Resources link + cost-attribution explainer in docs-site (#276). The Costs page header carries a "How is this calculated?" link to the existing `/costs` Starlight page; each section header (`<SummaryStrip>`, `<UnattributedGapCard>`, `<SavingsSection>`, `<PigeonOverheadSection>`, `<CardDeliverySection>`, `<TopSessionsSection>`, `<PricingOverrideTable>`) carries a `?` icon that deep-links to the matching anchor. The explainer was rewritten end-to-end to cover the Attribution Engine (#268, #269), the 3-bucket gap (#213), per-section math, and the orphan-tool-call-log overhead drag introduced by #277, with a mermaid decision-tree diagram and file:line references throughout.
+- `docs/ARCHITECTURE.md`, `docs/DATA-MODEL.md`, `docs/ATTRIBUTION-ENGINE.md`, and `docs/README.md` — fills the four narrative gaps the audit (#253) flagged on the in-repo doc tree. ARCHITECTURE codifies the #260 boundary rule with the lint citation; DATA-MODEL is a domain-grouped tour of all 18 Prisma models plus `knowledge_fts`; ATTRIBUTION-ENGINE collects the #268-#272 subsystem (5-tier heuristic, three-bucket gap, deferral rationale). Light edits in `commands.md` add the four post-#255 lint scripts and the FTS-drift caveat on `db:push`. (#284)
 
 ### Changed
 
