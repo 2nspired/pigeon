@@ -16,6 +16,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 ### Changed
 
 - `.github/SECURITY.md` now points reporters at GitHub's private vulnerability reporting (Security tab → "Report a vulnerability") rather than an email TODO. Removed `.github/FUNDING.yml` — no funding channel yet (tracked as #288).
+- Replaced placeholder `board-overview-dark.png` with a real dark-mode capture of the Pigeon Dev board (Parking Lot / Backlog / In Progress / Done columns with priority stripes, tags, and card numbers). Added 4 net-new dark/light captures: `card-detail-dark.png`, `costs-page-light.png`, `costs-page-dark.png`, and `command-palette.png` for future docs use.
 
 ## [6.4.0] — 2026-05-02
 
