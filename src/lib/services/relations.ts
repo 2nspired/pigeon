@@ -28,7 +28,14 @@ export type LinkResult = {
 
 export async function linkCards(
 	db: PrismaClient,
-	input: { fromCardId: string; toCardId: string; type: string; actorName: string }
+	input: {
+		fromCardId: string;
+		toCardId: string;
+		type: string;
+		actorName: string;
+		/** MCP SESSION_ID stamped on the resulting Activity rows (#272). Null on web-side callers. */
+		sessionId?: string | null;
+	}
 ): Promise<LinkResult> {
 	if (input.fromCardId === input.toCardId) {
 		throw new Error("A card cannot be linked to itself.");
@@ -65,6 +72,7 @@ export async function linkCards(
 				details: `Linked as "${input.type}" to #${toCard.number}`,
 				actorType: "AGENT",
 				actorName: input.actorName,
+				sessionId: input.sessionId ?? null,
 			},
 		}),
 		db.activity.create({
@@ -74,6 +82,7 @@ export async function linkCards(
 				details: `Linked as "${input.type}" from #${fromCard.number}`,
 				actorType: "AGENT",
 				actorName: input.actorName,
+				sessionId: input.sessionId ?? null,
 			},
 		}),
 	]);
@@ -83,7 +92,14 @@ export async function linkCards(
 
 export async function unlinkCards(
 	db: PrismaClient,
-	input: { fromCardId: string; toCardId: string; type: string; actorName: string }
+	input: {
+		fromCardId: string;
+		toCardId: string;
+		type: string;
+		actorName: string;
+		/** MCP SESSION_ID stamped on the resulting Activity rows (#272). Null on web-side callers. */
+		sessionId?: string | null;
+	}
 ): Promise<{ fromCard: CardSummary | null; toCard: CardSummary | null }> {
 	const [fromCard, toCard] = await Promise.all([
 		db.card.findUnique({
@@ -120,6 +136,7 @@ export async function unlinkCards(
 					details: `Unlinked "${input.type}" relation to #${toCard.number}`,
 					actorType: "AGENT",
 					actorName: input.actorName,
+					sessionId: input.sessionId ?? null,
 				},
 			}),
 			db.activity.create({
@@ -129,6 +146,7 @@ export async function unlinkCards(
 					details: `Unlinked "${input.type}" relation from #${fromCard.number}`,
 					actorType: "AGENT",
 					actorName: input.actorName,
+					sessionId: input.sessionId ?? null,
 				},
 			}),
 		]);

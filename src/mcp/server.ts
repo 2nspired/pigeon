@@ -327,6 +327,7 @@ server.registerTool(
 						details: `Card #${cardNumber} "${title}" created in ${columnName}`,
 						actorType: "AGENT",
 						actorName: AGENT_NAME,
+						sessionId: SESSION_ID,
 					},
 				});
 
@@ -470,6 +471,7 @@ server.registerTool(
 						...(intent ? { intent: intent as string } : {}),
 						actorType: "AGENT",
 						actorName: AGENT_NAME,
+						sessionId: SESSION_ID,
 					},
 				});
 
@@ -598,6 +600,7 @@ server.registerTool(
 							intent: intent as string,
 							actorType: "AGENT",
 							actorName: AGENT_NAME,
+							sessionId: SESSION_ID,
 						},
 					});
 				}

@@ -15,6 +15,7 @@
 
 import { z } from "zod";
 import { db } from "../db.js";
+import { SESSION_ID } from "../instrumentation.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { AGENT_NAME, ok, safeExecute } from "../utils.js";
 import { type CardContextPayload, loadCardContext } from "./context-tools.js";
@@ -257,6 +258,7 @@ registerExtendedTool("planCard", {
 						intent: intent ? `planning #${cardNumber}: ${intent}` : `planning #${cardNumber}`,
 						actorType: "AGENT",
 						actorName: AGENT_NAME,
+						sessionId: SESSION_ID,
 					},
 				});
 			}

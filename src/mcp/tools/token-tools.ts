@@ -107,6 +107,10 @@ registerExtendedTool("recordTokenUsage", {
 				cacheReadTokens: p.cacheReadTokens,
 				cacheCreation1hTokens: p.cacheCreation1hTokens,
 				cacheCreation5mTokens: p.cacheCreation5mTokens,
+				// #272: light up signals 3 + 4 with this MCP server's SESSION_ID
+				// so same-session Activity / GitLink rows can attribute when no
+				// explicit cardId / single-In-Progress is available.
+				mcpSessionId: SESSION_ID,
 			});
 			if (!result.success) {
 				// Surface as a soft warning — token tracking should never block.
@@ -199,6 +203,11 @@ registerExtendedTool("recordTokenUsageFromTranscript", {
 				transcriptPath: p.transcriptPath,
 				cardId: p.cardId ?? null,
 				agentName: "claude-code",
+				// #272: light up signals 3 + 4 with this MCP server's SESSION_ID
+				// (distinct from the Claude Code session UUID above) so any
+				// same-MCP-session Activity / GitLink rows can attribute the
+				// transcript's tokens.
+				mcpSessionId: SESSION_ID,
 			});
 			if (!result.success) {
 				return ok({

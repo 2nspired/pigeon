@@ -219,12 +219,19 @@ model Activity {
   intent    String?
   actorType String   @default("HUMAN") @map("actor_type")
   actorName String?  @map("actor_name")
+  // MCP server SESSION_ID at write time. Backs the Attribution Engine's
+  // `session-recent-touch` signal (#272) — `buildAttributionSnapshot`
+  // joins on this to find cards touched in the current MCP session.
+  // Nullable: web-side writes (tRPC routers, services) leave it null so
+  // attribution still falls through cleanly via signals 1+2+5.
+  sessionId String?  @map("session_id")
   createdAt DateTime @default(now()) @map("created_at")
 
   card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@index([cardId])
   @@index([cardId, createdAt])
+  @@index([sessionId, createdAt])
   @@map("activity")
 }
 
@@ -324,6 +331,12 @@ model GitLink {
   author     String   @default("")
   commitDate DateTime @default(now()) @map("commit_date")
   filePaths  String   @default("[]") @map("file_paths") // JSON array
+  // MCP server SESSION_ID at write time. Backs the Attribution Engine's
+  // `session-commit` signal (#272) — `buildAttributionSnapshot` joins on
+  // this to find commits linked from the current MCP session. Nullable:
+  // git-sync runs that don't originate from a tagged MCP session leave
+  // it null and attribution falls through cleanly.
+  sessionId  String?  @map("session_id")
   createdAt  DateTime @default(now()) @map("created_at")
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -332,6 +345,7 @@ model GitLink {
   @@unique([projectId, commitHash, cardId])
   @@index([projectId])
   @@index([cardId])
+  @@index([sessionId, commitDate])
   @@map("git_link")
 }
 

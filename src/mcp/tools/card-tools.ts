@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { hasRole } from "../../lib/column-roles.js";
 import { db } from "../db.js";
+import { SESSION_ID } from "../instrumentation.js";
 import {
 	buildTaxonomyMeta,
 	resolveMilestoneForWrite,
@@ -136,6 +137,7 @@ registerExtendedTool("bulkMoveCards", {
 						intent: intent as string,
 						actorType: "AGENT",
 						actorName: AGENT_NAME,
+						sessionId: SESSION_ID,
 					},
 				});
 				moved.push(`#${card.number}`);

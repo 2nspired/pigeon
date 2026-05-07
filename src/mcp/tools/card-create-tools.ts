@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { db } from "../db.js";
+import { SESSION_ID } from "../instrumentation.js";
 import {
 	buildTaxonomyMeta,
 	resolveMilestoneForWrite,
@@ -130,6 +131,7 @@ registerExtendedTool("bulkCreateCards", {
 						details: `Card #${cardNumber} "${input.title}" created in ${col.name}`,
 						actorType: "AGENT",
 						actorName: AGENT_NAME,
+						sessionId: SESSION_ID,
 					},
 				});
 
@@ -290,6 +292,7 @@ registerExtendedTool("createCardFromTemplate", {
 					details: `Card #${cardNumber} "${fullTitle}" created from ${template} template`,
 					actorType: "AGENT",
 					actorName: AGENT_NAME,
+					sessionId: SESSION_ID,
 				},
 			});
 

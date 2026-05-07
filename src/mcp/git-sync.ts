@@ -1,5 +1,6 @@
 import { db } from "./db.js";
 import { detectGitRepo, gitDiffFiles, gitLog, validateRepo } from "./git-utils.js";
+import { SESSION_ID } from "./instrumentation.js";
 
 export type SyncGitResult =
 	| {
@@ -105,6 +106,7 @@ export async function syncGitActivityForProject(
 					author: commit.author,
 					commitDate: commit.date,
 					filePaths: JSON.stringify(filePaths),
+					sessionId: SESSION_ID,
 				},
 				update: {},
 			});

@@ -5,6 +5,7 @@ import {
 	unlinkCards,
 } from "../../lib/services/relations.js";
 import { db } from "../db.js";
+import { SESSION_ID } from "../instrumentation.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { AGENT_NAME, err, ok, resolveCardRef, safeExecute } from "../utils.js";
 
@@ -38,6 +39,7 @@ registerExtendedTool("linkCards", {
 				toCardId: toId,
 				type: type as string,
 				actorName: AGENT_NAME,
+				sessionId: SESSION_ID,
 			});
 
 			return ok({
@@ -74,6 +76,7 @@ registerExtendedTool("unlinkCards", {
 				toCardId: toId,
 				type: type as string,
 				actorName: AGENT_NAME,
+				sessionId: SESSION_ID,
 			});
 
 			return ok({
