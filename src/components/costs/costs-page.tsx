@@ -5,6 +5,7 @@ import { BookOpen } from "lucide-react";
 import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setup-dialog";
 import { CostsBreadcrumb } from "@/components/costs/breadcrumb";
 import { CardDeliverySection } from "@/components/costs/card-delivery-section";
+import { HandoffActivitySection } from "@/components/costs/handoff-activity-section";
 import { PigeonOverheadSection } from "@/components/costs/pigeon-overhead-section";
 import { PricingOverrideTable } from "@/components/costs/pricing-override-table";
 import { SavingsSection } from "@/components/costs/savings-section";
@@ -95,6 +96,13 @@ export function CostsPage({
 		{ projectId, boardId, limit: 5 },
 		{ staleTime: 60_000 }
 	);
+	// Handoff activity rollup (#292) — total handoffs, aggregate cost, avg
+	// cost-per-handoff. Project-wide regardless of `boardId` because handoff
+	// economics are a session-continuity story, not a board-scope question.
+	const { data: handoffActivity } = api.tokenUsage.getHandoffActivity.useQuery(
+		{ projectId },
+		{ staleTime: 60_000 }
+	);
 
 	const isLoading = summaryLoading || dailyLoading;
 	const hasNoData =
@@ -175,6 +183,7 @@ export function CostsPage({
 					{savingsSummary !== undefined ? (
 						<SavingsSection projectId={projectId} summary={savingsSummary} />
 					) : null}
+					{handoffActivity ? <HandoffActivitySection activity={handoffActivity} /> : null}
 					{pigeonOverhead ? <PigeonOverheadSection overhead={pigeonOverhead} /> : null}
 					{cardDelivery ? (
 						<CardDeliverySection metrics={cardDelivery} projectId={projectId} boardId={boardId} />

@@ -19,6 +19,7 @@ import { useState } from "react";
 import { SectionHelpLink } from "@/components/costs/section-help-link";
 import { Button } from "@/components/ui/button";
 import { formatRelative } from "@/lib/format-date";
+import { cn } from "@/lib/utils";
 import { api, type RouterOutputs } from "@/trpc/react";
 
 type SavingsSummary = RouterOutputs["tokenUsage"]["getSavingsSummary"];
@@ -94,7 +95,12 @@ export function SavingsSection({ projectId, summary }: SavingsSectionProps) {
 				</Button>
 			</header>
 
-			<dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
+			<dl
+				className={cn(
+					"mt-4 grid grid-cols-2 gap-4",
+					summary.latestHandoffTokens != null ? "sm:grid-cols-4" : "sm:grid-cols-3"
+				)}
+			>
 				<Stat
 					label="Saved per call"
 					primary={`${summary.savings.toLocaleString()} tok`}
@@ -105,6 +111,12 @@ export function SavingsSection({ projectId, summary }: SavingsSectionProps) {
 					label="Naive bootstrap"
 					primary={`${summary.naiveBootstrapTokens.toLocaleString()} tok`}
 				/>
+				{summary.latestHandoffTokens != null ? (
+					<Stat
+						label="Latest handoff"
+						primary={`${summary.latestHandoffTokens.toLocaleString()} tok`}
+					/>
+				) : null}
 			</dl>
 		</section>
 	);
