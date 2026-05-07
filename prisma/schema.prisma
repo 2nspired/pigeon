@@ -32,6 +32,7 @@ model Project {
   claims            Claim[]
   tokenUsageEvents  TokenUsageEvent[]
   baselineSnapshots BaselineSnapshot[]
+  editions          Edition[]
 
   @@map("project")
 }
@@ -102,6 +103,7 @@ model Board {
   columns           Column[]
   notes             Note[]
   handoffs          Handoff[]
+  editions          Edition[]
   defaultForProject Project?  @relation("DefaultBoard")
 
   @@index([projectId])
@@ -480,4 +482,41 @@ model BaselineSnapshot {
   @@index([projectId])
   @@index([projectId, measuredAt])
   @@map("baseline_snapshot")
+}
+
+// ─── The Daily Squawk (#298) ───────────────────────────────────────
+//
+// Persisted newspaper-style activity digest. The agent calls the
+// `squawk` MCP tool, drafts an issue in markdown, then calls
+// `publishEdition` which inserts one row here. Editions are
+// immutable: re-running `/squawk` for the same day returns the
+// existing row's URL rather than overwriting (slug uniqueness
+// enforced by `@@unique([boardId, slug])`).
+//
+// Layout decisions:
+//   - `slug` is `YYYY-MM-DD-daily-squawk`; one slug per board per day.
+//   - `masthead` carries `{ editorName, volume, issue }` JSON so the
+//     web reader can render the chrome without recomputing.
+//   - `content` stores raw markdown — re-rendered on read.
+//   - `periodStart` / `periodEnd` capture the source window so
+//     downstream tools can repeat the activity query if needed.
+model Edition {
+  id          String   @id @default(uuid())
+  boardId     String   @map("board_id")
+  projectId   String   @map("project_id")
+  slug        String
+  masthead    String
+  content     String
+  periodStart DateTime @map("period_start")
+  periodEnd   DateTime @map("period_end")
+  generatedAt DateTime @default(now()) @map("generated_at")
+
+  board   Board   @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, slug])
+  @@index([boardId, generatedAt])
+  @@index([projectId, generatedAt])
+  @@index([boardId, periodStart, periodEnd])
+  @@map("edition")
 }

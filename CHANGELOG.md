@@ -8,6 +8,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+### Added
+
+- The Daily Squawk — a newspaper-style activity digest. Run `/squawk` (with optional `1d` / `7d` / `30d` / `YYYY-MM-DD/YYYY-MM-DD`) and the agent drafts a markdown issue with 11 fixed sections + bylined personas (Edith Featherstone, Reginald Plumage III, Sterling Goldfeather…), then publishes it to `/squawk/[editionId]`. The web reader renders the issue as a real broadsheet — UnifrakturCook nameplate, Playfair Display headlines, Source Serif body, oxblood accent on a newsprint surface — with a 4×4 mini-crossword stub and a Corrections box that auto-populates when cards moved Done → In Progress in the period. Three new MCP tools (`squawk`, `getActivityWindow`, `publishEdition`), a new `Edition` Prisma model + `edition` tRPC router, and a top-level `/squawk` archive ("the morgue"). Editions are immutable: re-running for the same day returns the existing URL. (#298)
+
 ### Changed
 
 - Standardized USD formatting via one `formatUsd` helper (`Intl.NumberFormat` + magnitude buckets: `$0.0042` / `$3.45` / `$3,023` / `$12.5K`). Replaces the ad-hoc `formatCost`; chips, BoardPulse, every Costs-page section now route through it. (#295)

@@ -131,6 +131,13 @@ export const TOOL_CATALOG: {
 			"destructive": false
 		},
 		{
+			"name": "getActivityWindow",
+			"category": "context",
+			"description": "Read-only re-fetch of the Daily Squawk activity window (without the editor protocol). Useful for refreshing data while drafting an issue.",
+			"readOnly": true,
+			"destructive": false
+		},
+		{
 			"name": "getCardContext",
 			"category": "context",
 			"description": "Deep context for a single card: description, checklist, comments, relations, decisions, commits, and related cards.",
@@ -173,6 +180,13 @@ export const TOOL_CATALOG: {
 			"destructive": false
 		},
 		{
+			"name": "publishEdition",
+			"category": "context",
+			"description": "Persist a drafted Daily Squawk markdown issue. Returns the URL. Editions are immutable — duplicate slug returns the existing edition's URL.",
+			"readOnly": false,
+			"destructive": false
+		},
+		{
 			"name": "queryKnowledge",
 			"category": "context",
 			"description": "Full-text search across all project knowledge: cards, comments, decisions, notes, handoffs, code facts, context entries, and indexed repo markdown files. Auto-rebuilds the index on cold start (zero indexed rows for the project).",
@@ -197,6 +211,13 @@ export const TOOL_CATALOG: {
 			"name": "saveFact",
 			"category": "context",
 			"description": "Create or update a persistent fact. Pass factId to update. Legacy alias for `saveClaim` — prefer `saveClaim` for new writes (unified statement + body + evidence + payload shape). `saveFact`/`listFacts` are slated for removal in the next minor MCP version.\n\nTypes:\n- **context**: Project-level knowledge claim (content = the claim, plus rationale/application/details)\n- **code**: Assertion about a file or symbol (content = the fact, path required)\n- **measurement**: Numeric value like latency or bundle size (content = description, value + unit required)",
+			"readOnly": false,
+			"destructive": false
+		},
+		{
+			"name": "squawk",
+			"category": "context",
+			"description": "The Daily Squawk: returns activity data + masthead + editor system prompt + section protocol so the agent can draft a newspaper-style digest. Call publishEdition once the markdown is complete.",
 			"readOnly": false,
 			"destructive": false
 		},
@@ -647,6 +668,23 @@ export const TOOL_CATALOG: {
 				"description": "Card UUID or #number"
 			}
 		},
+		"getActivityWindow": {
+			"boardId": {
+				"type": "Board UUID.",
+				"required": true,
+				"description": "Board UUID."
+			},
+			"periodStart": {
+				"type": "ISO-8601 start of period.",
+				"required": true,
+				"description": "ISO-8601 start of period."
+			},
+			"periodEnd": {
+				"type": "ISO-8601 end of period.",
+				"required": true,
+				"description": "ISO-8601 end of period."
+			}
+		},
 		"getCardContext": {
 			"boardId": {
 				"type": "Board UUID",
@@ -797,6 +835,38 @@ export const TOOL_CATALOG: {
 				"type": "Optional rationale stamped on the activity strip (e.g. 'planning before standup')",
 				"required": false,
 				"description": "Optional rationale stamped on the activity strip (e.g. 'planning before standup')"
+			}
+		},
+		"publishEdition": {
+			"boardId": {
+				"type": "Board UUID.",
+				"required": true,
+				"description": "Board UUID."
+			},
+			"content": {
+				"type": "Full markdown body of the issue.",
+				"required": true,
+				"description": "Full markdown body of the issue."
+			},
+			"periodStart": {
+				"type": "ISO-8601 start of period (from squawk response).",
+				"required": true,
+				"description": "ISO-8601 start of period (from squawk response)."
+			},
+			"periodEnd": {
+				"type": "ISO-8601 end of period (from squawk response).",
+				"required": true,
+				"description": "ISO-8601 end of period (from squawk response)."
+			},
+			"masthead": {
+				"type": "Masthead meta (from squawk response).",
+				"required": true,
+				"description": "Masthead meta (from squawk response)."
+			},
+			"intent": {
+				"type": "Optional publish rationale.",
+				"required": false,
+				"description": "Optional publish rationale."
 			}
 		},
 		"queryKnowledge": {
@@ -990,6 +1060,23 @@ export const TOOL_CATALOG: {
 				"type": "[measurement] Time-to-live in days",
 				"required": false,
 				"description": "[measurement] Time-to-live in days"
+			}
+		},
+		"squawk": {
+			"boardId": {
+				"type": "Board UUID — pass explicitly when in a worktree.",
+				"required": true,
+				"description": "Board UUID — pass explicitly when in a worktree."
+			},
+			"period": {
+				"type": "Optional timeframe: \"1d\" / \"7d\" / \"30d\" / \"YYYY-MM-DD/YYYY-MM-DD\". Defaults to last 24h.",
+				"required": false,
+				"description": "Optional timeframe: \"1d\" / \"7d\" / \"30d\" / \"YYYY-MM-DD/YYYY-MM-DD\". Defaults to last 24h."
+			},
+			"intent": {
+				"type": "Optional rationale stamped on the activity log (e.g. 'sunday paper').",
+				"required": false,
+				"description": "Optional rationale stamped on the activity log (e.g. 'sunday paper')."
 			}
 		},
 		"getDecisions": {

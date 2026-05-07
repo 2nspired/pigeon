@@ -32,3 +32,4 @@ import "./tools/tag-tools.js";
 import "./tools/token-tools.js";
 import "./tools/baseline-tools.js";
 import "./tools/doctor-tools.js";
+import "./tools/squawk-tools.js";

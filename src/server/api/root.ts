@@ -8,6 +8,7 @@ import { checklistRouter } from "@/server/api/routers/checklist";
 import { columnRouter } from "@/server/api/routers/column";
 import { commentRouter } from "@/server/api/routers/comment";
 import { decisionRouter } from "@/server/api/routers/decision";
+import { editionRouter } from "@/server/api/routers/edition";
 import { handoffRouter } from "@/server/api/routers/handoff";
 import { milestoneRouter } from "@/server/api/routers/milestone";
 import { noteRouter } from "@/server/api/routers/note";
@@ -33,6 +34,7 @@ export const appRouter = createTRPCRouter({
 	relation: relationRouter,
 	handoff: handoffRouter,
 	decision: decisionRouter,
+	edition: editionRouter,
 	system: systemRouter,
 	tokenUsage: tokenUsageRouter,
 });
