@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { db } from "../db.js";
+import { SESSION_ID } from "../instrumentation.js";
 import { registerExtendedTool } from "../tool-registry.js";
 import { AGENT_NAME, err, ok, resolveCardRef, safeExecute } from "../utils.js";
 
@@ -113,6 +114,7 @@ registerExtendedTool("toggleChecklistItem", {
 						details: `Completed: ${item.text}`,
 						actorType: "AGENT",
 						actorName: AGENT_NAME,
+						sessionId: SESSION_ID,
 					},
 				});
 			}

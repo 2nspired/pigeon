@@ -365,3 +365,182 @@ describe("recordFromTranscript — Attribution Engine wiring", () => {
 		expect(after?.signal).toBe("unattributed");
 	});
 });
+
+// ─── #272: session-touch + session-commit signals ───────────────────
+
+describe("recordManual — session-scoped signals (#272)", () => {
+	let testDb: TestDb;
+
+	const PROJECT_ID = "10000000-1000-4000-8000-100000000272";
+	const BOARD_ID = "20000000-2000-4000-8000-200000000272";
+	const TODO_COL_ID = "30000000-3000-4000-8000-300000000a72";
+	const TOUCHED_CARD_ID = "40000000-4000-4000-8000-400000000a72";
+	const COMMITTED_CARD_ID = "40000000-4000-4000-8000-400000000b72";
+	const STALE_TOUCHED_CARD_ID = "40000000-4000-4000-8000-400000000c72";
+	const MCP_SESSION_ID = "mcp-session-272";
+
+	beforeAll(async () => {
+		testDb = await createTestDb();
+		dbRef.current = testDb.prisma;
+
+		await testDb.prisma.project.create({
+			data: { id: PROJECT_ID, name: "Test #272", slug: "test-272" },
+		});
+		await testDb.prisma.board.create({
+			data: { id: BOARD_ID, projectId: PROJECT_ID, name: "Test board" },
+		});
+		await testDb.prisma.column.create({
+			data: { id: TODO_COL_ID, boardId: BOARD_ID, name: "Todo", position: 0, role: "todo" },
+		});
+		await testDb.prisma.card.createMany({
+			data: [
+				{
+					id: TOUCHED_CARD_ID,
+					columnId: TODO_COL_ID,
+					projectId: PROJECT_ID,
+					number: 1,
+					title: "Touched in this session",
+					position: 0,
+				},
+				{
+					id: COMMITTED_CARD_ID,
+					columnId: TODO_COL_ID,
+					projectId: PROJECT_ID,
+					number: 2,
+					title: "Committed in this session",
+					position: 1,
+				},
+				{
+					id: STALE_TOUCHED_CARD_ID,
+					columnId: TODO_COL_ID,
+					projectId: PROJECT_ID,
+					number: 3,
+					title: "Touched before the anchor",
+					position: 2,
+				},
+			],
+		});
+	});
+
+	afterAll(async () => {
+		dbRef.current = null;
+		await testDb.cleanup();
+	});
+
+	async function readRow(sessionId: string) {
+		return testDb.prisma.tokenUsageEvent.findFirst({
+			where: { sessionId },
+			select: { cardId: true, signal: true, signalConfidence: true },
+		});
+	}
+
+	it("recent same-session Activity → signal=`session-recent-touch`, confidence=`medium`", async () => {
+		// Activity inside the 4h lookback window from `recordManual`.
+		await testDb.prisma.activity.create({
+			data: {
+				cardId: TOUCHED_CARD_ID,
+				action: "moved",
+				actorType: "AGENT",
+				sessionId: MCP_SESSION_ID,
+				createdAt: new Date(Date.now() - 30 * 60 * 1000), // 30m ago
+			},
+		});
+
+		const session = "manual-touch-fires";
+		const result = await tokenUsageService.recordManual({
+			projectId: PROJECT_ID,
+			sessionId: session,
+			model: "claude-opus-4-7",
+			inputTokens: 100,
+			outputTokens: 50,
+			mcpSessionId: MCP_SESSION_ID,
+		});
+		expect(result.success).toBe(true);
+
+		const row = await readRow(session);
+		expect(row?.cardId).toBe(TOUCHED_CARD_ID);
+		expect(row?.signal).toBe("session-recent-touch");
+		expect(row?.signalConfidence).toBe("medium");
+	});
+
+	it("Activity older than the 4h anchor is ignored — falls through to unattributed", async () => {
+		// Stale activity outside the lookback window.
+		await testDb.prisma.activity.create({
+			data: {
+				cardId: STALE_TOUCHED_CARD_ID,
+				action: "moved",
+				actorType: "AGENT",
+				sessionId: "mcp-session-stale",
+				createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6h ago
+			},
+		});
+
+		const session = "manual-stale-ignored";
+		const result = await tokenUsageService.recordManual({
+			projectId: PROJECT_ID,
+			sessionId: session,
+			model: "claude-opus-4-7",
+			inputTokens: 25,
+			outputTokens: 10,
+			mcpSessionId: "mcp-session-stale",
+		});
+		expect(result.success).toBe(true);
+
+		const row = await readRow(session);
+		expect(row?.cardId).toBeNull();
+		expect(row?.signal).toBe("unattributed");
+	});
+
+	it("session-commit fires when no Activity but a recent GitLink exists", async () => {
+		// Use a fresh MCP session id so the Activity row from the first test
+		// can't satisfy signal 3 ahead of signal 4 here.
+		const localSession = "mcp-session-commit-only";
+		await testDb.prisma.gitLink.create({
+			data: {
+				projectId: PROJECT_ID,
+				cardId: COMMITTED_CARD_ID,
+				commitHash: "deadbeef272",
+				message: "feat(test): #272",
+				author: "tester",
+				commitDate: new Date(Date.now() - 15 * 60 * 1000),
+				sessionId: localSession,
+			},
+		});
+
+		const session = "manual-commit-fires";
+		const result = await tokenUsageService.recordManual({
+			projectId: PROJECT_ID,
+			sessionId: session,
+			model: "claude-opus-4-7",
+			inputTokens: 75,
+			outputTokens: 30,
+			mcpSessionId: localSession,
+		});
+		expect(result.success).toBe(true);
+
+		const row = await readRow(session);
+		expect(row?.cardId).toBe(COMMITTED_CARD_ID);
+		expect(row?.signal).toBe("session-commit");
+		expect(row?.signalConfidence).toBe("medium-low");
+	});
+
+	it("null mcpSessionId leaves signals 3+4 dormant — web-side fallback to unattributed", async () => {
+		// No mcpSessionId passed → buildAttributionSnapshot must not query
+		// Activity / GitLink at all. Even though a same-card Activity exists,
+		// it's invisible without the session-id binding.
+		const session = "manual-no-mcp-id";
+		const result = await tokenUsageService.recordManual({
+			projectId: PROJECT_ID,
+			sessionId: session,
+			model: "claude-opus-4-7",
+			inputTokens: 10,
+			outputTokens: 5,
+			// mcpSessionId intentionally omitted (web-side caller)
+		});
+		expect(result.success).toBe(true);
+
+		const row = await readRow(session);
+		expect(row?.cardId).toBeNull();
+		expect(row?.signal).toBe("unattributed");
+	});
+});

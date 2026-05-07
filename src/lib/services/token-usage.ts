@@ -60,6 +60,12 @@ export type ManualRecordInput = {
 	cacheReadTokens?: number;
 	cacheCreation1hTokens?: number;
 	cacheCreation5mTokens?: number;
+	/**
+	 * MCP server SESSION_ID (#272). When set, lets the snapshot pick up
+	 * `session-recent-touch` and `session-commit` signals from same-session
+	 * Activity / GitLink rows. Web-side callers leave it null.
+	 */
+	mcpSessionId?: string | null;
 };
 
 export type TranscriptRecordInput = {
@@ -68,6 +74,13 @@ export type TranscriptRecordInput = {
 	transcriptPath: string;
 	cardId?: string | null;
 	agentName?: string | null;
+	/**
+	 * MCP server SESSION_ID (#272). When set, signals 3 + 4 light up scoped
+	 * to the first transcript-message timestamp (anchor parsed from the
+	 * JSONL itself). Falls back to a 4h lookback window if the transcript
+	 * doesn't yield a usable timestamp.
+	 */
+	mcpSessionId?: string | null;
 };
 
 export type ModelTotals = {
@@ -396,6 +409,45 @@ async function aggregateTranscript(
 
 function numericOrZero(value: unknown): number {
 	return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+// Parses the earliest `timestamp` field from a Claude Code JSONL transcript
+// — every line that's actually a session message carries an ISO `timestamp`
+// (file-history-snapshot lines also do; either is a valid lower bound for
+// the session-scoped Activity / GitLink scan in `buildAttributionSnapshot`).
+// Returns null when the file is empty / unreadable / has no parsable
+// timestamp, in which case the caller falls back to the 4h lookback. Bounded
+// at the first match — no need to scan the whole transcript.
+async function parseFirstTranscriptTimestamp(filePath: string): Promise<Date | null> {
+	try {
+		const stream = createReadStream(filePath, { encoding: "utf8" });
+		const rl = createInterface({ input: stream, crlfDelay: Infinity });
+		try {
+			for await (const line of rl) {
+				const trimmed = line.trim();
+				if (!trimmed) continue;
+				let parsed: unknown;
+				try {
+					parsed = JSON.parse(trimmed);
+				} catch {
+					continue;
+				}
+				const ts = (parsed as { timestamp?: unknown })?.timestamp;
+				if (typeof ts === "string") {
+					const d = new Date(ts);
+					if (!Number.isNaN(d.getTime())) return d;
+				} else if (typeof ts === "number" && Number.isFinite(ts)) {
+					return new Date(ts);
+				}
+			}
+		} finally {
+			rl.close();
+			stream.destroy();
+		}
+	} catch {
+		return null;
+	}
+	return null;
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
@@ -827,11 +879,19 @@ export function createTokenUsageService(prisma: PrismaClient) {
 	// one-function read-then-write keeps the fix scoped and migration-free.
 	async function recordManual(input: ManualRecordInput): Promise<ServiceResult<RecordResult>> {
 		try {
-			// Attribution Engine (#269): one snapshot read per write, then a
-			// pure decision via `attribute()`. Explicit input.cardId always
+			// Attribution Engine (#269, #272): one snapshot read per write, then
+			// a pure decision via `attribute()`. Explicit input.cardId always
 			// wins (signal=`explicit`); falls through to single-In-Progress,
-			// then `unattributed` for multi-In-Progress / no-signal.
-			const snapshot = await buildAttributionSnapshot(prisma, input.projectId);
+			// then `session-recent-touch` (3) / `session-commit` (4) when an
+			// `mcpSessionId` is supplied, then `unattributed` on no-signal /
+			// multi-In-Progress. The 4h lookback for `recordManual` is the
+			// "current attention window" — anything older than that is unlikely
+			// to be the same active task even within one MCP process lifetime.
+			const sessionAnchor = input.mcpSessionId ? new Date(Date.now() - 4 * 60 * 60 * 1000) : null;
+			const snapshot = await buildAttributionSnapshot(prisma, input.projectId, {
+				mcpSessionId: input.mcpSessionId ?? null,
+				sessionAnchor,
+			});
 			const attribution = attribute({ cardId: input.cardId }, snapshot);
 
 			const data = {
@@ -953,10 +1013,23 @@ export function createTokenUsageService(prisma: PrismaClient) {
 			};
 		}
 
-		// Attribution Engine (#269): one snapshot per call (not per row), one
-		// pure decision shared by every model row in this session. Explicit
-		// input.cardId still wins via attribution's signal=`explicit` branch.
-		const snapshot = await buildAttributionSnapshot(prisma, input.projectId);
+		// Attribution Engine (#269, #272): one snapshot per call (not per row),
+		// one pure decision shared by every model row in this session.
+		// Explicit input.cardId still wins via attribution's signal=`explicit`
+		// branch. When `mcpSessionId` is supplied, signals 3 + 4 anchor on the
+		// first transcript-message timestamp so any Activity / GitLink rows
+		// the agent emitted *during this session* can be picked up. Falls back
+		// to a 4h window when the transcript yields no usable timestamp.
+		let sessionAnchor: Date | null = null;
+		if (input.mcpSessionId) {
+			sessionAnchor =
+				(await parseFirstTranscriptTimestamp(input.transcriptPath)) ??
+				new Date(Date.now() - 4 * 60 * 60 * 1000);
+		}
+		const snapshot = await buildAttributionSnapshot(prisma, input.projectId, {
+			mcpSessionId: input.mcpSessionId ?? null,
+			sessionAnchor,
+		});
 		const attribution = attribute({ cardId: input.cardId }, snapshot);
 
 		const rows: InsertRow[] = [];
