@@ -662,23 +662,21 @@ async function queryCostWindow(
  * dominated by heuristic rows still means a human or agent named the card,
  * which is the strongest signal we have. The chip is a category label,
  * not a precision claim.
+ *
+ * `no-data` means literally that — we found no events for this window, so
+ * there's nothing to show. A non-empty event set without any attribution
+ * signal still represents observed spend in the window and rolls up as
+ * `estimated` (muted chip) — better than rendering em-dash and implying
+ * the handoff was free.
  */
 function mapHandoffConfidence(
 	events: Pick<EventRow, "signal">[]
 ): "attributed" | "estimated" | "no-data" {
 	if (events.length === 0) return "no-data";
-	let hasHeuristic = false;
 	for (const event of events) {
 		if (event.signal === "explicit") return "attributed";
-		if (
-			event.signal === "single-in-progress" ||
-			event.signal === "session-recent-touch" ||
-			event.signal === "session-commit"
-		) {
-			hasHeuristic = true;
-		}
 	}
-	return hasHeuristic ? "estimated" : "no-data";
+	return "estimated";
 }
 
 function median(values: number[]): number {
@@ -1380,27 +1378,59 @@ export function createTokenUsageService(prisma: PrismaClient) {
 			// single-card heuristic is a stopgap for the common case (solo
 			// agent on one card); multi-card sessions fall back to project +
 			// agentName scope and over-attribute.
-			let workingOnIds: string[] = [];
+			let workingOnEntries: string[] = [];
 			try {
 				const parsed = JSON.parse(handoff.workingOn);
 				if (Array.isArray(parsed)) {
-					workingOnIds = parsed.filter((v): v is string => typeof v === "string");
+					workingOnEntries = parsed.filter((v): v is string => typeof v === "string");
 				}
 			} catch {
-				workingOnIds = [];
+				workingOnEntries = [];
 			}
-			const narrowingCardId = workingOnIds.length === 1 ? workingOnIds[0] : undefined;
+			// `workingOn` is documented free text (`src/mcp/server.ts:897`:
+			// "card refs like '#7 auth' are fine") — entries are display
+			// strings, not card UUIDs. Extract a leading `#N` ref and resolve
+			// to a UUID; if there's no ref or it doesn't resolve, drop the
+			// narrowing and fall back to project + agentName scope.
+			let narrowingCardId: string | undefined;
+			if (workingOnEntries.length === 1) {
+				const match = workingOnEntries[0].match(/^#(\d+)\b/);
+				if (match) {
+					const number = Number.parseInt(match[1], 10);
+					const card = await prisma.card.findFirst({
+						where: { projectId: handoff.projectId, number },
+						select: { id: true },
+					});
+					if (card) narrowingCardId = card.id;
+				}
+			}
 
-			const [events, pricing] = await Promise.all([
-				queryCostWindow(prisma, {
+			const pricing = await loadPricing();
+			let events = await queryCostWindow(prisma, {
+				projectId: handoff.projectId,
+				agentName: handoff.agentName,
+				cardId: narrowingCardId,
+				from: windowStart ?? undefined,
+				to: handoff.createdAt,
+			});
+			// Narrowing is strict: a `cardId` filter only matches events the
+			// attribution engine explicitly tagged to this card. When the
+			// window contains events but none with `cardId` set, the strict
+			// query yields zero — we'd render `no-data` despite having
+			// activity to report. Fall back to the unnarrowed window scope
+			// (project + agentName + time bounds) and let `confidence` drop
+			// to `estimated` via the per-event signal mix. Same shape as the
+			// multi-card fallback above.
+			let cardScoped = narrowingCardId !== undefined;
+			if (cardScoped && events.length === 0) {
+				events = await queryCostWindow(prisma, {
 					projectId: handoff.projectId,
 					agentName: handoff.agentName,
-					cardId: narrowingCardId,
 					from: windowStart ?? undefined,
 					to: handoff.createdAt,
-				}),
-				loadPricing(),
-			]);
+				});
+				cardScoped = false;
+			}
 
 			const summary = aggregateEvents(events, pricing);
 			let inputTokens = 0;
@@ -1428,7 +1458,7 @@ export function createTokenUsageService(prisma: PrismaClient) {
 					sessionCount: summary.sessionCount,
 					eventCount: summary.eventCount,
 					confidence: mapHandoffConfidence(events),
-					cardScoped: narrowingCardId !== undefined,
+					cardScoped,
 					windowStart,
 					windowEnd: handoff.createdAt,
 				},

@@ -203,10 +203,14 @@ describe("mapHandoffConfidence — signal rollup", () => {
 		expect(mapHandoffConfidence([])).toBe("no-data");
 	});
 
-	it("returns no-data when every signal is null or unattributed", () => {
+	it("non-empty events without attribution signals roll up as estimated, not no-data", () => {
+		// `no-data` is reserved for the empty case (literally nothing to show).
+		// Events in window without explicit/heuristic signals still represent
+		// observed spend — we render them as `estimated` (muted chip) rather
+		// than em-dash, which would imply the handoff was free.
 		expect(
 			mapHandoffConfidence([{ signal: null }, { signal: "unattributed" }, { signal: null }])
-		).toBe("no-data");
+		).toBe("estimated");
 	});
 
 	it("returns estimated when any heuristic signal is present", () => {
@@ -351,7 +355,7 @@ describe("getHandoffCost", () => {
 		const handoffId = await createHandoff({
 			boardId: BOARD_ID,
 			createdAt: T_FIRST,
-			workingOn: [CARD_A],
+			workingOn: ["#1 A"],
 		});
 
 		const result = await tokenUsageService.getHandoffCost(handoffId);
@@ -383,7 +387,7 @@ describe("getHandoffCost", () => {
 		const handoffId = await createHandoff({
 			boardId: BOARD_ID,
 			createdAt: T_SECOND,
-			workingOn: [CARD_A],
+			workingOn: ["#1 A"],
 		});
 
 		const result = await tokenUsageService.getHandoffCost(handoffId);
@@ -415,7 +419,7 @@ describe("getHandoffCost", () => {
 		const handoffId = await createHandoff({
 			boardId: BOARD_ID,
 			createdAt: T_AFTER,
-			workingOn: [CARD_A, CARD_B],
+			workingOn: ["#1 A", "#2 B"],
 		});
 
 		const result = await tokenUsageService.getHandoffCost(handoffId);
@@ -425,6 +429,151 @@ describe("getHandoffCost", () => {
 		// Both card rows should be summed.
 		const sessions = result.data.sessionCount;
 		expect(sessions).toBeGreaterThanOrEqual(2);
+	});
+
+	// ─── workingOn entries are free-text display strings (`#N <title>`),
+	// not card UUIDs (`src/mcp/server.ts:897`). Resolution covers three
+	// shapes: leading `#N` that resolves, free text without a ref, and
+	// `#N` that doesn't resolve to any card.
+
+	it("single-card workingOn `#N <title>` resolves to the card UUID and narrows", async () => {
+		const tHandoff = new Date("2026-02-01T12:00:00Z");
+		const tEvent = new Date("2026-02-01T11:30:00Z");
+
+		await seedEvent({
+			sessionId: "hc-resolve-a",
+			recordedAt: tEvent,
+			cardId: CARD_A,
+			signal: "explicit",
+			agentName: "resolve-test",
+		});
+		await seedEvent({
+			sessionId: "hc-resolve-b",
+			recordedAt: tEvent,
+			cardId: CARD_B,
+			signal: "explicit",
+			agentName: "resolve-test",
+		});
+
+		const handoffId = await createHandoff({
+			boardId: BOARD_ID,
+			createdAt: tHandoff,
+			workingOn: ["#1 some title here"],
+			agentName: "resolve-test",
+		});
+
+		const result = await tokenUsageService.getHandoffCost(handoffId);
+		if (!result.success) throw new Error("expected success");
+
+		// Narrowing should drop CARD_B's row even though both share the
+		// project + agentName + window scope.
+		expect(result.data.cardScoped).toBe(true);
+		expect(result.data.sessionCount).toBe(1);
+	});
+
+	it("workingOn without a `#N` ref drops the narrowing and falls back to project+agent scope", async () => {
+		const tHandoff = new Date("2026-02-01T13:00:00Z");
+		const tEvent = new Date("2026-02-01T12:30:00Z");
+
+		await seedEvent({
+			sessionId: "hc-noref-a",
+			recordedAt: tEvent,
+			cardId: CARD_A,
+			signal: "explicit",
+			agentName: "noref-test",
+		});
+		await seedEvent({
+			sessionId: "hc-noref-b",
+			recordedAt: tEvent,
+			cardId: CARD_B,
+			signal: "explicit",
+			agentName: "noref-test",
+		});
+
+		const handoffId = await createHandoff({
+			boardId: BOARD_ID,
+			createdAt: tHandoff,
+			workingOn: ["WAL hygiene checkpoint"],
+			agentName: "noref-test",
+		});
+
+		const result = await tokenUsageService.getHandoffCost(handoffId);
+		if (!result.success) throw new Error("expected success");
+
+		expect(result.data.cardScoped).toBe(false);
+		// Both events should be summed under the wider scope.
+		expect(result.data.sessionCount).toBe(2);
+	});
+
+	it("single-card narrow falls back to project+agent scope when no events have a matching cardId", async () => {
+		// The attribution engine only tags `cardId` on a subset of events.
+		// When the strict narrow yields zero but the window has untagged
+		// activity, we fall back to project+agent scope so the chip reports
+		// the activity rather than rendering `no-data`.
+		const tHandoff = new Date("2026-02-01T15:00:00Z");
+		const tEvent = new Date("2026-02-01T14:30:00Z");
+
+		// Two events in window, both with cardId=null (the common case for
+		// handoffs that didn't get explicit attribution).
+		await seedEvent({
+			sessionId: "hc-fallback-1",
+			recordedAt: tEvent,
+			cardId: null,
+			signal: "session-recent-touch",
+			agentName: "fallback-test",
+		});
+		await seedEvent({
+			sessionId: "hc-fallback-2",
+			recordedAt: tEvent,
+			cardId: null,
+			signal: "session-recent-touch",
+			agentName: "fallback-test",
+		});
+
+		const handoffId = await createHandoff({
+			boardId: BOARD_ID,
+			createdAt: tHandoff,
+			workingOn: ["#1 A"],
+			agentName: "fallback-test",
+		});
+
+		const result = await tokenUsageService.getHandoffCost(handoffId);
+		if (!result.success) throw new Error("expected success");
+
+		// `#1` resolved to CARD_A but the strict cardId filter found nothing,
+		// so we fell back: cardScoped=false, both events counted, confidence
+		// drops to 'estimated' via the heuristic signal.
+		expect(result.data.cardScoped).toBe(false);
+		expect(result.data.sessionCount).toBe(2);
+		expect(result.data.confidence).toBe("estimated");
+	});
+
+	it("workingOn `#N` that doesn't resolve to a card drops the narrowing", async () => {
+		const tHandoff = new Date("2026-02-01T14:00:00Z");
+		const tEvent = new Date("2026-02-01T13:30:00Z");
+
+		await seedEvent({
+			sessionId: "hc-unresolved-a",
+			recordedAt: tEvent,
+			cardId: CARD_A,
+			signal: "explicit",
+			agentName: "unresolved-test",
+		});
+
+		const handoffId = await createHandoff({
+			boardId: BOARD_ID,
+			createdAt: tHandoff,
+			workingOn: ["#9999 phantom card"],
+			agentName: "unresolved-test",
+		});
+
+		const result = await tokenUsageService.getHandoffCost(handoffId);
+		if (!result.success) throw new Error("expected success");
+
+		// No card resolved → fell back to project+agent scope.
+		// CARD_A's event is still inside that scope, so we count it.
+		expect(result.data.cardScoped).toBe(false);
+		expect(result.data.sessionCount).toBe(1);
 	});
 
 	it("sibling board's prior handoff does NOT close this board's window", async () => {
