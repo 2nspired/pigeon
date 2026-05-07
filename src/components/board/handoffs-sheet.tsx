@@ -17,8 +17,9 @@ import {
 } from "@/components/ui/sheet";
 import { RowSkeleton } from "@/components/ui/skeleton";
 import { TokenCostChip } from "@/components/ui/token-cost-chip";
-import { formatRelativeCompact } from "@/lib/format-date";
-import { api } from "@/trpc/react";
+import { formatRelative, formatRelativeCompact } from "@/lib/format-date";
+import { cn } from "@/lib/utils";
+import { api, type RouterOutputs } from "@/trpc/react";
 
 type HandoffsSheetProps = {
 	boardId: string;
@@ -33,16 +34,7 @@ type HandoffsSheetProps = {
 	onCardClick: (cardId: string) => void;
 };
 
-type ParsedHandoff = {
-	id: string;
-	agentName: string;
-	summary: string;
-	workingOn: string[];
-	findings: string[];
-	nextSteps: string[];
-	blockers: string[];
-	createdAt: Date;
-};
+type ListedHandoff = NonNullable<RouterOutputs["handoff"]["list"]>[number];
 
 type Filter = "all" | "blockers";
 
@@ -74,7 +66,7 @@ export function HandoffsSheet({
 
 	const filtered = useMemo(() => {
 		if (!handoffs) return [];
-		return handoffs.filter((h: ParsedHandoff) => {
+		return handoffs.filter((h: ListedHandoff) => {
 			if (filter === "blockers" && h.blockers.length === 0) return false;
 			if (agentFilter && h.agentName !== agentFilter) return false;
 			return true;
@@ -141,10 +133,11 @@ export function HandoffsSheet({
 						<EmptyState hasAny={handoffs.length > 0} />
 					) : (
 						<ol className="space-y-3">
-							{filtered.map((h: ParsedHandoff) => (
+							{filtered.map((h: ListedHandoff) => (
 								<HandoffRow
 									key={h.id}
 									handoff={h}
+									trackingSince={tokenSummary?.trackingSince ?? null}
 									resolveCardRef={resolveCardRef}
 									onCardClick={onCardClick}
 								/>
@@ -161,10 +154,12 @@ export function HandoffsSheet({
 
 function HandoffRow({
 	handoff,
+	trackingSince,
 	resolveCardRef,
 	onCardClick,
 }: {
-	handoff: ParsedHandoff;
+	handoff: ListedHandoff;
+	trackingSince: Date | string | null;
 	resolveCardRef: (number: number) => string | null;
 	onCardClick: (cardId: string) => void;
 }) {
@@ -179,7 +174,8 @@ function HandoffRow({
 				<span className="font-mono text-2xs text-muted-foreground/60">
 					{formatRelativeCompact(new Date(handoff.createdAt))}
 				</span>
-				<span className="ml-auto font-mono text-2xs text-muted-foreground/40">
+				<HandoffCostBadge cost={handoff.cost} trackingSince={trackingSince} className="ml-auto" />
+				<span className="font-mono text-2xs text-muted-foreground/40">
 					{new Date(handoff.createdAt).toLocaleString(undefined, {
 						month: "short",
 						day: "numeric",
@@ -232,6 +228,45 @@ function HandoffRow({
 				/>
 			</div>
 		</li>
+	);
+}
+
+// ─── Cost badge — `attributed` chip / `estimated` muted chip / `no-data` em-dash ──
+
+function HandoffCostBadge({
+	cost,
+	trackingSince,
+	className,
+}: {
+	cost: ListedHandoff["cost"];
+	trackingSince: Date | string | null;
+	className?: string;
+}) {
+	// `no-data` (or zero cost: nothing was billed in this window) renders a
+	// muted em-dash with a tooltip explaining the absence. Keeps the right-
+	// edge layout stable across rows so the absolute timestamp doesn't jump.
+	if (!cost || cost.confidence === "no-data" || cost.costUsd === 0) {
+		const trackingLabel = trackingSince
+			? `Token tracking began ${formatRelative(new Date(trackingSince))}.`
+			: "No token tracking events recorded yet.";
+		return (
+			<span
+				title={`No cost data for this handoff. ${trackingLabel}`}
+				className={cn("font-mono text-2xs text-muted-foreground/40", className)}
+			>
+				—
+			</span>
+		);
+	}
+	// `estimated` uses the muted secondary variant so users can spot heuristic
+	// attribution at a glance; `attributed` (signal=explicit) gets the default
+	// outline chip.
+	return (
+		<TokenCostChip
+			costUsd={cost.costUsd}
+			variant={cost.confidence === "estimated" ? "secondary" : "outline"}
+			className={className}
+		/>
 	);
 }
 

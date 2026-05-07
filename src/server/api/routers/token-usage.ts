@@ -235,6 +235,20 @@ export const tokenUsageRouter = createTRPCRouter({
 			return result.data;
 		}),
 
+	// Project-wide handoff activity — backs `<HandoffActivitySection>` on
+	// the Costs page (#292). Total handoffs · aggregate cost · avg cost.
+	// Renders unconditionally for projects with ≥1 handoff (no baseline
+	// gate), so it surfaces even on un-baselined projects.
+	getHandoffActivity: publicProcedure
+		.input(z.object({ projectId: z.string().uuid() }))
+		.query(async ({ input }) => {
+			const result = await tokenUsageService.getHandoffActivity(input.projectId);
+			if (!result.success) {
+				throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: result.error.message });
+			}
+			return result.data;
+		}),
+
 	// Project-wide Pigeon overhead — backs `<PigeonOverheadSection>` on
 	// the Costs page (revived in #274 after #236 dropped it). Aggregates
 	// `ToolCallLog.responseTokens` across every session in the project,

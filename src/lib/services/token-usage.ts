@@ -260,6 +260,20 @@ export type HandoffCost = {
 	windowEnd: Date;
 };
 
+/**
+ * Project-wide handoff activity rollup (#292) — backs the standalone
+ * `<HandoffActivitySection>` on the Costs page. Sums per-handoff costs
+ * across every handoff in the project (including across boards). Renders
+ * unconditionally whenever a project has ≥1 handoff, so it works on
+ * un-baselined projects where `<SavingsSection>` is hidden.
+ */
+export type HandoffActivity = {
+	totalCount: number;
+	totalCostUsd: number;
+	/** Mean of per-handoff cost. `0` when `totalCount === 0`. */
+	avgCostUsd: number;
+};
+
 // ─── Internal: row insert shape (used by recordFromTranscript) ─────
 
 type InsertRow = {
@@ -1428,6 +1442,55 @@ export function createTokenUsageService(prisma: PrismaClient) {
 		}
 	}
 
+	// Project-wide handoff activity (#292). Sums per-handoff cost across
+	// every handoff in the project. Per-handoff windows don't overlap by
+	// construction (each window starts at the previous handoff's createdAt,
+	// exclusive), so summing is correct.
+	//
+	// Performance: O(N) round-trips via `getHandoffCost` per row. Bounded
+	// by the project's handoff count — typically dozens, not thousands. If
+	// this becomes a bottleneck, the optimization is a single windowed scan
+	// keyed off all handoff timestamps; not worth the complexity yet.
+	async function getHandoffActivity(projectId: string): Promise<ServiceResult<HandoffActivity>> {
+		try {
+			const handoffs = await prisma.handoff.findMany({
+				where: { projectId },
+				select: { id: true },
+			});
+			if (handoffs.length === 0) {
+				return {
+					success: true,
+					data: { totalCount: 0, totalCostUsd: 0, avgCostUsd: 0 },
+				};
+			}
+			const costs = await Promise.all(
+				handoffs.map(async (h) => {
+					const result = await getHandoffCost(h.id);
+					// Per-handoff failure (e.g. the handoff was deleted between
+					// the list and the per-row lookup) drops to 0 rather than
+					// failing the whole rollup. The activity section is a soft
+					// surface; partial data beats no data.
+					return result.success ? result.data.costUsd : 0;
+				})
+			);
+			const totalCostUsd = costs.reduce((sum, c) => sum + c, 0);
+			return {
+				success: true,
+				data: {
+					totalCount: handoffs.length,
+					totalCostUsd,
+					avgCostUsd: totalCostUsd / handoffs.length,
+				},
+			};
+		} catch (error) {
+			console.error("[TOKEN_USAGE_SERVICE] getHandoffActivity error:", error);
+			return {
+				success: false,
+				error: { code: "QUERY_FAILED", message: "Failed to load handoff activity." },
+			};
+		}
+	}
+
 	// 7-day calendar cost series (UTC), indexed identically to
 	// `activityService.getFlowMetrics`'s `throughput`, so the Pulse UI can render
 	// both sparklines on aligned x-axes.
@@ -2213,6 +2276,7 @@ export function createTokenUsageService(prisma: PrismaClient) {
 		getCardSummary,
 		getMilestoneSummary,
 		getHandoffCost,
+		getHandoffActivity,
 		getDailyCostSeries,
 		getDailyCostShareSeries,
 		getDiagnostics,

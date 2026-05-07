@@ -504,3 +504,69 @@ describe("getHandoffCost", () => {
 		}
 	});
 });
+
+// ─── getHandoffActivity — project-wide rollup ──────────────────────────
+
+describe("getHandoffActivity", () => {
+	let testDb: TestDb;
+
+	const PROJECT_ID = "10000000-1000-4000-8000-100000000500";
+	const BOARD_A = "20000000-2000-4000-8000-200000000500";
+	const BOARD_B = "20000000-2000-4000-8000-200000000501";
+
+	beforeAll(async () => {
+		testDb = await createTestDb();
+		dbRef.current = testDb.prisma;
+		await testDb.prisma.project.create({
+			data: { id: PROJECT_ID, name: "Activity", slug: "activity" },
+		});
+		await testDb.prisma.board.createMany({
+			data: [
+				{ id: BOARD_A, projectId: PROJECT_ID, name: "A" },
+				{ id: BOARD_B, projectId: PROJECT_ID, name: "B" },
+			],
+		});
+	});
+
+	afterAll(async () => {
+		dbRef.current = null;
+		await testDb.cleanup();
+	});
+
+	async function makeHandoff(boardId: string, createdAt: Date) {
+		const row = await testDb.prisma.handoff.create({
+			data: {
+				boardId,
+				projectId: PROJECT_ID,
+				agentName: "claude-code",
+				summary: "test",
+				workingOn: "[]",
+				findings: "[]",
+				nextSteps: "[]",
+				blockers: "[]",
+				createdAt,
+			},
+		});
+		return row.id;
+	}
+
+	it("returns zeros for a project with no handoffs", async () => {
+		const result = await tokenUsageService.getHandoffActivity(PROJECT_ID);
+		if (!result.success) throw new Error("expected success");
+		expect(result.data).toEqual({ totalCount: 0, totalCostUsd: 0, avgCostUsd: 0 });
+	});
+
+	it("counts handoffs across boards and computes the cost average", async () => {
+		await makeHandoff(BOARD_A, new Date("2026-03-01T10:00:00Z"));
+		await makeHandoff(BOARD_A, new Date("2026-03-01T12:00:00Z"));
+		await makeHandoff(BOARD_B, new Date("2026-03-01T14:00:00Z"));
+
+		const result = await tokenUsageService.getHandoffActivity(PROJECT_ID);
+		if (!result.success) throw new Error("expected success");
+
+		expect(result.data.totalCount).toBe(3);
+		// No events seeded; cost is 0 across the board, average is 0/3 = 0.
+		expect(result.data.totalCostUsd).toBe(0);
+		expect(result.data.avgCostUsd).toBe(0);
+	});
+});

@@ -11,6 +11,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 ### Added
 
 - Service layer for per-handoff cost tracking (PR #1 of two): `queryCostWindow` (generic project + agentName + cardId + (from, to] primitive) and `getHandoffCost(handoffId)` on the token-usage service, returning `costUsd` / per-token-class totals / `attributed | estimated | no-data` confidence. Window keys off the previous handoff on the same `boardId` so sibling boards don't squeeze it; single-card `workingOn` narrows by `cardId` to keep launchd-MCP siblings out. UI surfaces follow in PR #2. (#292)
+- Per-handoff cost surfaces (PR #2 of two): handoff rows in the handoffs sheet now carry a `<TokenCostChip>` between the relative and absolute timestamps — `attributed` uses the outline variant, `estimated` the muted secondary variant, `no-data` falls back to a muted "—" with a tooltip naming the tracking-start date. New `<HandoffActivitySection>` on the Costs page (slotted next to `<SavingsSection>`) shows total handoffs · aggregate cost · avg cost per handoff for any project with ≥1 handoff (no baseline gate, so it works on un-baselined projects). `<SavingsSection>` gains a fourth "Latest handoff" stat surfacing the existing `latestHandoffTokens` baseline field. (#292)
 
 ### Fixed
 
