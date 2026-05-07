@@ -10,12 +10,16 @@
  * snapshot.
  *
  * When the baseline has never been measured (`summary === null`), the
- * section renders a "Recalibrate" prompt that triggers the mutation.
- * After a successful recalibration, the read query refetches and the
- * numbers swap in.
+ * section renders a prominent dashed-border empty-state card that reads
+ * as a setup step (#294) — the pre-#294 implementation buried a tiny
+ * "Measure now" button in the section header, which scanned as already-
+ * configured rather than a CTA. After a successful recalibration, the
+ * read query refetches and the full stats swap in.
  */
 
+import { Loader2 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { SectionHelpLink } from "@/components/costs/section-help-link";
 import { Button } from "@/components/ui/button";
 import { Sparkline } from "@/components/ui/sparkline";
@@ -43,6 +47,7 @@ export function SavingsSection({ projectId, summary }: SavingsSectionProps) {
 	);
 	const recalibrate = api.tokenUsage.recalibrateBaseline.useMutation({
 		onMutate: () => setIsRecalibrating(true),
+		onError: (err) => toast.error(`Failed to measure baseline — ${err.message}`),
 		onSettled: async () => {
 			await Promise.all([
 				utils.tokenUsage.getSavingsSummary.invalidate({ projectId }),
@@ -53,31 +58,36 @@ export function SavingsSection({ projectId, summary }: SavingsSectionProps) {
 	});
 
 	if (!summary) {
+		// Empty-state (#294). Promoted from a buried header button to a
+		// prominent dashed-border card so an un-baselined project reads as
+		// "this section needs one-time setup" instead of "this section is
+		// configured but reporting zero." Mirrors the visual language of
+		// `<UnattributedGapCard>` (border-dashed + bg-muted/30) so the two
+		// "needs your attention" surfaces on the Costs page rhyme.
 		return (
-			<section className="rounded-md border bg-muted/20 px-5 py-4">
-				<header className="flex items-baseline justify-between gap-4">
-					<div>
-						<div className="flex items-center gap-1.5">
-							<h2 className="text-sm font-medium">Pigeon savings</h2>
-							<SectionHelpLink
-								anchor="pigeon-savings"
-								label="How is the savings number calculated?"
-							/>
-						</div>
-						<p className="mt-0.5 text-2xs text-muted-foreground">
-							Compares this project's `briefMe` payload against a naive `getBoard` bootstrap. Run
-							once to populate.
-						</p>
-					</div>
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={isRecalibrating}
-						onClick={() => recalibrate.mutate({ projectId })}
-					>
-						{isRecalibrating ? "Measuring…" : "Measure now"}
-					</Button>
-				</header>
+			<section className="flex flex-col items-center gap-3 rounded-lg border border-dashed bg-muted/30 p-8 text-center">
+				<div className="flex items-center gap-1.5">
+					<h2 className="text-sm font-medium">Measure this project's baseline</h2>
+					<SectionHelpLink anchor="pigeon-savings" label="How is the savings number calculated?" />
+				</div>
+				<p className="max-w-md text-xs text-muted-foreground">
+					Recalibrate captures the current per-card token cost as a comparison point. Future runs
+					show savings against this baseline.
+				</p>
+				<Button
+					size="sm"
+					disabled={isRecalibrating}
+					onClick={() => recalibrate.mutate({ projectId })}
+				>
+					{isRecalibrating ? (
+						<>
+							<Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+							Measuring…
+						</>
+					) : (
+						"Measure baseline now"
+					)}
+				</Button>
 			</section>
 		);
 	}

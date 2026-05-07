@@ -8,6 +8,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+### Changed
+
+- `<SavingsSection>` empty state on the Costs page now renders as a prominent dashed-border setup card with a primary "Measure baseline now" button instead of burying a small outline-button CTA in the section header. Un-baselined projects previously read the section as configured-but-zero; the new framing mirrors `<UnattributedGapCard>` so "needs your attention" surfaces rhyme. No new tRPC — still fronts the existing `recalibrateBaseline` mutation. (#294)
+
 ### Added
 
 - briefMe payload trend chart on the Costs page (`<SavingsSection>`). Replaces the pre-#293 `Project.metadata.tokenBaseline` singleton with a `BaselineSnapshot` history table — every Recalibrate now appends a row instead of overwriting, so you can see whether briefMe payload is bloating over time (the signal that says a project needs cleanup: tag debt, stale cards, oversized descriptions). The first Recalibrate after deploy migrates the legacy `metadata.tokenBaseline` key out of `Project.metadata` in the same transaction. UI: extended `<Sparkline>` with optional `w` / `h` props (no new dependency), rendered at ~160×32 with `tone="cost"` (violet, matches summary-strip + BoardPulse). New `tokenUsage.getBaselineHistory` tRPC procedure backs the chart; `getSavingsSummary` now reads `ORDER BY measuredAt DESC LIMIT 1` against the new composite index. (#293)
