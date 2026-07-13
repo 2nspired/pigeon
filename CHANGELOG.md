@@ -8,6 +8,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+### Fixed
+
+- Card-context comment fetch no longer hides the newest comments on busy cards. `getCardContext` / `planCard` and the card MCP resource fetched comments `createdAt asc` + `take: 50`, so cards past 50 comments silently dropped the most recent ones — exactly the recent human guidance agents need. Fetch is now newest-first, reversed in memory so agents still read oldest→newest, and the payload carries `commentsTruncated: true` when older history was cut. Cap stays at 50 (busiest card today has 10 comments; avg body ~1.3k chars makes a bigger cap a token hazard). (#301)
+
 ## [6.6.0] — 2026-07-13
 
 The Daily Squawk activity digest, energy + CO₂ estimates on the Costs page, Attribution Engine tail signals 3+4 plus a historical backfill script, per-handoff cost tracking, and the Pigeon v7 iteration design spec. `npm run service:update` runs `prisma db push` automatically.

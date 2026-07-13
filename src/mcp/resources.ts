@@ -5,6 +5,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { db } from "./db.js";
 import { buildServerManifest } from "./manifest.js";
+import { CARD_CONTEXT_COMMENT_LIMIT, windowRecentComments } from "./tools/context-tools.js";
 import { generateStatusMarkdown } from "./tools/status-tools.js";
 import { toToon } from "./toon.js";
 
@@ -177,11 +178,14 @@ export function registerResources(server: McpServer) {
 				where: { projectId_number: { projectId: board.projectId, number: cardNum } },
 				include: {
 					checklists: { orderBy: { position: "asc" }, select: { text: true, completed: true } },
+					// Newest-first so the cap keeps recent comments; reversed to
+					// chronological order below via windowRecentComments (#301).
 					comments: {
-						orderBy: { createdAt: "asc" },
-						take: 50,
+						orderBy: { createdAt: "desc" },
+						take: CARD_CONTEXT_COMMENT_LIMIT,
 						select: { content: true, authorName: true, authorType: true, createdAt: true },
 					},
+					_count: { select: { comments: true } },
 					column: { select: { name: true } },
 					milestone: { select: { name: true } },
 					cardTags: { include: { tag: { select: { label: true } } } },
@@ -192,6 +196,11 @@ export function registerResources(server: McpServer) {
 			if (!card)
 				return { contents: [{ uri: uri.href, text: "Card not found", mimeType: "text/plain" }] };
 
+			const { comments: recentComments, truncated: commentsTruncated } = windowRecentComments(
+				card.comments,
+				card._count.comments
+			);
+
 			const data = {
 				ref: `#${card.number}`,
 				title: card.title,
@@ -201,11 +210,12 @@ export function registerResources(server: McpServer) {
 				milestone: card.milestone?.name ?? null,
 				tags: card.cardTags.map((ct) => ct.tag.label),
 				checklist: card.checklists,
-				comments: card.comments.map((c) => ({
+				comments: recentComments.map((c) => ({
 					content: c.content,
 					author: c.authorName ?? c.authorType,
 					when: c.createdAt,
 				})),
+				...(commentsTruncated ? { commentsTruncated: true } : {}),
 				blocks: card.relationsFrom
 					.filter((r) => r.type === "blocks")
 					.map((r) => `#${r.toCard.number}`),
