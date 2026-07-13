@@ -8,6 +8,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+### Changed
+
+- Schema management moved from `prisma db push` to Prisma migrations. `prisma/migrations/0_init/` baselines the current schema; install/update paths (`dev`, `setup`, `service:update`) apply pending migrations via an idempotent helper that auto-baselines existing installs — no manual step. `npm run db:migrate -- --name <change>` is the new schema-change path; CI fails on schema-vs-migrations drift. (#314)
+
 ### Fixed
 
 - Card-context comment fetch no longer hides the newest comments on busy cards. `getCardContext` / `planCard` and the card MCP resource fetched comments `createdAt asc` + `take: 50`, so cards past 50 comments silently dropped the most recent ones — exactly the recent human guidance agents need. Fetch is now newest-first, reversed in memory so agents still read oldest→newest, and the payload carries `commentsTruncated: true` when older history was cut. Cap stays at 50 (busiest card today has 10 comments; avg body ~1.3k chars makes a bigger cap a token hazard). (#301)

@@ -19,7 +19,7 @@ src/mcp/               separate Node process; owns its own db.ts (PrismaClient +
 ## Common pitfalls when editing
 
 - **Don't add tRPC / Next imports to `src/lib/services/`** — `lint:boundary` blocks the commit. Services are pure; tRPC error mapping happens in the router layer.
-- **MCP has its own `db.ts`** at `src/mcp/db.ts` — it's a distinct PrismaClient with the FTS5 live-sync extension applied. Schema changes must `npm run db:push` (the launchd service's `service:update` does this automatically); both processes share the same SQLite file under WAL.
+- **MCP has its own `db.ts`** at `src/mcp/db.ts` — it's a distinct PrismaClient with the FTS5 live-sync extension applied. Schema changes must ship a migration: `npm run db:migrate -- --name <change>` (drops the derived FTS5 tables, then `prisma migrate dev`). Install/update paths apply pending migrations via `scripts/db-migrate.ts` (`service:update` does this automatically); `db:push` is an escape hatch only — CI fails when `schema.prisma` drifts from `prisma/migrations/`. Both processes share the same SQLite file under WAL.
 - **Pass `boardId` explicitly when in a worktree.** Auto-detection from `cwd` resolves the *parent repo* rather than the worktree's intended board.
 - **Don't run `npm run dev` from a worktree.** Turbopack walks up to the parent lockfile and silently 404s new routes. Use the launchd service on port 3100 (or pull the worktree branch into the main checkout for visual checks).
 
@@ -28,8 +28,8 @@ src/mcp/               separate Node process; owns its own db.ts (PrismaClient +
 - `npm run dev` — dev server (auto-creates DB if missing)
 - `npm run setup` — interactive setup wizard
 - `npm run mcp:dev` — MCP server standalone (testing)
-- `npm run db:push` / `db:seed` / `db:studio` — Prisma
-- `npm run service:install` / `:update` / `:status` / `:logs` — launchd background service on port 3100 (always-on web UI; `service:update` rebuilds, runs `prisma db push`, runs the doctor pass)
+- `npm run db:migrate` / `db:seed` / `db:studio` — Prisma (`db:migrate -- --name <change>` creates a migration; `db:migrate:deploy` applies pending ones; `db:push` is an escape hatch)
+- `npm run service:install` / `:update` / `:status` / `:logs` — launchd background service on port 3100 (always-on web UI; `service:update` rebuilds, runs `prisma migrate deploy`, runs the doctor pass)
 
 ## Project structure
 
