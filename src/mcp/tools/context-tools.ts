@@ -20,6 +20,33 @@ import {
 // ─── Card Context ─────────────────────────────────────────────────
 
 /**
+ * Max comments included in a card-context payload. Kept at 50 (not bumped)
+ * after a DB scan: the busiest card today has 10 comments, and average
+ * bodies run ~1.3k chars (~325 tokens), so a 100–200 cap could balloon
+ * payloads past 30k tokens for marginal benefit (#301).
+ */
+export const CARD_CONTEXT_COMMENT_LIMIT = 50;
+
+/**
+ * Window a newest-first comment fetch into chronological display order.
+ *
+ * Comments are fetched `createdAt: "desc"` + `take: limit` so the cap keeps
+ * the NEWEST comments — recent human guidance is the highest-signal context
+ * on a card. The fetched slice is reversed here so agents still read
+ * oldest→newest, and `truncated` flags when older history was dropped (#301).
+ */
+export function windowRecentComments<T>(
+	newestFirst: readonly T[],
+	totalCount: number,
+	limit: number = CARD_CONTEXT_COMMENT_LIMIT
+): { comments: T[]; truncated: boolean } {
+	return {
+		comments: [...newestFirst].reverse(),
+		truncated: totalCount > limit,
+	};
+}
+
+/**
  * Card-context payload as `getCardContext` returns it. Shared with
  * `planCard` so both tools surface the same shape.
  */
@@ -36,6 +63,8 @@ export type CardContextPayload = {
 	};
 	checklist: Array<{ id: string; text: string; completed: boolean }>;
 	comments: Array<{ content: string; author: string; when: Date }>;
+	/** Present (true) only when older comments were dropped by the fetch cap. */
+	commentsTruncated?: true;
 	relations: {
 		blocks: Array<{ ref: string; title: string }>;
 		blockedBy: Array<{ ref: string; title: string }>;
@@ -97,11 +126,14 @@ export async function loadCardContext(
 				orderBy: { position: "asc" },
 				select: { id: true, text: true, completed: true },
 			},
+			// Newest-first so the cap keeps recent comments; reversed to
+			// chronological order below via windowRecentComments (#301).
 			comments: {
-				orderBy: { createdAt: "asc" },
-				take: 50,
+				orderBy: { createdAt: "desc" },
+				take: CARD_CONTEXT_COMMENT_LIMIT,
 				select: { content: true, authorName: true, authorType: true, createdAt: true },
 			},
+			_count: { select: { comments: true } },
 			milestone: { select: { id: true, name: true } },
 			column: { select: { name: true, role: true } },
 			cardTags: { include: { tag: { select: { label: true, slug: true } } } },
@@ -171,6 +203,11 @@ export async function loadCardContext(
 		}));
 	}
 
+	const { comments: recentComments, truncated: commentsTruncated } = windowRecentComments(
+		card.comments,
+		card._count.comments
+	);
+
 	const blocks = card.relationsFrom
 		.filter((r) => r.type === "blocks")
 		.map((r) => ({ ref: `#${r.toCard.number}`, title: r.toCard.title }));
@@ -195,11 +232,12 @@ export async function loadCardContext(
 			milestone: card.milestone?.name ?? null,
 		},
 		checklist: card.checklists,
-		comments: card.comments.map((c) => ({
+		comments: recentComments.map((c) => ({
 			content: c.content,
 			author: c.authorName ?? c.authorType,
 			when: c.createdAt,
 		})),
+		...(commentsTruncated ? { commentsTruncated: true as const } : {}),
 		relations: { blocks, blockedBy },
 		decisions: cardDecisions,
 		commits: card.gitLinks.map((g) => ({
