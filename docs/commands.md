@@ -29,9 +29,10 @@ The persistent background service runs on `:3100` so the UI is always available 
 
 | Script | When to run | What it does |
 |---|---|---|
-| `npm run db:push` | When `CHANGELOG` says `SCHEMA_VERSION` bumped | Applies the Prisma schema to `data/tracker.db`. Drops removed columns/tables. **Note:** the `knowledge_fts` virtual table lives outside `schema.prisma`; Prisma sees it as drift and refuses to push if it's present. `service:update` drops it (and its 5 shadow tables) automatically — if you're running `db:push` standalone after a fresh schema change, drop `knowledge_fts*` first or run `service:update` instead. The FTS index rebuilds itself lazily on first knowledge search per project. |
+| `npm run db:migrate:deploy` | When `CHANGELOG` says `SCHEMA_VERSION` bumped (or just run `service:update`) | Applies pending Prisma migrations to `data/tracker.db` via `scripts/db-migrate.ts`. Pre-migrations installs (no `_prisma_migrations` table) are baselined as `0_init` automatically, one time. |
+| `npm run db:push` | Escape hatch only | Pushes `schema.prisma` directly, bypassing migration history. **Note:** the `knowledge_fts` virtual table lives outside `schema.prisma`; Prisma sees it as drift and refuses to push if it's present. Prefer the migrate commands. |
 | `npm run db:generate` | Rarely (Prisma postinstall handles it) | Regenerates the Prisma client. |
-| `npm run db:migrate` | Schema authoring | Creates a Prisma migration for the current schema diff. |
+| `npm run db:migrate` | Schema authoring | Drops the derived FTS5 index tables (runtime state `prisma migrate dev` would flag as drift), then runs `prisma migrate dev`. Pass a name: `npm run db:migrate -- --name add-foo`. CI fails if `schema.prisma` changes without a migration. |
 | `npm run db:seed` | Fresh install only | Seeds the Learn Pigeon tutorial project. Idempotent. |
 | `npm run db:studio` | Debugging | Opens Prisma Studio to inspect the DB. |
 | `npm run db:cleanup-orphan-boards` | One-shot maintenance | Removes Board rows with no parent Project. |

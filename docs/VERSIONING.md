@@ -6,7 +6,7 @@ Pigeon follows [Semantic Versioning](https://semver.org/). The rules below are w
 
 ### MAJOR (`x.0.0`)
 
-Bump MAJOR when the change forces downstream users to do work beyond `npm install` + `db:push`:
+Bump MAJOR when the change forces downstream users to do work beyond `npm install` + `db:migrate:deploy` (both run automatically by `service:update`):
 
 - Schema drops or renames (tables, columns, relations).
 - Column type changes that require data coercion.
@@ -56,7 +56,7 @@ Three places track the version and must move together on every release:
 - A MINOR semver bump that adds a nullable column → `SCHEMA_VERSION` also increments.
 - A PATCH that only fixes a bug → `SCHEMA_VERSION` stays.
 
-The MCP server exposes `SCHEMA_VERSION` in its handshake so connected agents can detect drift when the DB on disk is older than the server binary expects. Downstream users who pull new code see a `SCHEMA_VERSION` bump in the CHANGELOG and know to run `npm run db:push`.
+The MCP server exposes `SCHEMA_VERSION` in its handshake so connected agents can detect drift when the DB on disk is older than the server binary expects. Downstream users who pull new code see a `SCHEMA_VERSION` bump in the CHANGELOG and know to run `npm run service:update` (which applies pending migrations via `prisma migrate deploy`).
 
 ## Git tag convention
 

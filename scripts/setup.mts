@@ -6,7 +6,6 @@
  * No extra dependencies — uses Node's built-in readline.
  */
 
-import { execSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline";
@@ -42,13 +41,14 @@ async function main() {
 
 	console.log("Step 1: Database");
 
+	const { runMigrations } = await import("./db-migrate.js");
 	if (existsSync(DB_PATH)) {
-		console.log("  ✓ SQLite database already exists.");
+		console.log("  ✓ SQLite database already exists — applying any pending migrations.");
 	} else {
 		console.log("  Creating SQLite database...");
-		execSync("npx prisma db push", { stdio: "inherit" });
-		console.log("  ✓ Database created.");
 	}
+	runMigrations({ log: (msg) => console.log(`  ${msg}`) });
+	console.log("  ✓ Database ready.");
 	console.log("");
 
 	// ─── Step 2: Tutorial Project ─────────────────────────────────────

@@ -6,6 +6,12 @@ For the live tool surface, run `getTools()` from an agent or press `?` in the we
 
 ---
 
+## v6.7 — DB schema history floor: the `0_init` migrations baseline (#314)
+
+Pigeon adopted Prisma migrations. `prisma/migrations/0_init/` snapshots the full schema as it stood at adoption and is the **floor of the recorded schema history** — everything before it (every `prisma db push` from v1 through v6.6) is deliberately not reconstructed as migrations. This file remains the archaeological record for those earlier changes; schema changes from `0_init` onward each get a migration in `prisma/migrations/`. Existing installs are baselined automatically on their first `service:update` (the helper marks `0_init` as applied without touching data).
+
+---
+
 ## v5.2 — Session wrap-up renamed `endSession` → `saveHandoff`
 
 The session wrap-up tool was renamed `endSession` → `saveHandoff`. The slash command `/handoff` was unchanged; it now invokes `saveHandoff` under the hood. `saveHandoff` became the canonical name across MCP, the slash command, and docs.

@@ -16,6 +16,7 @@
 - [Knowledge search](#knowledge-search)
 - [MCP tool architecture (essential vs. extended)](#mcp-tool-architecture-essential-vs-extended)
 - [Connecting a project + agent identity](#connecting-a-project--agent-identity)
+- [Schema changes](#schema-changes)
 - [CHANGELOG entries](#changelog-entries)
 - [Token tracking](#token-tracking)
 - [Tool migration history](#tool-migration-history)
@@ -153,6 +154,16 @@ AGENT_NAME=Codex /path/to/pigeon/scripts/connect.sh
 3. Literal `"Agent"` — fallback
 
 `connect.sh` prints a snippet to paste into `CLAUDE.md` / `AGENTS.md` — derived from `scripts/print-connect-snippet.ts`, which reads `ESSENTIAL_TOOLS` + `getAllExtendedTools()`, so counts and names never drift.
+
+## Schema changes
+
+Pigeon uses Prisma migrations (since #314; `prisma/migrations/0_init/` is the baseline — see [`docs/MIGRATION-HISTORY.md`](MIGRATION-HISTORY.md)). Any PR that edits `prisma/schema.prisma` must ship a matching migration or the `Migrations match schema` CI step fails:
+
+```bash
+npm run db:migrate -- --name <short-change-name>
+```
+
+The wrapper (`scripts/db-migrate.ts --dev`) first drops the six runtime `knowledge_fts*` tables — derived FTS5 state living outside `schema.prisma` that `prisma migrate dev` would otherwise flag as drift — then runs `prisma migrate dev`. Commit the generated `prisma/migrations/<timestamp>_<name>/` directory alongside the schema change. Install/update paths (`dev`, `setup`, `service:update`) apply migrations with the same helper's deploy mode, which never drift-checks. `db:push` is an escape hatch only.
 
 ## CHANGELOG entries
 
