@@ -8,6 +8,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+## [6.6.0] — 2026-07-13
+
+The Daily Squawk activity digest, energy + CO₂ estimates on the Costs page, Attribution Engine tail signals 3+4 plus a historical backfill script, per-handoff cost tracking, and the Pigeon v7 iteration design spec. `npm run service:update` runs `prisma db push` automatically.
+
 ### Added
 
 - Pigeon v7 iteration design spec (`docs/superpowers/specs/2026-07-13-pigeon-v7-iteration-design.md`) — positioning ("the visible workbench"), 8 operating principles, a 17-item debt ledger, and four product-spine slices (First Contact / The Card / The Session / The Story) plus a Team-edition outline. Supersedes the 2026-05-12 editorial-sprint direction.
