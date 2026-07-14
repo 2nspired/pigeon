@@ -13,8 +13,8 @@ describe("essential tool rename: endSession → saveHandoff (#151)", () => {
 		expect(names).not.toContain("endSession");
 	});
 
-	it("essential count is still 10", () => {
-		expect(ESSENTIAL_TOOLS).toHaveLength(10);
+	it("essential count is still 11 (10 from #151 + planCard promoted in #317)", () => {
+		expect(ESSENTIAL_TOOLS).toHaveLength(11);
 	});
 
 	it("sessionEnd workflow points at `saveHandoff`, not `endSession`", () => {

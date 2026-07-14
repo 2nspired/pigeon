@@ -10,6 +10,7 @@ export type ExtendedTool = {
 	description: string;
 	readOnly: boolean;
 	destructive: boolean;
+	deprecated?: { replacement: string; reason?: string };
 };
 
 export const TOOL_CATALOG: {
@@ -41,6 +42,10 @@ export const TOOL_CATALOG: {
 		{
 			"name": "addComment",
 			"description": "Add a markdown comment to a card. Surfaces in `getCardContext` for future agents."
+		},
+		{
+			"name": "planCard",
+			"description": "Plan a card — returns card context, tracker.md policy, investigation hints, and the four-section plan protocol (Why now / Plan / Out of scope / Acceptance)."
 		},
 		{
 			"name": "registerRepo",
@@ -131,13 +136,6 @@ export const TOOL_CATALOG: {
 			"destructive": false
 		},
 		{
-			"name": "getActivityWindow",
-			"category": "context",
-			"description": "Read-only re-fetch of the Daily Squawk activity window (without the editor protocol). Useful for refreshing data while drafting an issue.",
-			"readOnly": true,
-			"destructive": false
-		},
-		{
 			"name": "getCardContext",
 			"category": "context",
 			"description": "Deep context for a single card: description, checklist, comments, relations, decisions, commits, and related cards.",
@@ -159,94 +157,64 @@ export const TOOL_CATALOG: {
 			"destructive": false
 		},
 		{
-			"name": "listClaims",
-			"category": "context",
-			"description": "List claims for a project. Omit kind to include all kinds. Pass claimId for single-claim lookup.",
-			"readOnly": true,
-			"destructive": false
-		},
-		{
-			"name": "listFacts",
-			"category": "context",
-			"description": "List facts for a project. Omit type to list all types. Filter by path or surface. Pass factId for single-fact lookup. (Reads from the unified Claim table — prefer listClaims for new code.)",
-			"readOnly": true,
-			"destructive": false
-		},
-		{
-			"name": "planCard",
-			"category": "context",
-			"description": "Plan a card: returns the card context, tracker.md policy, extracted investigation hints, and a structured protocol the agent follows to draft a four-section plan (Why now / Plan / Out of scope / Acceptance). Refuses with PLAN_EXISTS warning if the card already has a plan.",
-			"readOnly": false,
-			"destructive": false
-		},
-		{
-			"name": "publishEdition",
-			"category": "context",
-			"description": "Persist a drafted Daily Squawk markdown issue. Returns the URL. Editions are immutable — duplicate slug returns the existing edition's URL.",
-			"readOnly": false,
-			"destructive": false
-		},
-		{
-			"name": "queryKnowledge",
-			"category": "context",
-			"description": "Full-text search across all project knowledge: cards, comments, decisions, notes, handoffs, code facts, context entries, and indexed repo markdown files. Auto-rebuilds the index on cold start (zero indexed rows for the project).",
-			"readOnly": true,
-			"destructive": false
-		},
-		{
-			"name": "rebuildKnowledgeIndex",
-			"category": "context",
-			"description": "Force a full rebuild of the FTS5 knowledge index for a project — clears the existing index and re-ingests cards, comments, claims, notes, handoffs, and repo markdown. Use after batch operations (createMany/updateMany/deleteMany bypass live sync), repo markdown changes, or to recover from drift.",
-			"readOnly": false,
-			"destructive": false
-		},
-		{
-			"name": "saveClaim",
-			"category": "context",
-			"description": "Create or update a Claim — a typed assertion with evidence. Pass claimId to update.\n\nThis is the RFC-v2 replacement for saveFact/recordDecision. Old tools still work; use saveClaim for new writes when you want the unified shape (statement + body + evidence + payload).\n\nKinds:\n- context: project-level knowledge claim (payload: { application?, audience?, surface? })\n- code: assertion about a file or symbol (evidence.files or evidence.symbols required)\n- measurement: numeric value (payload.value + payload.unit required)\n- decision: architectural decision (payload: { alternatives? })",
-			"readOnly": false,
-			"destructive": false
-		},
-		{
-			"name": "saveFact",
-			"category": "context",
-			"description": "Create or update a persistent fact. Pass factId to update. Legacy alias for `saveClaim` — prefer `saveClaim` for new writes (unified statement + body + evidence + payload shape). `saveFact`/`listFacts` are slated for removal in the next minor MCP version.\n\nTypes:\n- **context**: Project-level knowledge claim (content = the claim, plus rationale/application/details)\n- **code**: Assertion about a file or symbol (content = the fact, path required)\n- **measurement**: Numeric value like latency or bundle size (content = description, value + unit required)",
-			"readOnly": false,
-			"destructive": false
-		},
-		{
-			"name": "squawk",
-			"category": "context",
-			"description": "The Daily Squawk: returns activity data + masthead + editor system prompt + section protocol so the agent can draft a newspaper-style digest. Call publishEdition once the markdown is complete.",
-			"readOnly": false,
-			"destructive": false
-		},
-		{
 			"name": "getDecisions",
 			"category": "decisions",
 			"description": "List decisions for a project, optionally filtered by card or status.",
 			"readOnly": true,
-			"destructive": false
+			"destructive": false,
+			"deprecated": {
+				"replacement": "listClaims",
+				"reason": "Thin alias over the Claim table — use listClaims({ kind: \"decision\" }) for new reads."
+			}
 		},
 		{
 			"name": "recordDecision",
 			"category": "decisions",
 			"description": "Record an architectural decision so the rationale survives session boundaries. Use when you've chosen an approach (framework, pattern, tradeoff) and the next agent or human needs the reasoning. Pass `supersedesId` to chain a replacement when a later decision overrides this one. For new code, prefer `saveClaim({ kind: \"decision\", ... })` — `recordDecision` is a thin alias kept for back-compat.",
 			"readOnly": false,
-			"destructive": false
+			"destructive": false,
+			"deprecated": {
+				"replacement": "saveClaim",
+				"reason": "Thin alias over the Claim table — use saveClaim({ kind: \"decision\", ... }) for new writes."
+			}
 		},
 		{
 			"name": "updateDecision",
 			"category": "decisions",
 			"description": "Update a decision's status, text, or rationale.",
 			"readOnly": false,
-			"destructive": false
+			"destructive": false,
+			"deprecated": {
+				"replacement": "saveClaim",
+				"reason": "Thin alias over the Claim table — use saveClaim with claimId (or supersedesId) to update or supersede."
+			}
 		},
 		{
 			"name": "doctor",
 			"category": "diagnostics",
 			"description": "Install health check — runs 8 checks for legacy config drift, version skew, and FTS state. Returns structured { checks, summary } with copy-pasteable fix commands per failed check.",
 			"readOnly": true,
+			"destructive": false
+		},
+		{
+			"name": "getActivityWindow",
+			"category": "digest",
+			"description": "Read-only re-fetch of the Daily Squawk activity window (without the editor protocol). Useful for refreshing data while drafting an issue.",
+			"readOnly": true,
+			"destructive": false
+		},
+		{
+			"name": "publishEdition",
+			"category": "digest",
+			"description": "Persist a drafted Daily Squawk markdown issue. Returns the URL. Editions are immutable — duplicate slug returns the existing edition's URL.",
+			"readOnly": false,
+			"destructive": false
+		},
+		{
+			"name": "squawk",
+			"category": "digest",
+			"description": "The Daily Squawk: returns activity data + masthead + editor system prompt + section protocol so the agent can draft a newspaper-style digest. Call publishEdition once the markdown is complete.",
+			"readOnly": false,
 			"destructive": false
 		},
 		{
@@ -360,6 +328,56 @@ export const TOOL_CATALOG: {
 			"description": "Scan git commits for #N card refs and create links.",
 			"readOnly": false,
 			"destructive": false
+		},
+		{
+			"name": "listClaims",
+			"category": "knowledge",
+			"description": "List claims for a project. Omit kind to include all kinds. Pass claimId for single-claim lookup.",
+			"readOnly": true,
+			"destructive": false
+		},
+		{
+			"name": "listFacts",
+			"category": "knowledge",
+			"description": "List facts for a project. Omit type to list all types. Filter by path or surface. Pass factId for single-fact lookup. (Reads from the unified Claim table — prefer listClaims for new code.)",
+			"readOnly": true,
+			"destructive": false,
+			"deprecated": {
+				"replacement": "listClaims",
+				"reason": "Legacy alias over the Claim table — use listClaims for new reads. Slated for removal."
+			}
+		},
+		{
+			"name": "queryKnowledge",
+			"category": "knowledge",
+			"description": "Full-text search across all project knowledge: cards, comments, decisions, notes, handoffs, code facts, context entries, and indexed repo markdown files. Auto-rebuilds the index on cold start (zero indexed rows for the project).",
+			"readOnly": true,
+			"destructive": false
+		},
+		{
+			"name": "rebuildKnowledgeIndex",
+			"category": "knowledge",
+			"description": "Force a full rebuild of the FTS5 knowledge index for a project — clears the existing index and re-ingests cards, comments, claims, notes, handoffs, and repo markdown. Use after batch operations (createMany/updateMany/deleteMany bypass live sync), repo markdown changes, or to recover from drift.",
+			"readOnly": false,
+			"destructive": false
+		},
+		{
+			"name": "saveClaim",
+			"category": "knowledge",
+			"description": "Create or update a Claim — a typed assertion with evidence. Pass claimId to update.\n\nThis is the RFC-v2 replacement for saveFact/recordDecision. Old tools still work; use saveClaim for new writes when you want the unified shape (statement + body + evidence + payload).\n\nKinds:\n- context: project-level knowledge claim (payload: { application?, audience?, surface? })\n- code: assertion about a file or symbol (evidence.files or evidence.symbols required)\n- measurement: numeric value (payload.value + payload.unit required)\n- decision: architectural decision (payload: { alternatives? })",
+			"readOnly": false,
+			"destructive": false
+		},
+		{
+			"name": "saveFact",
+			"category": "knowledge",
+			"description": "Create or update a persistent fact. Pass factId to update. Legacy alias for `saveClaim` — prefer `saveClaim` for new writes (unified statement + body + evidence + payload shape). `saveFact`/`listFacts` are slated for removal in the next minor MCP version.\n\nTypes:\n- **context**: Project-level knowledge claim (content = the claim, plus rationale/application/details)\n- **code**: Assertion about a file or symbol (content = the fact, path required)\n- **measurement**: Numeric value like latency or bundle size (content = description, value + unit required)",
+			"readOnly": false,
+			"destructive": false,
+			"deprecated": {
+				"replacement": "saveClaim",
+				"reason": "Legacy alias over the Claim table — use saveClaim (unified statement + body + evidence + payload shape) for new writes. Slated for removal."
+			}
 		},
 		{
 			"name": "createMilestone",
@@ -668,23 +686,6 @@ export const TOOL_CATALOG: {
 				"description": "Card UUID or #number"
 			}
 		},
-		"getActivityWindow": {
-			"boardId": {
-				"type": "Board UUID.",
-				"required": true,
-				"description": "Board UUID."
-			},
-			"periodStart": {
-				"type": "ISO-8601 start of period.",
-				"required": true,
-				"description": "ISO-8601 start of period."
-			},
-			"periodEnd": {
-				"type": "ISO-8601 end of period.",
-				"required": true,
-				"description": "ISO-8601 end of period."
-			}
-		},
 		"getCardContext": {
 			"boardId": {
 				"type": "Board UUID",
@@ -734,349 +735,6 @@ export const TOOL_CATALOG: {
 				"type": "Response format",
 				"required": false,
 				"description": "Response format"
-			}
-		},
-		"listClaims": {
-			"projectId": {
-				"type": "Project UUID",
-				"required": true,
-				"description": "Project UUID"
-			},
-			"claimId": {
-				"type": "Fetch a single claim by UUID",
-				"required": false,
-				"description": "Fetch a single claim by UUID"
-			},
-			"kind": {
-				"type": "Filter by kind",
-				"required": false,
-				"description": "Filter by kind"
-			},
-			"cardId": {
-				"type": "Filter by card UUID or #number",
-				"required": false,
-				"description": "Filter by card UUID or #number"
-			},
-			"status": {
-				"type": "Filter by status",
-				"required": false,
-				"description": "Filter by status"
-			},
-			"author": {
-				"type": "Filter by author",
-				"required": false,
-				"description": "Filter by author"
-			},
-			"limit": {
-				"type": "unknown",
-				"required": false,
-				"description": ""
-			}
-		},
-		"listFacts": {
-			"projectId": {
-				"type": "Project UUID",
-				"required": true,
-				"description": "Project UUID"
-			},
-			"factId": {
-				"type": "Fetch a single fact by UUID",
-				"required": false,
-				"description": "Fetch a single fact by UUID"
-			},
-			"type": {
-				"type": "Filter by fact type",
-				"required": false,
-				"description": "Filter by fact type"
-			},
-			"path": {
-				"type": "Filter by exact file path (code/measurement)",
-				"required": false,
-				"description": "Filter by exact file path (code/measurement)"
-			},
-			"pathPrefix": {
-				"type": "Filter by path prefix (e.g. 'src/mcp/')",
-				"required": false,
-				"description": "Filter by path prefix (e.g. 'src/mcp/')"
-			},
-			"surface": {
-				"type": "Filter context entries by surface level",
-				"required": false,
-				"description": "Filter context entries by surface level"
-			},
-			"needsRecheck": {
-				"type": "(deprecated — no longer tracked; filter ignored)",
-				"required": false,
-				"description": "(deprecated — no longer tracked; filter ignored)"
-			},
-			"author": {
-				"type": "Filter by author (AGENT or HUMAN)",
-				"required": false,
-				"description": "Filter by author (AGENT or HUMAN)"
-			},
-			"limit": {
-				"type": "Max facts per type",
-				"required": false,
-				"description": "Max facts per type"
-			}
-		},
-		"planCard": {
-			"boardId": {
-				"type": "Board UUID",
-				"required": true,
-				"description": "Board UUID"
-			},
-			"cardId": {
-				"type": "Card UUID or #number",
-				"required": true,
-				"description": "Card UUID or #number"
-			},
-			"intent": {
-				"type": "Optional rationale stamped on the activity strip (e.g. 'planning before standup')",
-				"required": false,
-				"description": "Optional rationale stamped on the activity strip (e.g. 'planning before standup')"
-			}
-		},
-		"publishEdition": {
-			"boardId": {
-				"type": "Board UUID.",
-				"required": true,
-				"description": "Board UUID."
-			},
-			"content": {
-				"type": "Full markdown body of the issue.",
-				"required": true,
-				"description": "Full markdown body of the issue."
-			},
-			"periodStart": {
-				"type": "ISO-8601 start of period (from squawk response).",
-				"required": true,
-				"description": "ISO-8601 start of period (from squawk response)."
-			},
-			"periodEnd": {
-				"type": "ISO-8601 end of period (from squawk response).",
-				"required": true,
-				"description": "ISO-8601 end of period (from squawk response)."
-			},
-			"masthead": {
-				"type": "Masthead meta (from squawk response).",
-				"required": true,
-				"description": "Masthead meta (from squawk response)."
-			},
-			"intent": {
-				"type": "Optional publish rationale.",
-				"required": false,
-				"description": "Optional publish rationale."
-			}
-		},
-		"queryKnowledge": {
-			"projectId": {
-				"type": "Project UUID",
-				"required": true,
-				"description": "Project UUID"
-			},
-			"topic": {
-				"type": "Search query — natural language or keywords",
-				"required": true,
-				"description": "Search query — natural language or keywords"
-			},
-			"limit": {
-				"type": "Max results to return",
-				"required": false,
-				"description": "Max results to return"
-			}
-		},
-		"rebuildKnowledgeIndex": {
-			"projectId": {
-				"type": "Project UUID",
-				"required": true,
-				"description": "Project UUID"
-			}
-		},
-		"saveClaim": {
-			"projectId": {
-				"type": "Project UUID",
-				"required": true,
-				"description": "Project UUID"
-			},
-			"kind": {
-				"type": "Claim kind",
-				"required": true,
-				"description": "Claim kind"
-			},
-			"statement": {
-				"type": "One-sentence assertion (shown in lists)",
-				"required": true,
-				"description": "One-sentence assertion (shown in lists)"
-			},
-			"body": {
-				"type": "Markdown elaboration",
-				"required": false,
-				"description": "Markdown elaboration"
-			},
-			"evidence": {
-				"type": "Citations — files, symbols, urls, cardIds",
-				"required": false,
-				"description": "Citations — files, symbols, urls, cardIds"
-			},
-			"payload": {
-				"type": "Kind-specific structured data — see description",
-				"required": false,
-				"description": "Kind-specific structured data — see description"
-			},
-			"author": {
-				"type": "AGENT_NAME or HUMAN",
-				"required": false,
-				"description": "AGENT_NAME or HUMAN"
-			},
-			"cardId": {
-				"type": "Card UUID or #number — optional anchor",
-				"required": false,
-				"description": "Card UUID or #number — optional anchor"
-			},
-			"status": {
-				"type": "unknown",
-				"required": false,
-				"description": ""
-			},
-			"supersedesId": {
-				"type": "Claim UUID this one replaces — old claim marked superseded and cross-linked",
-				"required": false,
-				"description": "Claim UUID this one replaces — old claim marked superseded and cross-linked"
-			},
-			"recordedAtSha": {
-				"type": "Git SHA at record time (code/measurement)",
-				"required": false,
-				"description": "Git SHA at record time (code/measurement)"
-			},
-			"verifiedAt": {
-				"type": "ISO datetime — defaults to now on create",
-				"required": false,
-				"description": "ISO datetime — defaults to now on create"
-			},
-			"expiresAt": {
-				"type": "ISO datetime — TTL (measurement)",
-				"required": false,
-				"description": "ISO datetime — TTL (measurement)"
-			},
-			"claimId": {
-				"type": "Claim UUID — pass to update",
-				"required": false,
-				"description": "Claim UUID — pass to update"
-			}
-		},
-		"saveFact": {
-			"type": {
-				"type": "Fact type: context | code | measurement",
-				"required": true,
-				"description": "Fact type: context | code | measurement"
-			},
-			"projectId": {
-				"type": "Project UUID",
-				"required": true,
-				"description": "Project UUID"
-			},
-			"content": {
-				"type": "The fact text — maps to claim (context), fact (code), or description (measurement)",
-				"required": true,
-				"description": "The fact text — maps to claim (context), fact (code), or description (measurement)"
-			},
-			"author": {
-				"type": "Who recorded this (AGENT or HUMAN)",
-				"required": false,
-				"description": "Who recorded this (AGENT or HUMAN)"
-			},
-			"path": {
-				"type": "File path relative to repo root (required for code, optional for measurement)",
-				"required": false,
-				"description": "File path relative to repo root (required for code, optional for measurement)"
-			},
-			"symbol": {
-				"type": "Symbol name (function, class, variable)",
-				"required": false,
-				"description": "Symbol name (function, class, variable)"
-			},
-			"recordedAtSha": {
-				"type": "Git SHA when this was recorded",
-				"required": false,
-				"description": "Git SHA when this was recorded"
-			},
-			"factId": {
-				"type": "Fact UUID — pass to update an existing fact",
-				"required": false,
-				"description": "Fact UUID — pass to update an existing fact"
-			},
-			"rationale": {
-				"type": "[context] Why this matters",
-				"required": false,
-				"description": "[context] Why this matters"
-			},
-			"application": {
-				"type": "[context] How to apply this knowledge",
-				"required": false,
-				"description": "[context] How to apply this knowledge"
-			},
-			"details": {
-				"type": "[context] Supporting details",
-				"required": false,
-				"description": "[context] Supporting details"
-			},
-			"audience": {
-				"type": "[context] Who should see it (all, agent, human)",
-				"required": false,
-				"description": "[context] Who should see it (all, agent, human)"
-			},
-			"citedFiles": {
-				"type": "[context] File paths this fact references",
-				"required": false,
-				"description": "[context] File paths this fact references"
-			},
-			"surface": {
-				"type": "[context] Visibility: ambient | indexed | surfaced",
-				"required": false,
-				"description": "[context] Visibility: ambient | indexed | surfaced"
-			},
-			"value": {
-				"type": "[measurement] Numeric value",
-				"required": false,
-				"description": "[measurement] Numeric value"
-			},
-			"unit": {
-				"type": "[measurement] Unit (e.g. ms, MB, s, bytes)",
-				"required": false,
-				"description": "[measurement] Unit (e.g. ms, MB, s, bytes)"
-			},
-			"env": {
-				"type": "[measurement] Environment key-value pairs",
-				"required": false,
-				"description": "[measurement] Environment key-value pairs"
-			},
-			"recordedAt": {
-				"type": "[measurement] ISO 8601 when measured (defaults to now)",
-				"required": false,
-				"description": "[measurement] ISO 8601 when measured (defaults to now)"
-			},
-			"ttl": {
-				"type": "[measurement] Time-to-live in days",
-				"required": false,
-				"description": "[measurement] Time-to-live in days"
-			}
-		},
-		"squawk": {
-			"boardId": {
-				"type": "Board UUID — pass explicitly when in a worktree.",
-				"required": true,
-				"description": "Board UUID — pass explicitly when in a worktree."
-			},
-			"period": {
-				"type": "Optional timeframe: \"1d\" / \"7d\" / \"30d\" / \"YYYY-MM-DD/YYYY-MM-DD\". Defaults to last 24h.",
-				"required": false,
-				"description": "Optional timeframe: \"1d\" / \"7d\" / \"30d\" / \"YYYY-MM-DD/YYYY-MM-DD\". Defaults to last 24h."
-			},
-			"intent": {
-				"type": "Optional rationale stamped on the activity log (e.g. 'sunday paper').",
-				"required": false,
-				"description": "Optional rationale stamped on the activity log (e.g. 'sunday paper')."
 			}
 		},
 		"getDecisions": {
@@ -1171,6 +829,72 @@ export const TOOL_CATALOG: {
 			}
 		},
 		"doctor": {},
+		"getActivityWindow": {
+			"boardId": {
+				"type": "Board UUID.",
+				"required": true,
+				"description": "Board UUID."
+			},
+			"periodStart": {
+				"type": "ISO-8601 start of period.",
+				"required": true,
+				"description": "ISO-8601 start of period."
+			},
+			"periodEnd": {
+				"type": "ISO-8601 end of period.",
+				"required": true,
+				"description": "ISO-8601 end of period."
+			}
+		},
+		"publishEdition": {
+			"boardId": {
+				"type": "Board UUID.",
+				"required": true,
+				"description": "Board UUID."
+			},
+			"content": {
+				"type": "Full markdown body of the issue.",
+				"required": true,
+				"description": "Full markdown body of the issue."
+			},
+			"periodStart": {
+				"type": "ISO-8601 start of period (from squawk response).",
+				"required": true,
+				"description": "ISO-8601 start of period (from squawk response)."
+			},
+			"periodEnd": {
+				"type": "ISO-8601 end of period (from squawk response).",
+				"required": true,
+				"description": "ISO-8601 end of period (from squawk response)."
+			},
+			"masthead": {
+				"type": "Masthead meta (from squawk response).",
+				"required": true,
+				"description": "Masthead meta (from squawk response)."
+			},
+			"intent": {
+				"type": "Optional publish rationale.",
+				"required": false,
+				"description": "Optional publish rationale."
+			}
+		},
+		"squawk": {
+			"boardId": {
+				"type": "Board UUID — pass explicitly when in a worktree.",
+				"required": true,
+				"description": "Board UUID — pass explicitly when in a worktree."
+			},
+			"period": {
+				"type": "Optional timeframe: \"1d\" / \"7d\" / \"30d\" / \"YYYY-MM-DD/YYYY-MM-DD\". Defaults to last 24h.",
+				"required": false,
+				"description": "Optional timeframe: \"1d\" / \"7d\" / \"30d\" / \"YYYY-MM-DD/YYYY-MM-DD\". Defaults to last 24h."
+			},
+			"intent": {
+				"type": "Optional rationale stamped on the activity log (e.g. 'sunday paper').",
+				"required": false,
+				"description": "Optional rationale stamped on the activity log (e.g. 'sunday paper')."
+			}
+		},
 		"auditBoard": {
 			"boardId": {
 				"type": "Board UUID",
@@ -1395,6 +1119,283 @@ export const TOOL_CATALOG: {
 				"type": "ISO datetime, git date string like '2 weeks ago', or 'all' for full history",
 				"required": false,
 				"description": "ISO datetime, git date string like '2 weeks ago', or 'all' for full history"
+			}
+		},
+		"listClaims": {
+			"projectId": {
+				"type": "Project UUID",
+				"required": true,
+				"description": "Project UUID"
+			},
+			"claimId": {
+				"type": "Fetch a single claim by UUID",
+				"required": false,
+				"description": "Fetch a single claim by UUID"
+			},
+			"kind": {
+				"type": "Filter by kind",
+				"required": false,
+				"description": "Filter by kind"
+			},
+			"cardId": {
+				"type": "Filter by card UUID or #number",
+				"required": false,
+				"description": "Filter by card UUID or #number"
+			},
+			"status": {
+				"type": "Filter by status",
+				"required": false,
+				"description": "Filter by status"
+			},
+			"author": {
+				"type": "Filter by author",
+				"required": false,
+				"description": "Filter by author"
+			},
+			"limit": {
+				"type": "unknown",
+				"required": false,
+				"description": ""
+			}
+		},
+		"listFacts": {
+			"projectId": {
+				"type": "Project UUID",
+				"required": true,
+				"description": "Project UUID"
+			},
+			"factId": {
+				"type": "Fetch a single fact by UUID",
+				"required": false,
+				"description": "Fetch a single fact by UUID"
+			},
+			"type": {
+				"type": "Filter by fact type",
+				"required": false,
+				"description": "Filter by fact type"
+			},
+			"path": {
+				"type": "Filter by exact file path (code/measurement)",
+				"required": false,
+				"description": "Filter by exact file path (code/measurement)"
+			},
+			"pathPrefix": {
+				"type": "Filter by path prefix (e.g. 'src/mcp/')",
+				"required": false,
+				"description": "Filter by path prefix (e.g. 'src/mcp/')"
+			},
+			"surface": {
+				"type": "Filter context entries by surface level",
+				"required": false,
+				"description": "Filter context entries by surface level"
+			},
+			"needsRecheck": {
+				"type": "(deprecated — no longer tracked; filter ignored)",
+				"required": false,
+				"description": "(deprecated — no longer tracked; filter ignored)"
+			},
+			"author": {
+				"type": "Filter by author (AGENT or HUMAN)",
+				"required": false,
+				"description": "Filter by author (AGENT or HUMAN)"
+			},
+			"limit": {
+				"type": "Max facts per type",
+				"required": false,
+				"description": "Max facts per type"
+			}
+		},
+		"queryKnowledge": {
+			"projectId": {
+				"type": "Project UUID",
+				"required": true,
+				"description": "Project UUID"
+			},
+			"topic": {
+				"type": "Search query — natural language or keywords",
+				"required": true,
+				"description": "Search query — natural language or keywords"
+			},
+			"limit": {
+				"type": "Max results to return",
+				"required": false,
+				"description": "Max results to return"
+			}
+		},
+		"rebuildKnowledgeIndex": {
+			"projectId": {
+				"type": "Project UUID",
+				"required": true,
+				"description": "Project UUID"
+			}
+		},
+		"saveClaim": {
+			"projectId": {
+				"type": "Project UUID",
+				"required": true,
+				"description": "Project UUID"
+			},
+			"kind": {
+				"type": "Claim kind",
+				"required": true,
+				"description": "Claim kind"
+			},
+			"statement": {
+				"type": "One-sentence assertion (shown in lists)",
+				"required": true,
+				"description": "One-sentence assertion (shown in lists)"
+			},
+			"body": {
+				"type": "Markdown elaboration",
+				"required": false,
+				"description": "Markdown elaboration"
+			},
+			"evidence": {
+				"type": "Citations — files, symbols, urls, cardIds",
+				"required": false,
+				"description": "Citations — files, symbols, urls, cardIds"
+			},
+			"payload": {
+				"type": "Kind-specific structured data — see description",
+				"required": false,
+				"description": "Kind-specific structured data — see description"
+			},
+			"author": {
+				"type": "AGENT_NAME or HUMAN",
+				"required": false,
+				"description": "AGENT_NAME or HUMAN"
+			},
+			"cardId": {
+				"type": "Card UUID or #number — optional anchor",
+				"required": false,
+				"description": "Card UUID or #number — optional anchor"
+			},
+			"status": {
+				"type": "unknown",
+				"required": false,
+				"description": ""
+			},
+			"supersedesId": {
+				"type": "Claim UUID this one replaces — old claim marked superseded and cross-linked",
+				"required": false,
+				"description": "Claim UUID this one replaces — old claim marked superseded and cross-linked"
+			},
+			"recordedAtSha": {
+				"type": "Git SHA at record time (code/measurement)",
+				"required": false,
+				"description": "Git SHA at record time (code/measurement)"
+			},
+			"verifiedAt": {
+				"type": "ISO datetime — defaults to now on create",
+				"required": false,
+				"description": "ISO datetime — defaults to now on create"
+			},
+			"expiresAt": {
+				"type": "ISO datetime — TTL (measurement)",
+				"required": false,
+				"description": "ISO datetime — TTL (measurement)"
+			},
+			"claimId": {
+				"type": "Claim UUID — pass to update",
+				"required": false,
+				"description": "Claim UUID — pass to update"
+			}
+		},
+		"saveFact": {
+			"type": {
+				"type": "Fact type: context | code | measurement",
+				"required": true,
+				"description": "Fact type: context | code | measurement"
+			},
+			"projectId": {
+				"type": "Project UUID",
+				"required": true,
+				"description": "Project UUID"
+			},
+			"content": {
+				"type": "The fact text — maps to claim (context), fact (code), or description (measurement)",
+				"required": true,
+				"description": "The fact text — maps to claim (context), fact (code), or description (measurement)"
+			},
+			"author": {
+				"type": "Who recorded this (AGENT or HUMAN)",
+				"required": false,
+				"description": "Who recorded this (AGENT or HUMAN)"
+			},
+			"path": {
+				"type": "File path relative to repo root (required for code, optional for measurement)",
+				"required": false,
+				"description": "File path relative to repo root (required for code, optional for measurement)"
+			},
+			"symbol": {
+				"type": "Symbol name (function, class, variable)",
+				"required": false,
+				"description": "Symbol name (function, class, variable)"
+			},
+			"recordedAtSha": {
+				"type": "Git SHA when this was recorded",
+				"required": false,
+				"description": "Git SHA when this was recorded"
+			},
+			"factId": {
+				"type": "Fact UUID — pass to update an existing fact",
+				"required": false,
+				"description": "Fact UUID — pass to update an existing fact"
+			},
+			"rationale": {
+				"type": "[context] Why this matters",
+				"required": false,
+				"description": "[context] Why this matters"
+			},
+			"application": {
+				"type": "[context] How to apply this knowledge",
+				"required": false,
+				"description": "[context] How to apply this knowledge"
+			},
+			"details": {
+				"type": "[context] Supporting details",
+				"required": false,
+				"description": "[context] Supporting details"
+			},
+			"audience": {
+				"type": "[context] Who should see it (all, agent, human)",
+				"required": false,
+				"description": "[context] Who should see it (all, agent, human)"
+			},
+			"citedFiles": {
+				"type": "[context] File paths this fact references",
+				"required": false,
+				"description": "[context] File paths this fact references"
+			},
+			"surface": {
+				"type": "[context] Visibility: ambient | indexed | surfaced",
+				"required": false,
+				"description": "[context] Visibility: ambient | indexed | surfaced"
+			},
+			"value": {
+				"type": "[measurement] Numeric value",
+				"required": false,
+				"description": "[measurement] Numeric value"
+			},
+			"unit": {
+				"type": "[measurement] Unit (e.g. ms, MB, s, bytes)",
+				"required": false,
+				"description": "[measurement] Unit (e.g. ms, MB, s, bytes)"
+			},
+			"env": {
+				"type": "[measurement] Environment key-value pairs",
+				"required": false,
+				"description": "[measurement] Environment key-value pairs"
+			},
+			"recordedAt": {
+				"type": "[measurement] ISO 8601 when measured (defaults to now)",
+				"required": false,
+				"description": "[measurement] ISO 8601 when measured (defaults to now)"
+			},
+			"ttl": {
+				"type": "[measurement] Time-to-live in days",
+				"required": false,
+				"description": "[measurement] Time-to-live in days"
 			}
 		},
 		"createMilestone": {

@@ -56,6 +56,7 @@ export type ExtendedTool = {
 \tdescription: string;
 \treadOnly: boolean;
 \tdestructive: boolean;
+\tdeprecated?: { replacement: string; reason?: string };
 };
 
 export const TOOL_CATALOG: {

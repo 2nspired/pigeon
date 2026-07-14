@@ -55,7 +55,7 @@ Both clients read and write the *same* SQLite file. The UI broadcasts changes ov
 
 A naive agent-facing API would either dump every tool into context (expensive) or force the agent to discover tools through trial and error (slow). The tracker splits the difference:
 
-- **10 essential tools** are always loaded. They cover the hot path: start a session, create a card, update it, move it, comment on it, save a handoff at the end.
+- **11 essential tools** are always loaded. They cover the hot path: start a session, create a card, plan it, update it, move it, comment on it, save a handoff at the end.
 - **65+ extended tools** live behind two meta-tools: `getTools` browses them by category, `runTool` executes them by name.
 
 ```mermaid

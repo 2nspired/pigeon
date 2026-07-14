@@ -303,7 +303,7 @@ const periodSchema = z
 	);
 
 registerExtendedTool("squawk", {
-	category: "context",
+	category: "digest",
 	description:
 		"The Daily Squawk: returns activity data + masthead + editor system prompt + section protocol so the agent can draft a newspaper-style digest. Call publishEdition once the markdown is complete.",
 	parameters: z.object({
@@ -433,7 +433,7 @@ registerExtendedTool("squawk", {
 });
 
 registerExtendedTool("getActivityWindow", {
-	category: "context",
+	category: "digest",
 	description:
 		"Read-only re-fetch of the Daily Squawk activity window (without the editor protocol). Useful for refreshing data while drafting an issue.",
 	annotations: { readOnlyHint: true },
@@ -461,7 +461,7 @@ registerExtendedTool("getActivityWindow", {
 });
 
 registerExtendedTool("publishEdition", {
-	category: "context",
+	category: "digest",
 	description:
 		"Persist a drafted Daily Squawk markdown issue. Returns the URL. Editions are immutable — duplicate slug returns the existing edition's URL.",
 	parameters: z.object({

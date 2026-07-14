@@ -24,6 +24,7 @@ These are in the agent's context on every session. They cover the hot path: star
 | `updateCard` | Update card fields; optional `intent`. |
 | `moveCard` | Move a card to a column. Requires `intent`. |
 | `addComment` | Add a markdown comment to a card. Surfaces in `getCardContext` for future agents. |
+| `planCard` | Plan a card — returns card context, tracker.md policy, investigation hints, and the four-section plan protocol (Why now / Plan / Out of scope / Acceptance). |
 | `registerRepo` | Bind a git repo path to a project (call after briefMe returns needsRegistration). |
 | `checkOnboarding` | Detect DB state, list projects/boards, session-start discovery. |
 | `getTools` | Browse extended tools by category. |
@@ -43,11 +44,13 @@ Browsed via `getTools({ category })` and executed via `runTool({ tool, params })
 | `cards` | 5 | `bulkCreateCards`, `bulkMoveCards`, `bulkUpdateCards`, `createCardFromTemplate`, `deleteCard` |
 | `checklist` | 3 | `addChecklistItem`, `bulkAddChecklistItems`, `toggleChecklistItem` |
 | `comments` | 1 | `listComments` |
-| `context` | 13 | `getActivityWindow`, `getCardContext`, `getMilestoneContext`, `getTagContext`, `listClaims`, `listFacts`, `planCard`, `publishEdition`, `queryKnowledge`, `rebuildKnowledgeIndex`, `saveClaim`, `saveFact`, `squawk` |
+| `context` | 3 | `getCardContext`, `getMilestoneContext`, `getTagContext` |
 | `decisions` | 3 | `getDecisions`, `recordDecision`, `updateDecision` |
 | `diagnostics` | 1 | `doctor` |
+| `digest` | 3 | `getActivityWindow`, `publishEdition`, `squawk` |
 | `discovery` | 13 | `auditBoard`, `getBoard`, `getCard`, `getRoadmap`, `getStats`, `getToolUsageStats`, `getWorkNextSuggestion`, `listBoards`, `listProjects`, `listWorkflows`, `queryCards`, `renderStatus`, `searchCards` |
 | `git` | 3 | `getCommitSummary`, `getGitLog`, `syncGitActivity` |
+| `knowledge` | 6 | `listClaims`, `listFacts`, `queryKnowledge`, `rebuildKnowledgeIndex`, `saveClaim`, `saveFact` |
 | `milestones` | 4 | `createMilestone`, `listMilestones`, `mergeMilestones`, `updateMilestone` |
 | `notes` | 3 | `createNote`, `listNotes`, `updateNote` |
 | `relations` | 3 | `getBlockers`, `linkCards`, `unlinkCards` |

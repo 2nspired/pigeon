@@ -35,6 +35,11 @@ export const ESSENTIAL_TOOLS: Array<{ name: string; description: string }> = [
 			"Add a markdown comment to a card. Surfaces in `getCardContext` for future agents.",
 	},
 	{
+		name: "planCard",
+		description:
+			"Plan a card — returns card context, tracker.md policy, investigation hints, and the four-section plan protocol (Why now / Plan / Out of scope / Acceptance).",
+	},
+	{
 		name: "registerRepo",
 		description:
 			"Bind a git repo path to a project (call after briefMe returns needsRegistration).",
@@ -124,6 +129,7 @@ export type ServerManifest = {
 		description: string;
 		readOnly: boolean;
 		destructive: boolean;
+		deprecated?: { replacement: string; reason?: string };
 	}>;
 	resources: Array<{ uri: string; mimeType: string; description: string }>;
 };

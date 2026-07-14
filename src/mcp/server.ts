@@ -35,6 +35,7 @@ import {
 	type TagSuggestion,
 } from "./taxonomy-utils.js";
 import { executeTool, getRegistrySize, getToolCatalog } from "./tool-registry.js";
+import { handlePlanCard, PLAN_CARD_DESCRIPTION, planCardInputShape } from "./tools/plan-card.js";
 import { toToon } from "./toon.js";
 import {
 	AGENT_NAME,
@@ -656,6 +657,24 @@ server.registerTool(
 		});
 	})
 );
+// ─── Plan Card (Essential) ───────────────────────────────────────────
+
+// Promoted from the extended registry in #317 — the documented workflow
+// (plan a card before starting it) kept hitting "tool not found" when
+// agents called planCard directly. Handler + schema live in
+// tools/plan-card.ts; runTool("planCard") now returns a redirect hint.
+server.registerTool(
+	"planCard",
+	{
+		title: "Plan Card",
+		description: PLAN_CARD_DESCRIPTION,
+		inputSchema: planCardInputShape,
+	},
+	wrapEssentialHandler("planCard", async ({ boardId, cardId, intent }) =>
+		handlePlanCard({ boardId, cardId, intent })
+	)
+);
+
 // ─── Onboarding (Essential) ──────────────────────────────────────────
 
 server.registerTool(

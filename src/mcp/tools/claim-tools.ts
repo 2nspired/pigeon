@@ -18,7 +18,7 @@ const claimService = createClaimService(db);
 // ─── saveClaim ────────────────────────────────────────────────────
 
 registerExtendedTool("saveClaim", {
-	category: "context",
+	category: "knowledge",
 	description: `Create or update a Claim — a typed assertion with evidence. Pass claimId to update.
 
 This is the RFC-v2 replacement for saveFact/recordDecision. Old tools still work; use saveClaim for new writes when you want the unified shape (statement + body + evidence + payload).
@@ -130,7 +130,7 @@ Kinds:
 // ─── listClaims ───────────────────────────────────────────────────
 
 registerExtendedTool("listClaims", {
-	category: "context",
+	category: "knowledge",
 	description:
 		"List claims for a project. Omit kind to include all kinds. Pass claimId for single-claim lookup.",
 	parameters: z.object({

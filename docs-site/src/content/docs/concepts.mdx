@@ -22,7 +22,7 @@ The handoff is a SQLite row. The wire is your local disk, not a network. The nex
 | Reader | Sees | Reads/writes via |
 |---|---|---|
 | **You** | Kanban board in the browser. Drag-and-drop, columns, priorities, checklists, activity, real-time updates over SSE. | The web UI at `localhost:3100`. |
-| **Your agent** | Structured tools over MCP. Cards, columns, comments, handoffs, decisions, dependencies, code links. | 10 essential tools always-on; 65+ extended tools discoverable via `getTools` and called via `runTool`. Context footprint stays small. |
+| **Your agent** | Structured tools over MCP. Cards, columns, comments, handoffs, decisions, dependencies, code links. | 11 essential tools always-on; 65+ extended tools discoverable via `getTools` and called via `runTool`. Context footprint stays small. |
 
 The same SQLite file serves both, all the time, with no sync layer between them. If you can see it in the UI, the agent can see it. If the agent writes it, you see it live.
 
@@ -157,7 +157,7 @@ The principle: **if the human can't see and edit it where they'd naturally encou
 
 ## MCP surface
 
-Pigeon's MCP server registers under the key `pigeon` and runs over stdio. Ten essential tools are always-on (`briefMe`, `saveHandoff`, `createCard`, `updateCard`, `moveCard`, `addComment`, `registerRepo`, `checkOnboarding`, `getTools`, `runTool`). The remaining 65+ tools — cards, checklist, context, decisions, diagnostics, discovery, git, milestones, notes, relations, sessions, setup, tags — are discoverable via `getTools` and executable via `runTool`. The full reference, with parameter schemas: [MCP tools](/tools/).
+Pigeon's MCP server registers under the key `pigeon` and runs over stdio. Eleven essential tools are always-on (`briefMe`, `saveHandoff`, `createCard`, `updateCard`, `moveCard`, `addComment`, `planCard`, `registerRepo`, `checkOnboarding`, `getTools`, `runTool`). The remaining 65+ tools — cards, checklist, context, decisions, diagnostics, digest, discovery, git, knowledge, milestones, notes, relations, sessions, setup, tags — are discoverable via `getTools` and executable via `runTool`. The full reference, with parameter schemas: [MCP tools](/tools/).
 
 In the web app, press `?` anywhere to open the same catalog with deep links to docs.
 

@@ -118,7 +118,7 @@ That writes a `.mcp.json` in the project's repo root, installs Pigeon's slash co
 ## What you get after install
 
 - A kanban board at `localhost:3100` (macOS) or `localhost:3000` (other platforms) — drag cards around, see priority stripes, filter by tag.
-- An MCP server your agent calls — `briefMe`, `moveCard`, `addComment`, `saveHandoff`, plus 65+ extended tools (`planCard`, `recordDecision`, search, costs).
+- An MCP server your agent calls — `briefMe`, `planCard`, `moveCard`, `addComment`, `saveHandoff`, plus 65+ extended tools (`saveClaim`, search, costs).
 - A Costs page — per-card attributed spend, top-N expensive sessions, briefMe-vs-naive savings, project-wide MCP overhead.
 - An 8-check doctor (`npm run doctor`) — exit code `0` on green, `1` on any failure. CI-friendly.
 
@@ -153,7 +153,7 @@ When the two disagree, the site wins for *concepts*; the in-repo tree wins for *
 
 - [Quickstart](https://2nspired.github.io/pigeon/quickstart/) — clone, install, connect, first `briefMe` call.
 - [The session loop](https://2nspired.github.io/pigeon/workflow/) — the four moves: briefMe, work, saveHandoff (`/handoff`), resume.
-- [MCP tools](https://2nspired.github.io/pigeon/tools/) — every tool the agent can call (10 essentials + 65+ extended).
+- [MCP tools](https://2nspired.github.io/pigeon/tools/) — every tool the agent can call (11 essentials + 65+ extended).
 - [Cost tracking](https://2nspired.github.io/pigeon/costs/) — what the Costs page records, how attribution works, and the savings/overhead math.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the three-layer rule and where new code goes.
 - [AGENTS.md](AGENTS.md) — contributor reference for agent conventions.

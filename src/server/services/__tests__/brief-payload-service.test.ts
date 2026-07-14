@@ -312,6 +312,83 @@ describe("buildBriefPayload (#192 F3 shape parity)", () => {
 		});
 	});
 
+	describe("planCard hint when the top work item lacks a plan (#317)", () => {
+		function makeDbWithDescription(description: string | null) {
+			return {
+				board: {
+					findUnique: vi.fn(async () => ({
+						id: BOARD_ID,
+						name: "Tutorial Board",
+						project: { id: PROJECT_ID, name: "Tutorial", repoPath: null },
+						columns: [
+							{
+								id: "col-1",
+								name: "Backlog",
+								role: "backlog",
+								isParking: false,
+								position: 0,
+								cards: [
+									{
+										id: "card-1",
+										number: 7,
+										title: "Unplanned card",
+										description,
+										position: 0,
+										priority: "HIGH",
+										updatedAt: new Date(),
+										dueDate: null,
+										checklists: [],
+										relationsTo: [],
+										relationsFrom: [],
+									},
+								],
+							},
+						],
+					})),
+				},
+				claim: { findMany: vi.fn(async () => []) },
+				activity: { findMany: vi.fn(async () => []) },
+			} as unknown as Parameters<typeof buildBriefPayload>[1];
+		}
+
+		it("prefixes _hint with a planCard pointer when the top item has no plan", async () => {
+			const payload = await buildBriefPayload(BOARD_ID, makeDbWithDescription("just prose"));
+			expect(payload._hint).toContain("Top work item #7 has no plan yet");
+			expect(payload._hint).toContain('planCard({ boardId, cardId: "#7" })');
+			// The base guidance still follows.
+			expect(payload._hint).toContain("topWork");
+		});
+
+		it("also fires when the description is null", async () => {
+			const payload = await buildBriefPayload(BOARD_ID, makeDbWithDescription(null));
+			expect(payload._hint).toContain("has no plan yet");
+		});
+
+		it("omits the hint when the top item already has the locked plan sections", async () => {
+			const planned =
+				"## Why now\n\nx\n\n## Plan\n\ny\n\n## Out of scope\n\n-\n\n## Acceptance\n\nz";
+			const payload = await buildBriefPayload(BOARD_ID, makeDbWithDescription(planned));
+			expect(payload._hint).not.toContain("has no plan yet");
+		});
+
+		it("omits the hint when there is no top work item", async () => {
+			const empty = {
+				board: {
+					findUnique: vi.fn(async () => ({
+						id: BOARD_ID,
+						name: "Tutorial Board",
+						project: { id: PROJECT_ID, name: "Tutorial", repoPath: null },
+						columns: [],
+					})),
+				},
+				claim: { findMany: vi.fn(async () => []) },
+				activity: { findMany: vi.fn(async () => []) },
+			} as unknown as Parameters<typeof buildBriefPayload>[1];
+			const payload = await buildBriefPayload(BOARD_ID, empty);
+			expect(payload._hint).not.toContain("has no plan yet");
+		});
+	});
+
 	it("throws when the board can't be loaded", async () => {
 		const db = {
 			board: { findUnique: vi.fn(async () => null) },

@@ -118,7 +118,7 @@ Universal column conventions live in [`docs/AGENT-GUIDE.md`](docs/AGENT-GUIDE.md
 
 ## MCP tool architecture (essential vs. extended)
 
-**10 essential tools** are always visible to the model: `briefMe`, `saveHandoff`, `createCard`, `updateCard`, `moveCard`, `addComment`, `registerRepo`, `checkOnboarding`, `getTools`, `runTool`. Source of truth: `ESSENTIAL_TOOLS` in `src/mcp/manifest.ts`.
+**11 essential tools** are always visible to the model: `briefMe`, `saveHandoff`, `createCard`, `updateCard`, `moveCard`, `addComment`, `planCard`, `registerRepo`, `checkOnboarding`, `getTools`, `runTool`. Source of truth: `ESSENTIAL_TOOLS` in `src/mcp/manifest.ts`.
 
 Everything else (~65 tools) lives behind `getTools` / `runTool`:
 
@@ -131,7 +131,9 @@ runTool({ tool, params })         // execute an extended tool
 
 **Naming convention.** Tool names are `camelCase` verbs. `bulkX` for batch variants (`bulkCreateCards`, `bulkUpdateCards`). `listX` returns governance hints; `getX` is direct fetch. Card-write tools take strict `tagSlugs: string[]` and `milestoneId: string` — legacy `tags` / `milestoneName` paths still work but emit `_deprecated` warnings (removed next major).
 
-**`planCard` is extended.** Call via `runTool({ tool: "planCard", params: { boardId, cardId } })` — calling it as essential fails with "tool not found." Returns card context, `tracker.md` policy, `investigation_hints`, and the four-section protocol. See `docs/AGENT-GUIDE.md` for the chat-is-draft, card-is-publish workflow.
+**`planCard` is essential (#317).** Call it directly: `planCard({ boardId, cardId })`. It was extended-only before #317 — the documented workflow kept tripping a "tool not found" error; `runTool({ tool: "planCard" })` now returns a redirect hint instead. Returns card context, `tracker.md` policy, `investigation_hints`, and the four-section protocol. See `docs/AGENT-GUIDE.md` for the chat-is-draft, card-is-publish workflow.
+
+**Deprecated tools carry a structured marker (#317).** `getTools` output includes `deprecated: { replacement, reason }` on legacy aliases — currently `recordDecision`/`getDecisions`/`updateDecision` (→ `saveClaim`/`listClaims` with `kind: "decision"`) and `saveFact`/`listFacts` (→ `saveClaim`/`listClaims`). Prefer the replacement for new code; the aliases still work until removed.
 
 **Pigeon-internal extras worth knowing:** `auditBoard` finds cards missing priority/tags/milestones/checklists; `createCardFromTemplate` (Bug Report, Feature, Spike, Tech Debt, Epic) is faster than hand-rolling; `getCommitSummary(cardId)` returns commits grouped by category (source, schema, styles, tests, config, docs, other) — the card detail sheet renders this as a collapsible section.
 

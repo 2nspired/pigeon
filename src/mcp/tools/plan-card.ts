@@ -1,5 +1,5 @@
 /**
- * planCard — RFC #107 / card #107.
+ * planCard — RFC #107 / card #107. Promoted to an essential tool in #317.
  *
  * Encodes the "agent plans a card" workflow as a first-class MCP tool.
  * Returns a structured brief (card context + tracker.md policy + extracted
@@ -11,33 +11,25 @@
  * the card already has a plan in its description. Auto-stamps a `planning`
  * activity row so the human watching the board sees the agent enter the
  * planning state in real time.
+ *
+ * Registration lives in `src/mcp/server.ts` (essential, directly callable)
+ * — this module only exports the input schema and handler. #317 killed the
+ * "tool not found" trap where agents tried `planCard` as an essential and
+ * had to fall back to `runTool`.
  */
 
 import { z } from "zod";
+import { hasLockedPlanSections } from "@/lib/plan-sections";
 import { db } from "../db.js";
 import { SESSION_ID } from "../instrumentation.js";
-import { registerExtendedTool } from "../tool-registry.js";
 import { AGENT_NAME, ok, safeExecute } from "../utils.js";
 import { type CardContextPayload, loadCardContext } from "./context-tools.js";
 
 // ─── Pure helpers (exported for unit tests) ────────────────────────
 
-const REQUIRED_PLAN_HEADERS: ReadonlyArray<RegExp> = [
-	/^##\s+Why now\s*$/im,
-	/^##\s+Plan\s*$/im,
-	/^##\s+Acceptance\s*$/im,
-];
-
-/**
- * Heuristic: does the card description already contain the locked-section
- * headers (Why now / Plan / Acceptance)? Out-of-scope is encouraged but
- * optional — sometimes there's nothing to defer. Case-insensitive on the
- * heading text; requires a level-2 ATX heading on its own line.
- */
-export function hasLockedPlanSections(description: string | null | undefined): boolean {
-	if (!description) return false;
-	return REQUIRED_PLAN_HEADERS.every((re) => re.test(description));
-}
+// Re-exported from `src/lib/plan-sections` — shared with the briefMe
+// payload builder's no-plan hint (#317).
+export { hasLockedPlanSections };
 
 export type InvestigationHints = {
 	urls: string[];
@@ -160,111 +152,104 @@ export function buildPlanProtocol(opts: {
 	return parts.join("\n").trimEnd();
 }
 
-// ─── Tool registration ─────────────────────────────────────────────
+// ─── Essential-tool surface (registered in server.ts) ──────────────
 
 type Warning = { code: string; message: string };
 
-registerExtendedTool("planCard", {
-	category: "context",
-	description:
-		"Plan a card: returns the card context, tracker.md policy, extracted investigation hints, and a structured protocol the agent follows to draft a four-section plan (Why now / Plan / Out of scope / Acceptance). Refuses with PLAN_EXISTS warning if the card already has a plan.",
-	parameters: z.object({
-		boardId: z.string().describe("Board UUID"),
-		cardId: z.string().describe("Card UUID or #number"),
-		intent: z
-			.string()
-			.max(120, "intent must be ≤ 120 chars")
-			.optional()
-			.describe(
-				"Optional rationale stamped on the activity strip (e.g. 'planning before standup')"
-			),
-	}),
-	handler: (params) =>
-		safeExecute(async () => {
-			const {
-				boardId,
-				cardId: cardRef,
-				intent,
-			} = params as {
-				boardId: string;
-				cardId: string;
-				intent?: string;
-			};
+export const PLAN_CARD_DESCRIPTION =
+	"Plan a card: returns the card context, tracker.md policy, extracted investigation hints, and a structured protocol the agent follows to draft a four-section plan (Why now / Plan / Out of scope / Acceptance). Refuses with PLAN_EXISTS warning if the card already has a plan.";
 
-			const result = await loadCardContext(boardId, cardRef);
-			if (!result.ok) return result.error;
-			const { payload, cardId, cardNumber, columnName, description, policy, columnPrompt } =
-				result.data;
+/**
+ * Raw Zod shape — `server.registerTool` wants a shape, not a `z.object`.
+ */
+export const planCardInputShape = {
+	boardId: z.string().describe("Board UUID"),
+	cardId: z.string().describe("Card UUID or #number"),
+	intent: z
+		.string()
+		.max(120, "intent must be ≤ 120 chars")
+		.optional()
+		.describe("Optional rationale stamped on the activity strip (e.g. 'planning before standup')"),
+};
 
-			const warnings: Warning[] = [];
-			const cardWithPlan = hasLockedPlanSections(description);
+export function handlePlanCard(params: { boardId: string; cardId: string; intent?: string }) {
+	return safeExecute(async () => {
+		const { boardId, cardId: cardRef, intent } = params;
 
-			if (cardWithPlan) {
-				warnings.push({
-					code: "PLAN_EXISTS",
-					message:
-						"Card description already contains the locked plan headers (## Why now / ## Plan / ## Acceptance). Refusing to overwrite — review the existing plan before re-planning. To force a re-plan, edit the description first to remove the headers.",
-				});
-			}
+		const result = await loadCardContext(boardId, cardRef);
+		if (!result.ok) return result.error;
+		const { payload, cardId, cardNumber, columnName, description, policy, columnPrompt } =
+			result.data;
 
-			if (!description || description.trim().length === 0) {
-				warnings.push({
-					code: "EMPTY_DESCRIPTION",
-					message:
-						"Card has no description — investigation_hints will be empty. Ask the user for a one-paragraph problem statement before planning.",
-				});
-			}
+		const warnings: Warning[] = [];
+		const cardWithPlan = hasLockedPlanSections(description);
 
-			if (!policy) {
-				warnings.push({
-					code: "NO_POLICY",
-					message:
-						"No tracker.md policy loaded for this project. Plans will lack column/project context. Add tracker.md at repo root to fix.",
-				});
-			}
+		if (cardWithPlan) {
+			warnings.push({
+				code: "PLAN_EXISTS",
+				message:
+					"Card description already contains the locked plan headers (## Why now / ## Plan / ## Acceptance). Refusing to overwrite — review the existing plan before re-planning. To force a re-plan, edit the description first to remove the headers.",
+			});
+		}
 
-			const investigationHints = extractInvestigationHints(description);
+		if (!description || description.trim().length === 0) {
+			warnings.push({
+				code: "EMPTY_DESCRIPTION",
+				message:
+					"Card has no description — investigation_hints will be empty. Ask the user for a one-paragraph problem statement before planning.",
+			});
+		}
 
-			const response: {
-				card: CardContextPayload;
-				policy: typeof policy;
-				investigation_hints: ReturnType<typeof extractInvestigationHints>;
-				protocol?: string;
-				_warnings?: Warning[];
-			} = {
-				card: payload,
-				policy,
-				investigation_hints: investigationHints,
-			};
+		if (!policy) {
+			warnings.push({
+				code: "NO_POLICY",
+				message:
+					"No tracker.md policy loaded for this project. Plans will lack column/project context. Add tracker.md at repo root to fix.",
+			});
+		}
 
-			// Refuse-on-exists: omit the protocol entirely so the agent can't
-			// silently overwrite a published plan. Surfaces the warning instead.
-			if (!cardWithPlan) {
-				response.protocol = buildPlanProtocol({
-					cardRef: `#${cardNumber}`,
-					columnName,
-					columnPrompt,
-					projectOrientation:
-						policy?.prompt && policy.prompt.trim().length > 0 ? policy.prompt : undefined,
-				});
+		const investigationHints = extractInvestigationHints(description);
 
-				// Stamp activity so the human sees the planning intent live —
-				// mirrors the existing intent system on moveCard / deleteCard.
-				await db.activity.create({
-					data: {
-						cardId,
-						action: "planning",
-						details: `Planning #${cardNumber}`,
-						intent: intent ? `planning #${cardNumber}: ${intent}` : `planning #${cardNumber}`,
-						actorType: "AGENT",
-						actorName: AGENT_NAME,
-						sessionId: SESSION_ID,
-					},
-				});
-			}
+		const response: {
+			card: CardContextPayload;
+			policy: typeof policy;
+			investigation_hints: ReturnType<typeof extractInvestigationHints>;
+			protocol?: string;
+			_warnings?: Warning[];
+		} = {
+			card: payload,
+			policy,
+			investigation_hints: investigationHints,
+		};
 
-			if (warnings.length > 0) response._warnings = warnings;
+		// Refuse-on-exists: omit the protocol entirely so the agent can't
+		// silently overwrite a published plan. Surfaces the warning instead.
+		if (!cardWithPlan) {
+			response.protocol = buildPlanProtocol({
+				cardRef: `#${cardNumber}`,
+				columnName,
+				columnPrompt,
+				projectOrientation:
+					policy?.prompt && policy.prompt.trim().length > 0 ? policy.prompt : undefined,
+			});
 
-			return ok(response);
-		}),
-});
+			// Stamp activity so the human sees the planning intent live —
+			// mirrors the existing intent system on moveCard / deleteCard.
+			await db.activity.create({
+				data: {
+					cardId,
+					action: "planning",
+					details: `Planning #${cardNumber}`,
+					intent: intent ? `planning #${cardNumber}: ${intent}` : `planning #${cardNumber}`,
+					actorType: "AGENT",
+					actorName: AGENT_NAME,
+					sessionId: SESSION_ID,
+				},
+			});
+		}
+
+		if (warnings.length > 0) response._warnings = warnings;
+
+		return ok(response);
+	});
+}
