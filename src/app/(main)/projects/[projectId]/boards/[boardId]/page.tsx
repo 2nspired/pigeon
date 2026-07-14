@@ -24,6 +24,7 @@ import { ActivitySheet } from "@/components/board/activity-sheet";
 import { BoardListView } from "@/components/board/board-list-view";
 import { type BoardFilters, emptyFilters, type SortMode } from "@/components/board/board-toolbar";
 import { BoardView } from "@/components/board/board-view";
+import { FirstRunTourProvider, TourCoachMark } from "@/components/board/first-run-tour";
 import { HandoffsSheet } from "@/components/board/handoffs-sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -356,164 +357,170 @@ export default function BoardPage({
 	};
 
 	return (
-		<div className="flex h-[calc(100dvh-3.5rem-1px)] flex-col">
-			<div className="flex items-center gap-3 border-b px-4 py-2">
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Link href={`/projects/${projectId}`}>
-							<Button variant="ghost" size="sm">
-								<ArrowLeft className="mr-2 h-4 w-4" />
-								Back
-							</Button>
-						</Link>
-					</TooltipTrigger>
-					<TooltipContent>Return to project</TooltipContent>
-				</Tooltip>
-				<div className="flex-1">
-					<div className="flex items-center gap-1">
-						<EditableBoardName boardId={board.id} name={board.name} />
-						<CopyBoardIdButton boardId={board.id} />
-						<BoardAccentPicker boardId={board.id} accentColor={board.accentColor ?? null} />
+		<FirstRunTourProvider boardId={board.id} boardCreatedAt={board.createdAt}>
+			<div className="flex h-[calc(100dvh-3.5rem-1px)] flex-col">
+				<div className="flex items-center gap-3 border-b px-4 py-2">
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Link href={`/projects/${projectId}`}>
+								<Button variant="ghost" size="sm">
+									<ArrowLeft className="mr-2 h-4 w-4" />
+									Back
+								</Button>
+							</Link>
+						</TooltipTrigger>
+						<TooltipContent>Return to project</TooltipContent>
+					</Tooltip>
+					<div className="flex-1">
+						<div className="flex items-center gap-1">
+							<EditableBoardName boardId={board.id} name={board.name} />
+							<CopyBoardIdButton boardId={board.id} />
+							<BoardAccentPicker boardId={board.id} accentColor={board.accentColor ?? null} />
+						</div>
+						<p className="text-xs text-muted-foreground">{board.project.name}</p>
 					</div>
-					<p className="text-xs text-muted-foreground">{board.project.name}</p>
+					<SegmentedControl
+						type="single"
+						size="icon"
+						value={viewMode}
+						onValueChange={(v) => v && setViewMode(v as "kanban" | "list")}
+						aria-label="Board layout"
+					>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<SegmentedControlItem value="kanban" aria-label="Board view">
+									<Columns3 />
+								</SegmentedControlItem>
+							</TooltipTrigger>
+							<TooltipContent>Board view</TooltipContent>
+						</Tooltip>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<SegmentedControlItem value="list" aria-label="List view">
+									<List />
+								</SegmentedControlItem>
+							</TooltipTrigger>
+							<TooltipContent>List view</TooltipContent>
+						</Tooltip>
+					</SegmentedControl>
+					<DefaultBoardToggle
+						projectId={projectId}
+						boardId={board.id}
+						isDefault={board.project.defaultBoardId === board.id}
+					/>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Link href={`/projects/${projectId}?tab=notes&from=${boardId}`}>
+								<Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+									<NotebookPen className="h-3.5 w-3.5" />
+									Notes
+								</Button>
+							</Link>
+						</TooltipTrigger>
+						<TooltipContent>Project notes and documentation</TooltipContent>
+					</Tooltip>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Link href={`/projects/${projectId}/boards/${boardId}/roadmap`}>
+								<Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+									<MapIcon className="h-3.5 w-3.5" />
+									Roadmap
+								</Button>
+							</Link>
+						</TooltipTrigger>
+						<TooltipContent>View milestone roadmap</TooltipContent>
+					</Tooltip>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Link href={`/projects/${projectId}/boards/${boardId}/timeline`}>
+								<Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+									<Clock className="h-3.5 w-3.5" />
+									Timeline
+								</Button>
+							</Link>
+						</TooltipTrigger>
+						<TooltipContent>View card timeline</TooltipContent>
+					</Tooltip>
+					{/* relative wrapper anchors the first-run cost coach mark (#316) */}
+					<div className="relative">
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Link href={`/projects/${projectId}/costs?from=${boardId}`}>
+									<Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+										<DollarSign className="h-3.5 w-3.5" />
+										Costs
+									</Button>
+								</Link>
+							</TooltipTrigger>
+							<TooltipContent>Token usage and spend</TooltipContent>
+						</Tooltip>
+						<TourCoachMark beat="cost" className="absolute right-0 top-full z-30 mt-2 w-72" />
+					</div>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant={handoffsOpen ? "secondary" : "outline"}
+								size="sm"
+								className="h-8 gap-1.5 text-xs"
+								onClick={() => setHandoffsOpen((v) => !v)}
+							>
+								<Users className="h-3.5 w-3.5" />
+								Handoffs
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>View agent handoffs</TooltipContent>
+					</Tooltip>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant={activityOpen ? "secondary" : "outline"}
+								size="sm"
+								className="h-8 gap-1.5 text-xs"
+								onClick={() => setActivityOpen((v) => !v)}
+							>
+								<Activity className="h-3.5 w-3.5" />
+								Activity
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Board activity feed</TooltipContent>
+					</Tooltip>
 				</div>
-				<SegmentedControl
-					type="single"
-					size="icon"
-					value={viewMode}
-					onValueChange={(v) => v && setViewMode(v as "kanban" | "list")}
-					aria-label="Board layout"
-				>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<SegmentedControlItem value="kanban" aria-label="Board view">
-								<Columns3 />
-							</SegmentedControlItem>
-						</TooltipTrigger>
-						<TooltipContent>Board view</TooltipContent>
-					</Tooltip>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<SegmentedControlItem value="list" aria-label="List view">
-								<List />
-							</SegmentedControlItem>
-						</TooltipTrigger>
-						<TooltipContent>List view</TooltipContent>
-					</Tooltip>
-				</SegmentedControl>
-				<DefaultBoardToggle
-					projectId={projectId}
+				{board.accentColor && (
+					<div
+						aria-hidden
+						className="h-[3px] w-full shrink-0"
+						style={{ backgroundColor: board.accentColor }}
+					/>
+				)}
+				<ActivitySheet
 					boardId={board.id}
-					isDefault={board.project.defaultBoardId === board.id}
+					open={activityOpen}
+					onOpenChange={setActivityOpen}
+					onCardClick={setSelectedCardId}
 				/>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Link href={`/projects/${projectId}?tab=notes&from=${boardId}`}>
-							<Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-								<NotebookPen className="h-3.5 w-3.5" />
-								Notes
-							</Button>
-						</Link>
-					</TooltipTrigger>
-					<TooltipContent>Project notes and documentation</TooltipContent>
-				</Tooltip>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Link href={`/projects/${projectId}/boards/${boardId}/roadmap`}>
-							<Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-								<MapIcon className="h-3.5 w-3.5" />
-								Roadmap
-							</Button>
-						</Link>
-					</TooltipTrigger>
-					<TooltipContent>View milestone roadmap</TooltipContent>
-				</Tooltip>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Link href={`/projects/${projectId}/boards/${boardId}/timeline`}>
-							<Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-								<Clock className="h-3.5 w-3.5" />
-								Timeline
-							</Button>
-						</Link>
-					</TooltipTrigger>
-					<TooltipContent>View card timeline</TooltipContent>
-				</Tooltip>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Link href={`/projects/${projectId}/costs?from=${boardId}`}>
-							<Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-								<DollarSign className="h-3.5 w-3.5" />
-								Costs
-							</Button>
-						</Link>
-					</TooltipTrigger>
-					<TooltipContent>Token usage and spend</TooltipContent>
-				</Tooltip>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button
-							variant={handoffsOpen ? "secondary" : "outline"}
-							size="sm"
-							className="h-8 gap-1.5 text-xs"
-							onClick={() => setHandoffsOpen((v) => !v)}
-						>
-							<Users className="h-3.5 w-3.5" />
-							Handoffs
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent>View agent handoffs</TooltipContent>
-				</Tooltip>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button
-							variant={activityOpen ? "secondary" : "outline"}
-							size="sm"
-							className="h-8 gap-1.5 text-xs"
-							onClick={() => setActivityOpen((v) => !v)}
-						>
-							<Activity className="h-3.5 w-3.5" />
-							Activity
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent>Board activity feed</TooltipContent>
-				</Tooltip>
+				<HandoffsSheet
+					boardId={board.id}
+					projectId={board.project.id}
+					open={handoffsOpen}
+					onOpenChange={setHandoffsOpen}
+					resolveCardRef={(number) => {
+						for (const col of board.columns) {
+							const match = col.cards.find((c) => c.number === number);
+							if (match) return match.id;
+						}
+						return null;
+					}}
+					onCardClick={(cardId) => {
+						setSelectedCardId(cardId);
+						setHandoffsOpen(false);
+					}}
+				/>
+				{viewMode === "kanban" ? (
+					<BoardView board={board} {...viewProps} />
+				) : (
+					<BoardListView board={board} {...viewProps} />
+				)}
 			</div>
-			{board.accentColor && (
-				<div
-					aria-hidden
-					className="h-[3px] w-full shrink-0"
-					style={{ backgroundColor: board.accentColor }}
-				/>
-			)}
-			<ActivitySheet
-				boardId={board.id}
-				open={activityOpen}
-				onOpenChange={setActivityOpen}
-				onCardClick={setSelectedCardId}
-			/>
-			<HandoffsSheet
-				boardId={board.id}
-				projectId={board.project.id}
-				open={handoffsOpen}
-				onOpenChange={setHandoffsOpen}
-				resolveCardRef={(number) => {
-					for (const col of board.columns) {
-						const match = col.cards.find((c) => c.number === number);
-						if (match) return match.id;
-					}
-					return null;
-				}}
-				onCardClick={(cardId) => {
-					setSelectedCardId(cardId);
-					setHandoffsOpen(false);
-				}}
-			/>
-			{viewMode === "kanban" ? (
-				<BoardView board={board} {...viewProps} />
-			) : (
-				<BoardListView board={board} {...viewProps} />
-			)}
-		</div>
+		</FirstRunTourProvider>
 	);
 }

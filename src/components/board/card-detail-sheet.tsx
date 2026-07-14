@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { TourCoachMark, useFirstRunTour } from "@/components/board/first-run-tour";
 import { MilestoneCombobox } from "@/components/board/milestone-combobox";
 import { TagCombobox } from "@/components/board/tag-combobox";
 import { TokenTrackingSetupDialog } from "@/components/board/token-tracking-setup-dialog";
@@ -57,6 +58,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { TokenCostChip } from "@/components/ui/token-cost-chip";
 import { getAccentBorderStyle, getActorIdentity } from "@/lib/actor-colors";
+import { hasAgentPlan } from "@/lib/first-run-tour";
 import { formatActivityDescription } from "@/lib/format-activity";
 import { formatDate, formatRelativeCompact } from "@/lib/format-date";
 import { PRIORITY_BADGE } from "@/lib/priority-colors";
@@ -285,6 +287,13 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 
 	const tags: string[] = card ? card.tags : [];
 
+	// First-run tour (#316): the plan beat anchors to an agent-written plan
+	// (locked planCard headings); the comment beat waits until the plan beat
+	// is out of the way so the sheet never shows two coach marks at once.
+	const { isBeatVisible } = useFirstRunTour();
+	const cardHasAgentPlan = hasAgentPlan(card?.description);
+	const planBeatShowing = cardHasAgentPlan && isBeatVisible("agent-plan");
+
 	return (
 		<Sheet
 			open={!!cardId}
@@ -418,6 +427,7 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 
 							{/* Description */}
 							<div className="space-y-2">
+								{cardHasAgentPlan && <TourCoachMark beat="agent-plan" />}
 								<div className="flex items-center justify-between">
 									<SectionHeader>Description</SectionHeader>
 									{!isEditingDescription && card.description && (
@@ -654,6 +664,7 @@ export function CardDetailSheet({ cardId, boardId, onClose, onNavigate }: CardDe
 										Send
 									</Button>
 								</form>
+								{!planBeatShowing && <TourCoachMark beat="comment-loop" />}
 							</div>
 
 							{/* Decisions */}
