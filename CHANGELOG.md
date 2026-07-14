@@ -10,6 +10,8 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ### Added
 
+- `npx @2nspired/pigeon init` — one-command install. New thin npm package (`cli/`) clones the latest release into `~/.pigeon`, installs deps, migrates the DB, registers the MCP server with Claude Code (user scope, `.mcp.json` fallback), binds the current repo (fixing the unset-`repoPath` briefMe trap, #154), and installs the macOS service. `setup.mts`/`connect.sh` now shim the same modules. (#314)
+
 - Agent-teaches onboarding. `briefMe` on a brand-new board (zero cards, zero handoffs) returns a first-contact teaching payload — paradigm talking points plus a narrative protocol: scan the repo, propose first cards, demo `planCard` live. `checkOnboarding` now leads with it; `seedTutorial` stays as the sandbox fallback. (#315)
 - Human-side first-run tour. Three dismissible coach marks on a just-seeded board (first 14 days): the agent-written plan on the card, the comment composer ("the next session sees it" — with the side-by-side-with-terminal tip), and the Costs link. Dismissals persist per board; never seen again. (#316)
 

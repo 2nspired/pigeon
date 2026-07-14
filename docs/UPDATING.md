@@ -2,6 +2,8 @@
 
 One page, written for people who run a local copy. Thomas writes the code; this doc tells you what to do after `git pull`.
 
+> **Installing fresh?** That's one command now: `npx @2nspired/pigeon init`, run from inside your project repo. It clones the latest release into `~/.pigeon` (override with `PIGEON_HOME`), installs deps, migrates the DB, registers the MCP server with Claude Code, binds your repo, and (on macOS) installs the background service. Everything below is about *updating* an install you already have — run these commands in the checkout (`~/.pigeon` if `init` created it).
+
 ## The short version
 
 ```bash

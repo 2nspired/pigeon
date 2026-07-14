@@ -55,11 +55,17 @@ describe("manifest-derived user-facing strings (#187)", () => {
 			expect(snippet).toContain(`${extendedCount} extended tools`);
 		});
 
-		it("connect.sh delegates to the print script (no inline heredoc count)", () => {
+		it("connect flow delegates to the print script (no inline heredoc count)", () => {
+			// connect.sh is a thin shim over the pigeon CLI (#314 Phase B);
+			// snippet printing lives in the shared connect module.
 			const connectSh = readFileSync(resolve(REPO_ROOT, "scripts/connect.sh"), "utf8");
-			expect(connectSh).toContain("scripts/print-connect-snippet.ts");
-			expect(connectSh).not.toMatch(/10 essential tools are always visible/);
-			expect(connectSh).not.toMatch(/~60 extended tools/);
+			expect(connectSh).toContain("cli/bin/pigeon.mjs");
+			const connectMjs = readFileSync(resolve(REPO_ROOT, "cli/lib/connect.mjs"), "utf8");
+			expect(connectMjs).toContain("scripts/print-connect-snippet.ts");
+			for (const source of [connectSh, connectMjs]) {
+				expect(source).not.toMatch(/10 essential tools are always visible/);
+				expect(source).not.toMatch(/~60 extended tools/);
+			}
 		});
 	});
 });

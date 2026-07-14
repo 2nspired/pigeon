@@ -3,10 +3,14 @@
  * Guides the user through database creation, tutorial project seeding,
  * and connecting an external project to the MCP server.
  *
+ * Step 3 delegates to the shared `pigeon` CLI modules (cli/lib/) — the single
+ * implementation of .mcp.json writing, slash-command install, Stop-hook
+ * install, and repo registration (#314 Phase B).
+ *
  * No extra dependencies — uses Node's built-in readline.
  */
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline";
 
@@ -97,41 +101,17 @@ async function main() {
 
 		if (!existsSync(targetDir)) {
 			console.log(`  ✗ Directory not found: ${targetDir}`);
-		} else if (targetDir === TRACKER_ROOT) {
-			console.log(
-				"  ✗ That's the Pigeon directory itself. Run this from a different project."
-			);
 		} else {
-			const mcpFile = resolve(targetDir, ".mcp.json");
-			const pigeonStartScript = resolve(TRACKER_ROOT, "scripts", "pigeon-start.sh");
-
-			if (existsSync(mcpFile)) {
-				const content = readFileSync(mcpFile, "utf-8");
-				if (content.includes('"pigeon"') || content.includes('"project-tracker"')) {
-					console.log("  ✓ Pigeon already configured in .mcp.json");
-				} else {
-					console.log("  .mcp.json already exists with other servers.");
-					console.log("  Add this to the mcpServers object in .mcp.json:");
-					console.log("");
-					console.log('    "pigeon": {');
-					console.log(`      "command": "${pigeonStartScript}",`);
-					console.log('      "args": []');
-					console.log("    }");
-				}
-			} else {
-				const agentName = await ask("  Agent name (default: Claude): ", "Claude");
-				const config = {
-					mcpServers: {
-						pigeon: {
-							command: pigeonStartScript,
-							args: [],
-							env: { AGENT_NAME: agentName },
-						},
-					},
-				};
-				writeFileSync(mcpFile, `${JSON.stringify(config, null, 2)}\n`);
-				console.log(`  ✓ Created ${mcpFile}`);
-				console.log(`    Agent name: ${agentName}`);
+			const agentName = await ask("  Agent name (default: Claude): ", "Claude");
+			// Shared implementation with `pigeon init` / `pigeon connect` /
+			// scripts/connect.sh — registers the repo, writes a starter
+			// tracker.md, installs slash commands + Stop hook, and creates or
+			// merges .mcp.json.
+			const { connectProject } = await import("../cli/lib/connect.mjs");
+			try {
+				connectProject({ home: TRACKER_ROOT, targetDir, agentName });
+			} catch (err) {
+				console.log(`  ✗ ${err instanceof Error ? err.message : err}`);
 			}
 		}
 	} else {

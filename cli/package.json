@@ -1,0 +1,35 @@
+{
+	"name": "@2nspired/pigeon",
+	"version": "0.1.0",
+	"description": "One-command installer for Pigeon — a local-first kanban board + MCP server for AI-assisted development. Run `npx @2nspired/pigeon init`.",
+	"license": "MIT",
+	"type": "module",
+	"bin": {
+		"pigeon": "bin/pigeon.mjs"
+	},
+	"files": [
+		"bin",
+		"lib",
+		"README.md"
+	],
+	"engines": {
+		"node": ">=20"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/2nspired/pigeon.git",
+		"directory": "cli"
+	},
+	"homepage": "https://2nspired.github.io/pigeon/",
+	"bugs": {
+		"url": "https://github.com/2nspired/pigeon/issues"
+	},
+	"keywords": [
+		"pigeon",
+		"kanban",
+		"mcp",
+		"claude-code",
+		"ai-agents",
+		"local-first"
+	]
+}
