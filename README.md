@@ -7,7 +7,7 @@
 
 # Pigeon
 
-**The only kanban that's also an MCP server. Your AI agents read and write the board the way you do — and Pigeon makes their cost legible.**
+**The visible workbench for AI-paired development. The card is the container — story, plan, comments, decisions, and cost live on the work itself, and your agents read and write it the way you do.**
 
 You see a board. The agent reads and writes the same board through MCP. Nothing leaves your machine.
 
@@ -30,7 +30,7 @@ You see a board. The agent reads and writes the same board through MCP. Nothing 
 
 ## What it is, in three sentences
 
-Coding-agent conversations end. The question isn't *whether* — it's **what carries across the gap**. Pigeon's answer is the session loop: `briefMe` at session start (catch up), do the work, `saveHandoff` at session end (leave a trail), repeat.
+Pigeon is the **visible workbench** for AI-paired development: a local-first kanban board that is also an MCP server, so your agents work from the same board you drag cards around on. **The card is the container** — story, plan, comments, decisions, and cost live on the work itself, where you see what the agent believes and correct it right where you'd naturally encounter it. Session continuity is the proof: `briefMe` at session start (catch up), do the work, `saveHandoff` at session end (leave a trail), repeat.
 
 The metaphor is in the name — agent A wraps a session with `saveHandoff`; the homing pigeon flies the message across the gap; agent B catches it at `briefMe` and starts in-context. Same SQLite file backs the kanban UI you drag cards around in and the MCP surface your agent calls. Nothing leaves your machine.
 
@@ -57,30 +57,24 @@ The session loop, end-to-end:
 
 You see the same board the agent does. Drag cards in the UI; the agent's next `briefMe` will reflect the change. The agent moves a card; you see it move on screen.
 
-## Pigeon vs. the alternatives
+## Install
 
-How Pigeon stacks up against what people actually use today for tracking AI-assisted work:
+You need [Node 20+](https://nodejs.org), git, and [Claude Code](https://claude.com/claude-code). From inside the repo you want to track, run:
 
-| Dimension | Pigeon | GitHub Projects | Linear | Notion DB | Plain spreadsheet |
-| :-- | :-: | :-: | :-: | :-: | :-: |
-| Local-first (your data on your disk) | yes | no | no | no | yes (file) |
-| AI-native (agents read/write via MCP) | yes | unclear | unclear | unclear | no |
-| Free / self-hosted | yes | free w/ GitHub | freemium | freemium | yes |
-| Multi-user collaboration | no (solo) | yes | yes | yes | yes (shared file) |
-| Opinionated workflow (session loop, intent, handoffs) | yes | no | partial | no | no |
-| MCP server out of the box | yes | no | no | no | no |
-| Cost legibility for AI work | yes (Costs page) | no | no | no | no |
+```bash
+npx @2nspired/pigeon init
+```
 
-Notes on "unclear" entries: GitHub Projects, Linear, and Notion all have public APIs that an MCP server *could* be built against, and community MCP shims exist for some — but none ship a first-party MCP server that's the canonical surface for AI agents. Pigeon is built MCP-first.
+Then open Claude Code in that repo and say **brief me**.
 
-## Who's it for
+> Until the v7.0.0 release lands: add `--ref main`.
 
-Pigeon is built for two readers — see [Pigeon ICP](https://2nspired.github.io/pigeon/why/) for the long version.
+`init` does everything — Pigeon checkout at `~/.pigeon`, database, MCP registration, repo binding, starter `tracker.md`, slash commands, Stop hook, and (on macOS) the always-on board at `localhost:3100` — and is safe to re-run. Connect more repos later with `npx @2nspired/pigeon connect`.
 
-- **Indie dev or consultant juggling parallel projects.** You bounce between three repos in a day, each with its own context. Pigeon gives every project a board the agent can resume from cold — no more "tell me again what we were doing" at the start of every chat.
-- **Product Owner running an AI-assisted team.** You don't write the code, but you need to know what got done, how much it cost, and whether the work is converging. Pigeon's Costs page shows attributable spend per card; the board shows what's in flight without you having to ping the agent.
+<details>
+<summary><strong>Manual install</strong> — clone and run the checkout yourself instead of using the CLI</summary>
 
-## 60-second install
+<br />
 
 Common setup, every platform:
 
@@ -91,16 +85,14 @@ npm install
 npm run setup            # interactive: creates the DB, optionally seeds the Learn Pigeon tutorial
 ```
 
-Then start the UI — pick the block for your platform:
-
-**macOS** — installs a persistent launchd service on `:3100`, always available, restarts on crash:
+Then start the UI — **macOS** installs a persistent launchd service on `:3100` (always available, restarts on crash):
 
 ```bash
 npm run service:install
 npm run doctor           # verifies the install (8-check diagnostic)
 ```
 
-**Linux / Windows / WSL** — runs the foreground dev server on `:3000` (you re-run it each shell):
+**Linux / Windows / WSL** runs the foreground dev server on `:3000` (you re-run it each shell):
 
 ```bash
 npm run dev              # leave running; open http://localhost:3000
@@ -113,7 +105,9 @@ Then, from inside any project you want to track:
 /path/to/pigeon/scripts/connect.sh
 ```
 
-That writes a `.mcp.json` in the project's repo root, installs Pigeon's slash commands, and installs the Stop hook. Start a new chat with your agent in that directory and ask it to run `briefMe`.
+That writes a `.mcp.json` in the project's repo root, installs Pigeon's slash commands, and installs the Stop hook. Start a new chat with your agent in that directory and ask it to run `briefMe`. Full walkthrough: [Quickstart](https://2nspired.github.io/pigeon/quickstart/).
+
+</details>
 
 ## What you get after install
 
@@ -140,6 +134,29 @@ All checks passed.
 
 Run it after install and after every `git pull`. Stuck on something the doctor doesn't fix? See the **[Troubleshooting page](https://2nspired.github.io/pigeon/troubleshooting/)** — one page covering MCP not connecting, `briefMe` failing on missing `repoPath`, schema drift, FTS5 half-state, launchd label drift, stop-hook silently no-op'ing, old tool names, `_versionMismatch`.
 
+## Pigeon vs. the alternatives
+
+How Pigeon stacks up against what people actually use today for tracking AI-assisted work:
+
+| Dimension | Pigeon | GitHub Projects | Linear | Notion DB | Plain spreadsheet |
+| :-- | :-: | :-: | :-: | :-: | :-: |
+| Local-first (your data on your disk) | yes | no | no | no | yes (file) |
+| AI-native (agents read/write via MCP) | yes | unclear | unclear | unclear | no |
+| Free / self-hosted | yes | free w/ GitHub | freemium | freemium | yes |
+| Multi-user collaboration | no (solo) | yes | yes | yes | yes (shared file) |
+| Opinionated workflow (session loop, intent, handoffs) | yes | no | partial | no | no |
+| MCP server out of the box | yes | no | no | no | no |
+| Cost legibility for AI work | yes (Costs page) | no | no | no | no |
+
+Notes on "unclear" entries: GitHub Projects, Linear, and Notion all have public APIs that an MCP server *could* be built against, and community MCP shims exist for some — but none ship a first-party MCP server that's the canonical surface for AI agents. Pigeon is built MCP-first.
+
+## Who's it for
+
+Pigeon is built for two readers — see [Pigeon ICP](https://2nspired.github.io/pigeon/why/) for the long version.
+
+- **Indie dev or consultant juggling parallel projects.** You bounce between three repos in a day, each with its own context. Pigeon gives every project a board the agent can resume from cold — no more "tell me again what we were doing" at the start of every chat.
+- **Product Owner running an AI-assisted team.** You don't write the code, but you need to know what got done, how much it cost, and whether the work is converging. Pigeon's Costs page shows attributable spend per card; the board shows what's in flight without you having to ping the agent.
+
 ## Documentation
 
 Two surfaces, different audiences:
@@ -151,7 +168,7 @@ When the two disagree, the site wins for *concepts*; the in-repo tree wins for *
 
 **Most-asked entry points**
 
-- [Quickstart](https://2nspired.github.io/pigeon/quickstart/) — clone, install, connect, first `briefMe` call.
+- [Quickstart](https://2nspired.github.io/pigeon/quickstart/) — install, connect, first `briefMe` call.
 - [The session loop](https://2nspired.github.io/pigeon/workflow/) — the four moves: briefMe, work, saveHandoff (`/handoff`), resume.
 - [MCP tools](https://2nspired.github.io/pigeon/tools/) — every tool the agent can call (11 essentials + 65+ extended).
 - [Cost tracking](https://2nspired.github.io/pigeon/costs/) — what the Costs page records, how attribution works, and the savings/overhead math.
