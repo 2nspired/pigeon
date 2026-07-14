@@ -9,12 +9,14 @@
  *      install) → resolve `0_init` as applied, then deploy
  *   3. Already-baselined DB                  → deploy only
  *
- * `runMigrations` takes an injectable `exec`, so the tests assert the exact
- * Prisma CLI invocations without spawning a real `npx prisma`. Real SQLite
- * files (via better-sqlite3, in a temp dir) back the table-existence check.
+ * The helper is fully native (better-sqlite3, no Prisma CLI spawns — the
+ * schema engine can't write while any MCP server connection has touched the
+ * DB), so the tests run it end-to-end against real SQLite files in a temp
+ * dir and assert on the resulting schema + `_prisma_migrations` ledger.
  */
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import Database from "better-sqlite3";
@@ -24,6 +26,7 @@ import {
 	dbPathFromUrl,
 	dropDerivedFtsTables,
 	hasMigrationsTable,
+	markBaselineApplied,
 	planMigrateSteps,
 	runMigrations,
 } from "../db-migrate";
@@ -56,14 +59,44 @@ function createBaselinedDb(path: string): void {
 	db.close();
 }
 
-type ExecCall = { argv: string[]; env: NodeJS.ProcessEnv };
+const BASELINE_SQL = 'CREATE TABLE "project" ("id" TEXT NOT NULL PRIMARY KEY, "name" TEXT NOT NULL);\n';
 
-function captureExec(): { calls: ExecCall[]; exec: (argv: string[], opts: { cwd: string; env: NodeJS.ProcessEnv }) => void } {
-	const calls: ExecCall[] = [];
-	return {
-		calls,
-		exec: (argv, opts) => calls.push({ argv, env: opts.env }),
-	};
+/** Write a fake `prisma/migrations/0_init/migration.sql` under `root`. */
+function createMigrationsDir(root: string): string {
+	const migrationsDir = join(root, "prisma", "migrations");
+	mkdirSync(join(migrationsDir, BASELINE_MIGRATION), { recursive: true });
+	writeFileSync(join(migrationsDir, BASELINE_MIGRATION, "migration.sql"), BASELINE_SQL);
+	return migrationsDir;
+}
+
+/** Add a timestamped migration after the baseline. */
+function addMigration(migrationsDir: string, name: string, sql: string): void {
+	mkdirSync(join(migrationsDir, name), { recursive: true });
+	writeFileSync(join(migrationsDir, name, "migration.sql"), sql);
+}
+
+function tableNames(path: string): string[] {
+	const db = new Database(path, { readonly: true });
+	try {
+		return (
+			db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{
+				name: string;
+			}>
+		).map((r) => r.name);
+	} finally {
+		db.close();
+	}
+}
+
+function readLedger(path: string): Array<Record<string, unknown>> {
+	const db = new Database(path, { readonly: true });
+	try {
+		return db.prepare("SELECT * FROM _prisma_migrations").all() as Array<
+			Record<string, unknown>
+		>;
+	} finally {
+		db.close();
+	}
 }
 
 const silent = () => {};
@@ -123,54 +156,119 @@ describe("hasMigrationsTable", () => {
 // ─── runMigrations (composed, with injected exec) ──────────────────
 
 describe("runMigrations", () => {
-	it("fresh install: runs deploy only", () => {
-		const { calls, exec } = captureExec();
-		const steps = runMigrations({
-			cwd: dir,
-			databaseUrl: "file:./missing.db",
-			exec,
-			log: silent,
-		});
+	it("fresh install: creates the DB and applies every migration natively", () => {
+		createMigrationsDir(dir);
+		const result = runMigrations({ cwd: dir, databaseUrl: "file:./data/tracker.db", log: silent });
 
-		expect(steps).toEqual(["deploy"]);
-		expect(calls.map((c) => c.argv)).toEqual([["npx", "prisma", "migrate", "deploy"]]);
+		expect(result.steps).toEqual(["deploy"]);
+		expect(result.baselined).toBe(false);
+		expect(result.applied).toEqual([BASELINE_MIGRATION]);
+		expect(tableNames(join(dir, "data", "tracker.db"))).toContain("project");
+
+		const rows = readLedger(join(dir, "data", "tracker.db"));
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toMatchObject({
+			migration_name: BASELINE_MIGRATION,
+			checksum: createHash("sha256").update(BASELINE_SQL).digest("hex"),
+			logs: null,
+			applied_steps_count: 1,
+		});
 	});
 
-	it("pre-migrations DB: resolves the baseline as applied, then deploys", () => {
+	it("pre-migrations DB: baselines 0_init, then applies only the newer migrations", () => {
 		createPushStyleDb(join(dir, "tracker.db"));
-		const { calls, exec } = captureExec();
-		const steps = runMigrations({
-			cwd: dir,
-			databaseUrl: "file:./tracker.db",
-			exec,
-			log: silent,
-		});
+		const migrationsDir = createMigrationsDir(dir);
+		addMigration(migrationsDir, "20260714000000_add_widget", 'CREATE TABLE "widget" ("id" TEXT PRIMARY KEY);');
 
-		expect(steps).toEqual(["resolve-baseline", "deploy"]);
-		expect(calls.map((c) => c.argv)).toEqual([
-			["npx", "prisma", "migrate", "resolve", "--applied", BASELINE_MIGRATION],
-			["npx", "prisma", "migrate", "deploy"],
+		const result = runMigrations({ cwd: dir, databaseUrl: "file:./tracker.db", log: silent });
+
+		expect(result.steps).toEqual(["resolve-baseline", "deploy"]);
+		expect(result.baselined).toBe(true);
+		// 0_init is marked applied (not re-executed — the tables already exist);
+		// only the newer migration actually runs.
+		expect(result.applied).toEqual(["20260714000000_add_widget"]);
+
+		const tables = tableNames(join(dir, "tracker.db"));
+		expect(tables).toContain("project");
+		expect(tables).toContain("widget");
+
+		const rows = readLedger(join(dir, "tracker.db"));
+		expect(rows.map((r) => [r.migration_name, r.applied_steps_count])).toEqual([
+			[BASELINE_MIGRATION, 0],
+			["20260714000000_add_widget", 1],
 		]);
+		// Pre-existing data survives.
+		const db = new Database(join(dir, "tracker.db"), { readonly: true });
+		expect(db.prepare("SELECT count(*) AS n FROM project").get()).toEqual({ n: 1 });
+		db.close();
 	});
 
-	it("already-baselined DB: runs deploy only", () => {
-		createBaselinedDb(join(dir, "tracker.db"));
-		const { calls, exec } = captureExec();
-		const steps = runMigrations({
-			cwd: dir,
-			databaseUrl: "file:./tracker.db",
-			exec,
-			log: silent,
+	it("already-baselined, up-to-date DB: no-ops", () => {
+		createMigrationsDir(dir);
+		runMigrations({ cwd: dir, databaseUrl: "file:./tracker.db", log: silent });
+		const second = runMigrations({ cwd: dir, databaseUrl: "file:./tracker.db", log: silent });
+
+		expect(second.steps).toEqual(["deploy"]);
+		expect(second.applied).toEqual([]);
+		expect(readLedger(join(dir, "tracker.db"))).toHaveLength(1);
+	});
+
+	it("refuses to run when an applied migration was edited (checksum mismatch)", () => {
+		const migrationsDir = createMigrationsDir(dir);
+		runMigrations({ cwd: dir, databaseUrl: "file:./tracker.db", log: silent });
+		writeFileSync(join(migrationsDir, BASELINE_MIGRATION, "migration.sql"), "-- edited\n");
+
+		expect(() => runMigrations({ cwd: dir, databaseUrl: "file:./tracker.db", log: silent })).toThrow(
+			/checksum mismatch/,
+		);
+	});
+
+	it("throws when the migrations directory is missing or empty", () => {
+		expect(() => runMigrations({ cwd: dir, databaseUrl: "file:./tracker.db", log: silent })).toThrow(
+			/No migrations found/,
+		);
+	});
+});
+
+// ─── markBaselineApplied ───────────────────────────────────────────
+
+describe("markBaselineApplied", () => {
+	it("creates the ledger with Prisma's shape and a checksum of the migration script", () => {
+		const path = join(dir, "tracker.db");
+		createPushStyleDb(path);
+		const migrationsDir = createMigrationsDir(dir);
+
+		markBaselineApplied({ dbPath: path, migrationsDir });
+
+		const rows = readLedger(path);
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toMatchObject({
+			migration_name: BASELINE_MIGRATION,
+			checksum: createHash("sha256").update(BASELINE_SQL).digest("hex"),
+			logs: "",
+			rolled_back_at: null,
+			applied_steps_count: 0,
 		});
-
-		expect(steps).toEqual(["deploy"]);
-		expect(calls.map((c) => c.argv)).toEqual([["npx", "prisma", "migrate", "deploy"]]);
+		expect(rows[0].id).toBeTruthy();
+		expect(rows[0].finished_at).toBeTruthy();
 	});
 
-	it("passes the target DATABASE_URL through to the Prisma CLI env", () => {
-		const { calls, exec } = captureExec();
-		runMigrations({ cwd: dir, databaseUrl: "file:./scratch.db", exec, log: silent });
-		expect(calls[0].env.DATABASE_URL).toBe("file:./scratch.db");
+	it("is idempotent — a second call leaves a single row", () => {
+		const path = join(dir, "tracker.db");
+		createPushStyleDb(path);
+		const migrationsDir = createMigrationsDir(dir);
+
+		markBaselineApplied({ dbPath: path, migrationsDir });
+		markBaselineApplied({ dbPath: path, migrationsDir });
+
+		expect(readLedger(path)).toHaveLength(1);
+	});
+
+	it("throws when the DB file is missing (never creates one as a side effect)", () => {
+		const migrationsDir = createMigrationsDir(dir);
+		expect(() =>
+			markBaselineApplied({ dbPath: join(dir, "missing.db"), migrationsDir }),
+		).toThrow();
 	});
 });
 

@@ -377,10 +377,23 @@ async function update() {
 		JSON.parse(readFileSync(resolve(PROJECT_DIR, "package.json"), "utf-8")) as { version: string }
 	).version;
 	await backupBeforeUpdate(targetVersion);
+	// Stop the old service BEFORE schema sync/build: a running server writes
+	// to the SQLite file and can contend with `prisma migrate deploy` while
+	// it applies real migrations (#314 live verification). Brief downtime
+	// during the build is the tradeoff; bootstrap() below brings it back.
+	bootout();
 	ensureBuild();
 	writePlist(); // Refresh in case paths changed
-	bootout();
 	bootstrap();
+	// bootstrap() alone doesn't reliably relaunch a job that was booted out
+	// mid-session (observed with a stopped-then-updated service: loaded,
+	// RunAtLoad=true, yet "never exited / not running"). kickstart is
+	// idempotent — it errors when already running, which is fine.
+	try {
+		execSync(`launchctl kickstart ${SERVICE_TARGET}`, { stdio: "pipe" });
+	} catch {
+		// Already running via RunAtLoad — that's fine
+	}
 	console.log(`Service rebuilt and restarted at http://localhost:${PORT}\n`);
 	await postUpdateDoctor(targetVersion);
 }

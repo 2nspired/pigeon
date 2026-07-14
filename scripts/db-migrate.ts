@@ -3,11 +3,27 @@
  *
  * Replaces `prisma db push` on every install/update path. Decision logic:
  *
- *   - no DB file                          → `prisma migrate deploy` (creates it)
+ *   - no DB file                          → create it, apply every migration
  *   - DB exists, no `_prisma_migrations`  → pre-migrations install (created by
- *     `prisma db push`); `prisma migrate resolve --applied 0_init` marks the
- *     baseline as already applied, then `deploy` applies anything newer
- *   - otherwise                           → `prisma migrate deploy`
+ *     `prisma db push`); write the `0_init` baseline marker, then apply
+ *     anything newer
+ *   - otherwise                           → apply pending migrations
+ *
+ * Everything runs natively over better-sqlite3 — the Prisma schema engine
+ * (`migrate deploy` / `migrate resolve`) is deliberately NOT used on these
+ * paths. The engine refuses to write ("database is locked") while any other
+ * connection has touched the DB, and on a live install a Pigeon MCP server
+ * almost always has (#314 live verification; reproducible: open a
+ * better-sqlite3 connection, run one SELECT, then try `migrate deploy`).
+ * Ledger rows are byte-compatible with what the engine writes, so dev-side
+ * tooling (`prisma migrate dev`, `migrate status`) sees a normal history.
+ *
+ * Failure semantics are simpler than the engine's: a migration script is
+ * executed statement-by-statement (autocommit, so Prisma's PRAGMA dance in
+ * rebuild scripts behaves as authored) and its ledger row is written only
+ * after the script succeeds. If a script dies half-way the DB may hold
+ * partial DDL and no ledger row — restore the pre-update snapshot from
+ * `data/backups/` (service:update takes one first) and retry.
  *
  * `migrate deploy` does not drift-check, so the runtime FTS5 tables (derived
  * state living outside `schema.prisma`) never block an install or update.
@@ -28,8 +44,9 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 
@@ -71,6 +88,74 @@ export function hasMigrationsTable(dbPath: string): boolean {
 	}
 }
 
+// Prisma's own DDL for the migrations ledger (what `migrate resolve` and
+// `migrate deploy` create). Kept verbatim so hand-written baselines are
+// indistinguishable from engine-written ones.
+const PRISMA_MIGRATIONS_DDL = `CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
+    "id"                    TEXT PRIMARY KEY NOT NULL,
+    "checksum"              TEXT NOT NULL,
+    "finished_at"           DATETIME,
+    "migration_name"        TEXT NOT NULL,
+    "logs"                  TEXT,
+    "rolled_back_at"        DATETIME,
+    "started_at"            DATETIME NOT NULL DEFAULT current_timestamp,
+    "applied_steps_count"   INTEGER UNSIGNED NOT NULL DEFAULT 0
+)`;
+
+/** SHA-256 hex of a migration's `migration.sql` — Prisma's checksum format. */
+function migrationChecksum(migrationsDir: string, migrationName: string): string {
+	const script = readFileSync(join(migrationsDir, migrationName, "migration.sql"));
+	return createHash("sha256").update(script).digest("hex");
+}
+
+/**
+ * Migration folder names under `migrationsDir`, in apply order (lexicographic,
+ * matching Prisma: `0_init` sorts before the timestamped `2026…_name` dirs).
+ */
+export function listMigrations(migrationsDir: string): string[] {
+	if (!existsSync(migrationsDir)) return [];
+	return readdirSync(migrationsDir, { withFileTypes: true })
+		.filter((e) => e.isDirectory() && existsSync(join(migrationsDir, e.name, "migration.sql")))
+		.map((e) => e.name)
+		.sort();
+}
+
+/**
+ * Mark the baseline migration as applied without going through the schema
+ * engine (see module doc comment for why). Idempotent: no-ops when a
+ * non-rolled-back row for the migration already exists. Mirrors
+ * `prisma migrate resolve --applied` exactly (`logs: ''`, `applied_steps_count: 0`).
+ */
+export function markBaselineApplied(options: {
+	dbPath: string;
+	/** Directory holding `<migration>/migration.sql`. */
+	migrationsDir: string;
+	migrationName?: string;
+}): void {
+	const migrationName = options.migrationName ?? BASELINE_MIGRATION;
+	const checksum = migrationChecksum(options.migrationsDir, migrationName);
+
+	const db = new Database(options.dbPath, { fileMustExist: true });
+	try {
+		db.pragma("busy_timeout = 5000");
+		db.exec(PRISMA_MIGRATIONS_DDL);
+		const existing = db
+			.prepare(
+				"SELECT id FROM _prisma_migrations WHERE migration_name = ? AND rolled_back_at IS NULL",
+			)
+			.get(migrationName);
+		if (existing !== undefined) return;
+		const now = Date.now();
+		db.prepare(
+			`INSERT INTO _prisma_migrations
+				(id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
+			 VALUES (?, ?, ?, ?, '', NULL, ?, 0)`,
+		).run(randomUUID(), checksum, now, migrationName, now);
+	} finally {
+		db.close();
+	}
+}
+
 export type MigrateStep = "resolve-baseline" | "deploy";
 
 /**
@@ -82,43 +167,99 @@ export function planMigrateSteps(dbExists: boolean, migrationsTableExists: boole
 }
 
 export interface RunMigrationsOptions {
-	/** Project root the Prisma CLI runs in. Defaults to `process.cwd()`. */
+	/** Project root migration paths resolve against. Defaults to `process.cwd()`. */
 	cwd?: string;
 	/** Target DB. Defaults to `process.env.DATABASE_URL`, then the live file. */
 	databaseUrl?: string;
 	log?: (message: string) => void;
-	/** Injectable for tests — receives each `npx prisma …` argv. */
-	exec?: (argv: string[], opts: { cwd: string; env: NodeJS.ProcessEnv }) => void;
+	/** Directory holding the migration folders. Defaults to `<cwd>/prisma/migrations`. */
+	migrationsDir?: string;
+}
+
+export interface RunMigrationsResult {
+	steps: MigrateStep[];
+	/** Migration names actually executed this run (empty when up to date). */
+	applied: string[];
+	baselined: boolean;
 }
 
 /**
- * Apply migrations idempotently. Returns the steps that ran so callers
- * (and tests) can assert on the path taken.
+ * Apply migrations idempotently, engine-free. Returns the path taken so
+ * callers (and tests) can assert on it.
  */
-export function runMigrations(options: RunMigrationsOptions = {}): MigrateStep[] {
+export function runMigrations(options: RunMigrationsOptions = {}): RunMigrationsResult {
 	const cwd = options.cwd ?? process.cwd();
 	const databaseUrl = options.databaseUrl ?? process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL;
 	const log = options.log ?? console.log;
-	const exec =
-		options.exec ??
-		((argv: string[], opts: { cwd: string; env: NodeJS.ProcessEnv }) =>
-			execFileSync(argv[0], argv.slice(1), { ...opts, stdio: "inherit" }));
 
-	const env = { ...process.env, DATABASE_URL: databaseUrl };
 	const dbPath = dbPathFromUrl(databaseUrl, cwd);
+	const migrationsDir = options.migrationsDir ?? resolve(cwd, "prisma", "migrations");
+	const migrations = listMigrations(migrationsDir);
+	if (migrations.length === 0) {
+		throw new Error(`No migrations found in ${migrationsDir} — is the checkout complete?`);
+	}
 	const dbExists = existsSync(dbPath);
 	const steps = planMigrateSteps(dbExists, dbExists && hasMigrationsTable(dbPath));
 
-	for (const step of steps) {
-		if (step === "resolve-baseline") {
-			log(`Existing pre-migrations database detected — baselining as ${BASELINE_MIGRATION}...`);
-			exec(["npx", "prisma", "migrate", "resolve", "--applied", BASELINE_MIGRATION], { cwd, env });
-		} else {
-			log(dbExists ? "Applying pending migrations..." : "Database not found — creating it from migrations...");
-			exec(["npx", "prisma", "migrate", "deploy"], { cwd, env });
-		}
+	let baselined = false;
+	if (steps.includes("resolve-baseline")) {
+		log(`Existing pre-migrations database detected — baselining as ${BASELINE_MIGRATION}...`);
+		markBaselineApplied({ dbPath, migrationsDir });
+		baselined = true;
 	}
-	return steps;
+
+	if (!dbExists) {
+		log("Database not found — creating it from migrations...");
+		mkdirSync(dirname(dbPath), { recursive: true });
+	}
+
+	const db = new Database(dbPath);
+	const applied: string[] = [];
+	try {
+		db.pragma("busy_timeout = 5000");
+		db.exec(PRISMA_MIGRATIONS_DDL);
+		const recorded = new Map(
+			(
+				db
+					.prepare(
+						"SELECT migration_name, checksum FROM _prisma_migrations WHERE rolled_back_at IS NULL",
+					)
+					.all() as Array<{ migration_name: string; checksum: string }>
+			).map((row) => [row.migration_name, row.checksum]),
+		);
+
+		for (const name of migrations) {
+			const checksum = migrationChecksum(migrationsDir, name);
+			const recordedChecksum = recorded.get(name);
+			if (recordedChecksum !== undefined) {
+				if (recordedChecksum !== checksum) {
+					throw new Error(
+						`Migration ${name} was edited after being applied (checksum mismatch). ` +
+							`Never modify an applied migration — add a new one instead.`,
+					);
+				}
+				continue;
+			}
+			log(`Applying migration ${name}...`);
+			const startedAt = Date.now();
+			db.exec(readFileSync(join(migrationsDir, name, "migration.sql"), "utf-8"));
+			db.prepare(
+				`INSERT INTO _prisma_migrations
+					(id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
+				 VALUES (?, ?, ?, ?, NULL, NULL, ?, 1)`,
+			).run(randomUUID(), checksum, Date.now(), name, startedAt);
+			applied.push(name);
+		}
+	} finally {
+		db.close();
+	}
+
+	log(
+		applied.length > 0
+			? `Applied ${applied.length} migration${applied.length === 1 ? "" : "s"}.`
+			: "Database schema is up to date.",
+	);
+	return { steps, applied, baselined };
 }
 
 /**

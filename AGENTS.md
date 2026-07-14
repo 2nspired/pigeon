@@ -165,7 +165,7 @@ Pigeon uses Prisma migrations (since #314; `prisma/migrations/0_init/` is the ba
 npm run db:migrate -- --name <short-change-name>
 ```
 
-The wrapper (`scripts/db-migrate.ts --dev`) first drops the six runtime `knowledge_fts*` tables — derived FTS5 state living outside `schema.prisma` that `prisma migrate dev` would otherwise flag as drift — then runs `prisma migrate dev`. Commit the generated `prisma/migrations/<timestamp>_<name>/` directory alongside the schema change. Install/update paths (`dev`, `setup`, `service:update`) apply migrations with the same helper's deploy mode, which never drift-checks. `db:push` is an escape hatch only.
+The wrapper (`scripts/db-migrate.ts --dev`) first drops the six runtime `knowledge_fts*` tables — derived FTS5 state living outside `schema.prisma` that `prisma migrate dev` would otherwise flag as drift — then runs `prisma migrate dev`. Commit the generated `prisma/migrations/<timestamp>_<name>/` directory alongside the schema change. Install/update paths (`dev`, `setup`, `service:update`) apply pending migrations **natively over better-sqlite3** (same helper, no schema engine): the engine refuses to write while any live MCP server connection has touched the DB file, which on a running install is nearly always (#314). Ledger rows are byte-compatible with engine-written ones, and the native path never drift-checks. `db:push` is an escape hatch only.
 
 ## CHANGELOG entries
 
