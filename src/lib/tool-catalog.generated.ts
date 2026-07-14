@@ -21,7 +21,7 @@ export const TOOL_CATALOG: {
 	"essentials": [
 		{
 			"name": "briefMe",
-			"description": "One-shot session primer — handoff, diff, top work, blockers, recent decisions, pulse."
+			"description": "One-shot session primer — handoff, diff, top work, blockers, recent decisions, pulse. On a brand-new board (zero cards, zero handoffs) returns the first-contact teaching protocol instead."
 		},
 		{
 			"name": "saveHandoff",
@@ -53,7 +53,7 @@ export const TOOL_CATALOG: {
 		},
 		{
 			"name": "checkOnboarding",
-			"description": "Detect DB state, list projects/boards, session-start discovery."
+			"description": "Detect DB state, list projects/boards, session-start discovery. On a fresh install, points at briefMe's first-contact teaching flow (seedTutorial is the sandbox fallback)."
 		},
 		{
 			"name": "getTools",
@@ -283,7 +283,7 @@ export const TOOL_CATALOG: {
 		{
 			"name": "listWorkflows",
 			"category": "discovery",
-			"description": "List named, multi-step recipes for common agent procedures (sessionStart, sessionEnd, firstSession, recordDecision, searchKnowledge). Returns ordered steps + intent per step + an optional `suggested` hint nominating the most relevant workflow given current board state. Use this — not `getTools` — when you want to know what to do, not which tool to call.",
+			"description": "List named, multi-step recipes for common agent procedures (firstContact, sessionStart, sessionEnd, firstSession, recordDecision, searchKnowledge). Returns ordered steps + intent per step + an optional `suggested` hint nominating the most relevant workflow given current board state. Use this — not `getTools` — when you want to know what to do, not which tool to call.",
 			"readOnly": true,
 			"destructive": false
 		},

@@ -14,6 +14,7 @@ import {
 import { initFts5 } from "@/server/fts";
 import { buildBriefPayload } from "@/server/services/brief-payload-service";
 import { hasRole } from "../lib/column-roles.js";
+import { buildFirstContactPayload, isFirstContact } from "../lib/onboarding/first-contact.js";
 import { seedTutorialProject } from "../lib/onboarding/seed-runner.js";
 import { getLatestHandoff, parseHandoff, saveHandoff } from "../lib/services/handoff.js";
 import { db } from "./db.js";
@@ -25,6 +26,7 @@ import {
 	getCurrentHeadSha,
 	MCP_SERVER_VERSION,
 } from "./manifest.js";
+import { loadPolicyForBoard } from "./policy-enforcement.js";
 import { registerResources } from "./resources.js";
 import { checkStaleness, formatStalenessWarnings } from "./staleness.js";
 import {
@@ -682,7 +684,7 @@ server.registerTool(
 	{
 		title: "Check Onboarding",
 		description:
-			"Detect DB state and get onboarding guidance. Call at session start if no board ID is known.",
+			"Detect DB state and get onboarding guidance. Call at session start if no board ID is known. On a fresh install (or an empty board) the primary suggestion is briefMe({ boardId }) — it returns the first-contact teaching protocol; seedTutorial is the sandbox fallback.",
 		inputSchema: {},
 		annotations: { readOnlyHint: true },
 	},
@@ -724,12 +726,24 @@ server.registerTool(
 
 			const options: Array<{ action: string; description: string }> = [];
 			if (offerSampleProject) {
+				// Primary path (#315): agent-taught onboarding on the user's own
+				// repo. briefMe on a fresh board (zero cards, zero handoffs)
+				// returns the first-contact teaching protocol. seedTutorial stays
+				// as an explicit sandbox fallback — demoted, not deprecated.
 				options.push(
 					{
-						action: "runTool({ tool: 'seedTutorial' })",
-						description: "Create tutorial project with 10 example cards",
+						action:
+							state === "empty"
+								? "Create a project + board first (MCP prompt 'quickstart' or the web UI at http://localhost:3100), then call briefMe({ boardId }) on the fresh board — it returns the first-contact teaching protocol"
+								: "Call briefMe({ boardId }) on the fresh board — it returns the first-contact teaching protocol",
+						description:
+							"Recommended: agent-taught onboarding — explain the paradigm, scan the repo with your own tools, propose first cards, demonstrate planCard live",
 					},
-					{ action: "onboarding prompt (quickstart)", description: "Set up your own project" },
+					{
+						action: "runTool({ tool: 'seedTutorial' })",
+						description:
+							"Fallback: tutorial sandbox with 10 example cards — for when there's no repo to scan or the human wants a sandbox first",
+					},
 					{ action: "onboarding prompt (tutorial)", description: "Step-by-step guided walkthrough" }
 				);
 			}
@@ -765,7 +779,7 @@ server.registerTool(
 					essential: `${ESSENTIAL_TOOLS.length} tools are always visible: ${ESSENTIAL_TOOLS.map((t) => t.name).join(", ")}. briefMe is the session-start primer; getBoard, searchCards, and getRoadmap live in extended — call via runTool.`,
 					extended: `${getRegistrySize()} additional tools are behind getTools/runTool. Call getTools() to see categories, getTools({ category }) to list tools, runTool({ tool, params }) to execute.`,
 					workflows:
-						"Named multi-step recipes (sessionStart, sessionEnd, firstSession, recordDecision, searchKnowledge) are listed via `runTool('listWorkflows', { boardId? })` — use these to learn what to do, not just which tool to call.",
+						"Named multi-step recipes (firstContact, sessionStart, sessionEnd, firstSession, recordDecision, searchKnowledge) are listed via `runTool('listWorkflows', { boardId? })` — use these to learn what to do, not just which tool to call.",
 					prompts: `${REGISTERED_PROMPTS.length} MCP prompts are available (${REGISTERED_PROMPTS.join(", ")}). Prompts are invoked via the MCP prompts/get protocol, not via runTool.`,
 					manifest:
 						"Machine-readable surface at resource `tracker://server/manifest` — all tool names, categories, descriptions, schema version, and commit SHA.",
@@ -795,7 +809,7 @@ server.registerTool(
 	{
 		title: "Brief Me",
 		description:
-			"One-shot session primer: last handoff + diff since it, top 3 work-next candidates, blockers, recent decisions, staleness, one-line pulse. Call this first at session start instead of getBoard — ~300-500 tokens vs. full board. With no args, auto-detects the project from the current git repo (after scripts/connect.sh). Pass boardId to override.",
+			"One-shot session primer: last handoff + diff since it, top 3 work-next candidates, blockers, recent decisions, staleness, one-line pulse. Call this first at session start instead of getBoard — ~300-500 tokens vs. full board. On a brand-new board (zero cards, zero handoffs) it returns a first-contact teaching payload instead: paradigm talking points plus a narrative protocol for onboarding the human on their own repo. With no args, auto-detects the project from the current git repo (after scripts/connect.sh). Pass boardId to override.",
 		inputSchema: {
 			boardId: z
 				.string()
@@ -831,11 +845,29 @@ server.registerTool(
 				// — the shared service throws when the board can't be loaded. After
 				// this guard we delegate to buildBriefPayload for the actual
 				// composition.
-				const boardExists = await db.board.findUnique({
+				const boardRow = await db.board.findUnique({
 					where: { id: boardId },
-					select: { id: true },
+					select: { id: true, name: true, project: { select: { name: true, repoPath: true } } },
 				});
-				if (!boardExists) return err("Board not found.", "Use checkOnboarding to discover boards.");
+				if (!boardRow) return err("Board not found.", "Use checkOnboarding to discover boards.");
+
+				// First contact (#315): a board that has never been worked — zero
+				// cards AND zero handoffs — gets the teaching payload instead of
+				// the normal primer. Once the first handoff is saved (or any card
+				// exists) this branch is permanently dead for the board.
+				if (await isFirstContact(db, boardId)) {
+					const policy = await loadPolicyForBoard(boardId);
+					return ok(
+						buildFirstContactPayload({
+							boardId,
+							projectName: boardRow.project.name,
+							boardName: boardRow.name,
+							repoPath: boardRow.project.repoPath,
+							policy,
+						}),
+						format as "json" | "toon"
+					);
+				}
 
 				const [bootSha, headSha, upgradeInfo, upgradeReportRaw] = await Promise.all([
 					getCommitSha(),

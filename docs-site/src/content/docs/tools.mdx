@@ -18,7 +18,7 @@ These are in the agent's context on every session. They cover the hot path: star
 {/* tracker:essentials:start */}
 | Tool | What it does |
 | --- | --- |
-| `briefMe` | One-shot session primer — handoff, diff, top work, blockers, recent decisions, pulse. |
+| `briefMe` | One-shot session primer — handoff, diff, top work, blockers, recent decisions, pulse. On a brand-new board (zero cards, zero handoffs) returns the first-contact teaching protocol instead. |
 | `saveHandoff` | Session wrap-up — saves handoff, links commits, reports touched cards, returns resume prompt. |
 | `createCard` | Create a card in a column (by name). |
 | `updateCard` | Update card fields; optional `intent`. |
@@ -26,7 +26,7 @@ These are in the agent's context on every session. They cover the hot path: star
 | `addComment` | Add a markdown comment to a card. Surfaces in `getCardContext` for future agents. |
 | `planCard` | Plan a card — returns card context, tracker.md policy, investigation hints, and the four-section plan protocol (Why now / Plan / Out of scope / Acceptance). |
 | `registerRepo` | Bind a git repo path to a project (call after briefMe returns needsRegistration). |
-| `checkOnboarding` | Detect DB state, list projects/boards, session-start discovery. |
+| `checkOnboarding` | Detect DB state, list projects/boards, session-start discovery. On a fresh install, points at briefMe's first-contact teaching flow (seedTutorial is the sandbox fallback). |
 | `getTools` | Browse extended tools by category. |
 | `runTool` | Execute any extended tool by name. |
 {/* tracker:essentials:end */}

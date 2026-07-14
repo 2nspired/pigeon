@@ -19,7 +19,7 @@ export const ESSENTIAL_TOOLS: Array<{ name: string; description: string }> = [
 	{
 		name: "briefMe",
 		description:
-			"One-shot session primer — handoff, diff, top work, blockers, recent decisions, pulse.",
+			"One-shot session primer — handoff, diff, top work, blockers, recent decisions, pulse. On a brand-new board (zero cards, zero handoffs) returns the first-contact teaching protocol instead.",
 	},
 	{
 		name: "saveHandoff",
@@ -46,7 +46,8 @@ export const ESSENTIAL_TOOLS: Array<{ name: string; description: string }> = [
 	},
 	{
 		name: "checkOnboarding",
-		description: "Detect DB state, list projects/boards, session-start discovery.",
+		description:
+			"Detect DB state, list projects/boards, session-start discovery. On a fresh install, points at briefMe's first-contact teaching flow (seedTutorial is the sandbox fallback).",
 	},
 	{ name: "getTools", description: "Browse extended tools by category." },
 	{ name: "runTool", description: "Execute any extended tool by name." },
