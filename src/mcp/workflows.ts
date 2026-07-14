@@ -35,6 +35,43 @@ export type Workflow = {
 
 export const WORKFLOWS: Workflow[] = [
 	{
+		name: "firstContact",
+		title: "First contact — agent-taught onboarding on a fresh board",
+		when: "briefMe returned `firstContact: true` (a board with zero cards and zero handoffs), or checkOnboarding shows a fresh install and the human wants onboarding on their own repo instead of the tutorial sandbox.",
+		steps: [
+			{
+				tool: "checkOnboarding",
+				intent: "Detect DB state and find (or confirm you must create) the fresh board.",
+				when: "You don't already have a boardId.",
+			},
+			{
+				tool: "registerRepo",
+				intent: "Bind the repo path to the project so future sessions auto-detect the board.",
+				when: "briefMe returned needsRegistration for this repo.",
+			},
+			{
+				tool: "briefMe",
+				intent:
+					"On a fresh board this returns the first-contact teaching payload: paradigm talking points to paraphrase plus the narrative protocol to walk with the human's consent.",
+			},
+			{
+				tool: "bulkCreateCards",
+				intent:
+					"After scanning the repo with your own native tools and confirming 4-8 proposed cards in chat, create them in one call.",
+			},
+			{
+				tool: "planCard",
+				intent:
+					"Pick the meatiest card and demonstrate the four-section planning protocol live — chat is draft, card is publish.",
+			},
+			{
+				tool: "saveHandoff",
+				intent:
+					"Close the loop: the handoff you save is exactly what the next session's briefMe opens with.",
+			},
+		],
+	},
+	{
 		name: "firstSession",
 		title: "First session in a new repo",
 		when: "You're connecting from a repo that hasn't been bound to a project yet — `briefMe` returned `needsRegistration`, or no project owns the current cwd.",

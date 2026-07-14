@@ -21,6 +21,8 @@ Every session has the same shape:
 3. **Use the board to record decisions, not chatter.** `addComment` on the active card when you make an architectural choice or hit a blocker. Future agents read these.
 4. **End with `saveHandoff`.** Saves a summary, links new commits, reports which cards you touched, and returns a copy-pasteable resume prompt for the next chat. In Claude Code the `/handoff` slash command calls it for you.
 
+**First contact:** on a brand-new board (zero cards, zero handoffs), `briefMe` returns a teaching payload instead of the primer — paradigm talking points to paraphrase in your own voice plus a six-beat narrative protocol: introduce the paradigm, scan the repo with *your own* tools (Pigeon doesn't scan), propose 4–8 first cards in chat, create them via `runTool('bulkCreateCards', …)`, demonstrate `planCard` live on the meatiest one, and close by explaining the handoff loop. Get the human's consent at each beat. Once the first handoff is saved (or any card exists) teaching never fires again — the `firstContact` workflow in `listWorkflows` carries the same recipe.
+
 ## Column conventions
 
 | Column | Purpose | When to move here |

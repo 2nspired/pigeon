@@ -336,7 +336,7 @@ registerExtendedTool("getRoadmap", {
 registerExtendedTool("listWorkflows", {
 	category: "discovery",
 	description:
-		"List named, multi-step recipes for common agent procedures (sessionStart, sessionEnd, firstSession, recordDecision, searchKnowledge). Returns ordered steps + intent per step + an optional `suggested` hint nominating the most relevant workflow given current board state. Use this — not `getTools` — when you want to know what to do, not which tool to call.",
+		"List named, multi-step recipes for common agent procedures (firstContact, sessionStart, sessionEnd, firstSession, recordDecision, searchKnowledge). Returns ordered steps + intent per step + an optional `suggested` hint nominating the most relevant workflow given current board state. Use this — not `getTools` — when you want to know what to do, not which tool to call.",
 	parameters: z.object({
 		boardId: z
 			.string()
