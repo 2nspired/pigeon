@@ -18,6 +18,7 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 ### Changed
 
 - Schema management moved from `prisma db push` to Prisma migrations. `prisma/migrations/0_init/` baselines the current schema; install/update paths (`dev`, `setup`, `service:update`) apply pending migrations via an idempotent helper that auto-baselines existing installs. The helper runs natively over better-sqlite3 — the Prisma schema engine refuses to write while any live MCP server holds the DB, which on a real install is nearly always — and `service:update` now stops the service before schema sync. `npm run db:migrate -- --name <change>` is the new schema-change path; CI fails on schema-vs-migrations drift. (#314)
+- README quickstart interim pass. The install section shrinks to three lines around `npx @2nspired/pigeon init` (the manual clone flow collapses into a details block), and the visible-workbench / card-as-container positioning now leads the page before mechanics. Full narrative rewrite stays with v7.3 The Story. (#318)
 - MCP surface hygiene (D2). The 13-tool `context` grab-bag splits into `knowledge` / `context` / `digest`; legacy decision/fact aliases carry a machine-readable `deprecated: { replacement, reason }` in `getTools`; `planCard` is promoted to essential — directly callable, the documented "tool not found" trap is gone, `runTool("planCard")` returns a redirect hint — and briefMe's `_hint` points at `planCard` when the top work item lacks a plan. (#317)
 
 ### Fixed
