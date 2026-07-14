@@ -7,7 +7,7 @@ import { err, ok, safeExecute } from "../utils.js";
 // ─── Knowledge Search Tools ──────────────────────────────────────
 
 registerExtendedTool("queryKnowledge", {
-	category: "context",
+	category: "knowledge",
 	description:
 		"Full-text search across all project knowledge: cards, comments, decisions, notes, handoffs, code facts, context entries, and indexed repo markdown files. Auto-rebuilds the index on cold start (zero indexed rows for the project).",
 	parameters: z.object({
@@ -44,7 +44,7 @@ registerExtendedTool("queryKnowledge", {
 });
 
 registerExtendedTool("rebuildKnowledgeIndex", {
-	category: "context",
+	category: "knowledge",
 	description:
 		"Force a full rebuild of the FTS5 knowledge index for a project — clears the existing index and re-ingests cards, comments, claims, notes, handoffs, and repo markdown. Use after batch operations (createMany/updateMany/deleteMany bypass live sync), repo markdown changes, or to recover from drift.",
 	parameters: z.object({

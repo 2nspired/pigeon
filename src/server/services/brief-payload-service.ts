@@ -16,6 +16,7 @@
 
 import type { PrismaClient } from "prisma/generated/client";
 import { hasRole } from "@/lib/column-roles";
+import { hasLockedPlanSections } from "@/lib/plan-sections";
 import { computeBoardDiff } from "@/lib/services/board-diff";
 import { isRecentDecision } from "@/lib/services/decisions";
 import { getLatestHandoff, parseHandoff } from "@/lib/services/handoff";
@@ -110,6 +111,7 @@ export async function buildBriefPayload(
 							id: true,
 							number: true,
 							title: true,
+							description: true,
 							position: true,
 							priority: true,
 							updatedAt: true,
@@ -226,6 +228,18 @@ export async function buildBriefPayload(
 	const topWork = scoredCards
 		.sort((a, b) => tierRank[a.source] - tierRank[b.source] || b.score - a.score)
 		.slice(0, 3);
+
+	// planCard nudge (#317): when the top work item has no published plan
+	// (missing the locked "## Why now / ## Plan / ## Acceptance" headings),
+	// prefix `_hint` with a pointer at planCard so the session starts with
+	// a plan instead of improvisation.
+	const topWorkCard = topWork[0]
+		? openCards.find(({ card }) => `#${card.number}` === topWork[0].ref)
+		: undefined;
+	const planHint =
+		topWork[0] && topWorkCard && !hasLockedPlanSections(topWorkCard.card.description)
+			? `Top work item ${topWork[0].ref} has no plan yet — call planCard({ boardId, cardId: "${topWork[0].ref}" }) to draft one before starting.`
+			: null;
 
 	const parsedHandoff = lastHandoff ? parseHandoff(lastHandoff) : null;
 	const handoff = parsedHandoff
@@ -350,9 +364,14 @@ export async function buildBriefPayload(
 		stale: formatStalenessWarnings(stalenessWarnings),
 		...(staleInProgress.length > 0 ? { staleInProgress } : {}),
 		...(intentReminder ? { intentReminder } : {}),
-		_hint: lastHandoff
-			? "Continue via handoff.nextSteps or pick from topWork (cards with source='pinned' are human-prioritized — top of Backlog by drag order — pick those before source='scored'). Use runTool('getCardContext', { cardId }) for deep work. Run `listWorkflows({ boardId })` to see named recipes (sessionStart, sessionEnd, recordDecision, searchKnowledge)."
-			: "No prior handoff — pick from topWork (cards with source='pinned' are human-prioritized — top of Backlog by drag order — pick those before source='scored'). Run `listWorkflows({ boardId })` for the full recipe set; call `saveHandoff` before wrapping to save context.",
+		_hint: [
+			planHint,
+			lastHandoff
+				? "Continue via handoff.nextSteps or pick from topWork (cards with source='pinned' are human-prioritized — top of Backlog by drag order — pick those before source='scored'). Use runTool('getCardContext', { cardId }) for deep work. Run `listWorkflows({ boardId })` to see named recipes (sessionStart, sessionEnd, recordDecision, searchKnowledge)."
+				: "No prior handoff — pick from topWork (cards with source='pinned' are human-prioritized — top of Backlog by drag order — pick those before source='scored'). Run `listWorkflows({ boardId })` for the full recipe set; call `saveHandoff` before wrapping to save context.",
+		]
+			.filter(Boolean)
+			.join(" "),
 	};
 
 	return briefPayload;

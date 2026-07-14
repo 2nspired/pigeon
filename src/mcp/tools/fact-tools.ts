@@ -91,7 +91,14 @@ type LegacyFact = ReturnType<typeof claimToFact>;
 // ─── saveFact ─────────────────────────────────────────────────────
 
 registerExtendedTool("saveFact", {
-	category: "context",
+	category: "knowledge",
+	annotations: {
+		deprecated: {
+			replacement: "saveClaim",
+			reason:
+				"Legacy alias over the Claim table — use saveClaim (unified statement + body + evidence + payload shape) for new writes. Slated for removal.",
+		},
+	},
 	description: `Create or update a persistent fact. Pass factId to update. Legacy alias for \`saveClaim\` — prefer \`saveClaim\` for new writes (unified statement + body + evidence + payload shape). \`saveFact\`/\`listFacts\` are slated for removal in the next minor MCP version.
 
 Types:
@@ -253,7 +260,7 @@ Types:
 // ─── listFacts ────────────────────────────────────────────────────
 
 registerExtendedTool("listFacts", {
-	category: "context",
+	category: "knowledge",
 	description:
 		"List facts for a project. Omit type to list all types. Filter by path or surface. Pass factId for single-fact lookup. (Reads from the unified Claim table — prefer listClaims for new code.)",
 	parameters: z.object({
@@ -270,7 +277,14 @@ registerExtendedTool("listFacts", {
 		author: z.string().optional().describe("Filter by author (AGENT or HUMAN)"),
 		limit: z.number().int().min(1).max(200).default(50).describe("Max facts per type"),
 	}),
-	annotations: { readOnlyHint: true },
+	annotations: {
+		readOnlyHint: true,
+		deprecated: {
+			replacement: "listClaims",
+			reason:
+				"Legacy alias over the Claim table — use listClaims for new reads. Slated for removal.",
+		},
+	},
 	handler: (params) =>
 		safeExecute(async () => {
 			const {

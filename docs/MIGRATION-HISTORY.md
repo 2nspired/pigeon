@@ -1,8 +1,14 @@
 # MCP tool migration history
 
-Tool renames, consolidations, and removals across Pigeon's pre-v6 history. Kept here for reference when reading old transcripts, prompts, or PRs that mention removed tool names.
+Tool renames, consolidations, and removals across Pigeon's history. Kept here for reference when reading old transcripts, prompts, or PRs that mention removed tool names.
 
 For the live tool surface, run `getTools()` from an agent or press `?` in the web app.
+
+---
+
+## Unreleased — `planCard` promoted to essential (#317)
+
+`planCard` moved out of the extended registry and is now an always-visible essential tool. Call it directly: `planCard({ boardId, cardId })`. The old documented path `runTool({ tool: "planCard", params })` no longer executes — it returns a redirect hint pointing at the direct call. Same parameters, same response shape.
 
 ---
 

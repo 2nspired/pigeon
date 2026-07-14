@@ -48,10 +48,10 @@ That's the contract. Future agents and humans always find the plan in the same p
    /plan-card 42
    ```
 
-   In any other agent (Codex, Cursor, Windsurf), call the tool directly:
+   In any other agent (Codex, Cursor, Windsurf), call the tool directly — `planCard` is an essential tool, no `runTool` wrapper needed:
 
    ```
-   runTool('planCard', { boardId: '<board uuid>', cardId: '#42' })
+   planCard({ boardId: '<board uuid>', cardId: '#42' })
    ```
 
 3. **The agent investigates.** It reads the description, follows the investigation hints (Read for files, WebFetch for URLs, `getCardContext` for related cards), and asks you anything it needs.

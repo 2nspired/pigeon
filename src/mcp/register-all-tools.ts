@@ -18,7 +18,8 @@ import "./tools/relation-tools.js";
 import "./tools/session-tools.js";
 import "./tools/decision-tools.js";
 import "./tools/context-tools.js";
-import "./tools/plan-card.js";
+// plan-card.js is intentionally absent: planCard was promoted to an
+// essential tool (#317) and registers via server.registerTool in server.ts.
 import "./tools/query-tools.js";
 import "./tools/git-tools.js";
 import "./tools/summary-tools.js";

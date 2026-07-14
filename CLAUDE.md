@@ -37,7 +37,7 @@ src/mcp/               separate Node process; owns its own db.ts (PrismaClient +
 - `src/server/services/` — Next.js-bound singletons (thin shims over `src/lib/services/`)
 - `src/server/api/routers/` — tRPC routers (all `publicProcedure`, no auth)
 - `src/mcp/` — MCP server (separate process, own `db.ts`, own tool registration in `register-all-tools.ts`)
-- `src/mcp/manifest.ts` — `ESSENTIAL_TOOLS` (the 10 always-visible tools)
+- `src/mcp/manifest.ts` — `ESSENTIAL_TOOLS` (the 11 always-visible tools)
 - `src/components/board/` — board UI
 - `prisma/schema.prisma` — data model
 
@@ -50,4 +50,4 @@ src/mcp/               separate Node process; owns its own db.ts (PrismaClient +
 
 ## Planning a card
 
-If the user asks you to plan a card, call `runTool({ tool: "planCard", params: { boardId, cardId: "#N" } })` (or use the `/plan-card` slash command). `planCard` is an extended tool — calling it as an essential fails with "tool not found." It returns card context, `tracker.md` policy, investigation hints, and the fixed protocol that produces the four locked plan sections (`## Why now`, `## Plan`, `## Out of scope`, `## Acceptance`). Chat is draft, card is publish — get user confirmation, then `updateCard` writes the plan to the description.
+If the user asks you to plan a card, call `planCard({ boardId, cardId: "#N" })` (or use the `/plan-card` slash command). `planCard` is an essential tool since #317 — call it directly, not via `runTool` (the old `runTool({ tool: "planCard" })` path now returns a redirect hint). It returns card context, `tracker.md` policy, investigation hints, and the fixed protocol that produces the four locked plan sections (`## Why now`, `## Plan`, `## Out of scope`, `## Acceptance`). Chat is draft, card is publish — get user confirmation, then `updateCard` writes the plan to the description.

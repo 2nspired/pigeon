@@ -28,6 +28,13 @@ const STATUS_LEGACY_TO_CLAIM: Record<string, string> = {
 
 registerExtendedTool("recordDecision", {
 	category: "decisions",
+	annotations: {
+		deprecated: {
+			replacement: "saveClaim",
+			reason:
+				'Thin alias over the Claim table — use saveClaim({ kind: "decision", ... }) for new writes.',
+		},
+	},
 	description:
 		'Record an architectural decision so the rationale survives session boundaries. Use when you\'ve chosen an approach (framework, pattern, tradeoff) and the next agent or human needs the reasoning. Pass `supersedesId` to chain a replacement when a later decision overrides this one. For new code, prefer `saveClaim({ kind: "decision", ... })` — `recordDecision` is a thin alias kept for back-compat.',
 	parameters: z.object({
@@ -112,7 +119,14 @@ registerExtendedTool("getDecisions", {
 		cardId: z.string().optional().describe("Card UUID or #number"),
 		status: z.enum(["proposed", "accepted", "rejected", "superseded"]).optional(),
 	}),
-	annotations: { readOnlyHint: true },
+	annotations: {
+		readOnlyHint: true,
+		deprecated: {
+			replacement: "listClaims",
+			reason:
+				'Thin alias over the Claim table — use listClaims({ kind: "decision" }) for new reads.',
+		},
+	},
 	handler: ({ projectId, cardId, status }) =>
 		safeExecute(async () => {
 			let resolvedCardId: string | undefined;
@@ -176,7 +190,14 @@ registerExtendedTool("updateDecision", {
 				"ID of the decision this one supersedes — sets old decision to superseded and links them"
 			),
 	}),
-	annotations: { idempotentHint: true },
+	annotations: {
+		idempotentHint: true,
+		deprecated: {
+			replacement: "saveClaim",
+			reason:
+				"Thin alias over the Claim table — use saveClaim with claimId (or supersedesId) to update or supersede.",
+		},
+	},
 	handler: ({ decisionId, status, decision, rationale, alternatives, supersedesId }) =>
 		safeExecute(async () => {
 			const existing = await db.claim.findUnique({ where: { id: decisionId as string } });

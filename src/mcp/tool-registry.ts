@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { logToolCall } from "./instrumentation.js";
+import { ESSENTIAL_TOOLS } from "./manifest.js";
 import { requireIntentIfPolicyRequires, resolvePolicyForCall } from "./policy-enforcement.js";
 import type { ToolResult } from "./utils.js";
 
@@ -19,13 +20,28 @@ export type ToolCategory =
 	| "session"
 	| "decisions"
 	| "git"
+	| "knowledge"
 	| "context"
+	| "digest"
 	| "diagnostics";
+
+/**
+ * Structured deprecation marker (#317). Machine-readable so `getTools`
+ * consumers can route around legacy aliases without parsing prose.
+ */
+export type ToolDeprecation = {
+	/** Tool to call instead. */
+	replacement: string;
+	/** Short migration note — how the replacement maps onto this tool. */
+	reason?: string;
+};
 
 export type ToolAnnotations = {
 	readOnlyHint?: boolean;
 	destructiveHint?: boolean;
 	idempotentHint?: boolean;
+	/** Present when the tool is a legacy alias slated for removal. */
+	deprecated?: ToolDeprecation;
 };
 
 export type ExtendedToolDef = {
@@ -58,6 +74,7 @@ export function getAllExtendedTools(): Array<{
 	description: string;
 	readOnly: boolean;
 	destructive: boolean;
+	deprecated?: ToolDeprecation;
 }> {
 	return Array.from(registry.entries())
 		.map(([name, def]) => ({
@@ -66,6 +83,7 @@ export function getAllExtendedTools(): Array<{
 			description: def.description,
 			readOnly: def.annotations?.readOnlyHint ?? false,
 			destructive: def.annotations?.destructiveHint ?? false,
+			...(def.annotations?.deprecated ? { deprecated: def.annotations.deprecated } : {}),
 		}))
 		.sort((a, b) => {
 			if (a.category !== b.category) return a.category.localeCompare(b.category);
@@ -81,6 +99,7 @@ type ToolSummary = {
 	description: string;
 	readOnly?: boolean;
 	destructive?: boolean;
+	deprecated?: ToolDeprecation;
 };
 
 type ParamInfo = {
@@ -244,6 +263,7 @@ export function getToolCatalog(opts?: { category?: string; tool?: string }):
 				description: def.description,
 				readOnly: def.annotations?.readOnlyHint,
 				destructive: def.annotations?.destructiveHint,
+				...(def.annotations?.deprecated ? { deprecated: def.annotations.deprecated } : {}),
 				parameters: extractParamInfo(def.parameters),
 			},
 		};
@@ -260,6 +280,7 @@ export function getToolCatalog(opts?: { category?: string; tool?: string }):
 					description: def.description,
 					readOnly: def.annotations?.readOnlyHint,
 					destructive: def.annotations?.destructiveHint,
+					...(def.annotations?.deprecated ? { deprecated: def.annotations.deprecated } : {}),
 				});
 			}
 		}
@@ -283,9 +304,11 @@ export function getToolCatalog(opts?: { category?: string; tool?: string }):
 		setup: "Create projects, columns, and configure boards",
 		relations: "Card dependencies — blocks, related, parent/child",
 		session: "Session handoff and board diff between conversations",
-		decisions: "Structured architectural decision records",
+		decisions: "Structured architectural decision records (legacy aliases over claims)",
 		git: "Git commit linking and code mapping",
-		context: "Context bundles, persistent knowledge entries, and code facts",
+		knowledge: "Persistent knowledge — claims, legacy facts, and the FTS search index",
+		context: "Deep context bundles for cards, milestones, and tags",
+		digest: "The Daily Squawk — activity windows and published digest editions",
 		diagnostics: "Install health check — config drift, version skew, FTS state",
 	};
 
@@ -314,6 +337,25 @@ export async function executeTool(
 
 	const def = registry.get(name);
 	if (!def) {
+		// Essential-tool redirect (#317): tools promoted out of the extended
+		// registry (e.g. planCard) are directly callable — older docs still
+		// say `runTool({ tool: "planCard" })`, so point the caller at the
+		// direct call instead of a dead-end "not found".
+		const essential = ESSENTIAL_TOOLS.find((t) => t.name === name);
+		if (essential) {
+			const result: ToolResult = {
+				content: [
+					{
+						type: "text" as const,
+						text: `"${name}" is an essential tool — call ${name}(...) directly instead of via runTool.`,
+					},
+				],
+				isError: true,
+			};
+			logToolCall(name, Date.now() - start, result);
+			return result;
+		}
+
 		// Suggest similar tool names
 		const allNames = Array.from(registry.keys());
 		const suggestions = allNames

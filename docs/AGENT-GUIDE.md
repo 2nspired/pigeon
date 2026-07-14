@@ -63,10 +63,10 @@ A project's `tracker.md` may extend `intent_required_on` to additional tools. Th
 
 ## Planning a card
 
-When the human asks you to plan a card (vague backlog item, parking-lot idea, fresh feature), call `planCard`:
+When the human asks you to plan a card (vague backlog item, parking-lot idea, fresh feature), call `planCard` — it is an essential tool, directly callable:
 
 ```
-runTool({ tool: "planCard", params: { boardId, cardId: "#N" } })
+planCard({ boardId, cardId: "#N" })
 ```
 
 Or, in Claude Code, the `/plan-card N` slash command does the same thing.
@@ -144,7 +144,7 @@ When you're done with a worktree (PR merged or work abandoned), the orchestrator
 
 ## Tool architecture in one paragraph
 
-10 essential tools are always visible: `briefMe`, `saveHandoff`, `createCard`, `updateCard`, `moveCard`, `addComment`, `registerRepo`, `checkOnboarding`, `getTools`, `runTool`. Everything else lives behind `getTools`/`runTool` — call `getTools()` with no args to browse categories, then `runTool({ tool, params })` to execute. `briefMe` composes the common session-start views (board, search, roadmap) internally so you rarely need to call them by hand.
+11 essential tools are always visible: `briefMe`, `saveHandoff`, `createCard`, `updateCard`, `moveCard`, `addComment`, `planCard`, `registerRepo`, `checkOnboarding`, `getTools`, `runTool`. Everything else lives behind `getTools`/`runTool` — call `getTools()` with no args to browse categories, then `runTool({ tool, params })` to execute. `briefMe` composes the common session-start views (board, search, roadmap) internally so you rarely need to call them by hand.
 
 ## See also
 
