@@ -4,6 +4,14 @@ Human-readable highlights for each release — 3–5 bullets, headline-level onl
 
 ## [Unreleased]
 
+## v7.0.0 — 2026-07-14
+
+- Install is now one command: `npx @2nspired/pigeon init` sets up everything — board, database, agent connection — in under two minutes.
+- Your agent teaches Pigeon to you: the first session on a fresh board explains the paradigm, scans your repo, and proposes your first cards.
+- The web UI walks you through your first board with three small, dismissible tips — then gets out of the way forever.
+- Database upgrades are now deterministic migrations instead of best-effort schema pushes; updates baseline existing installs automatically.
+- The README now leads with what Pigeon is — the visible workbench — instead of how to wire it up.
+
 ## v6.6.0 — 2026-07-13
 
 - The Daily Squawk — run `/squawk` and Pigeon publishes a newspaper-style digest of recent board activity, rendered as a broadsheet web page with a browsable archive.
