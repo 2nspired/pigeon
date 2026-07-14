@@ -67,8 +67,6 @@ npx @2nspired/pigeon init
 
 Then open Claude Code in that repo and say **brief me**.
 
-> Until the v7.0.0 release lands: add `--ref main`.
-
 `init` does everything — Pigeon checkout at `~/.pigeon`, database, MCP registration, repo binding, starter `tracker.md`, slash commands, Stop hook, and (on macOS) the always-on board at `localhost:3100` — and is safe to re-run. Connect more repos later with `npx @2nspired/pigeon connect`.
 
 <details>

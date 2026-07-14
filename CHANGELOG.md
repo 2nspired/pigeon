@@ -8,6 +8,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+## [7.0.0] — 2026-07-14
+
+Slice 1 of the v7 spec — "First Contact" — shipped whole: `npx @2nspired/pigeon init` takes a stranger from nothing to a working `briefMe` in one command, the first `briefMe` on a fresh board teaches the paradigm instead of returning an empty primer, the web UI walks the human through their first board, and schema management moved to real migrations. Major-version note: schema management is now migrations-first (`db push` demoted to escape hatch) and `planCard` moved from extended to essential.
+
 ### Added
 
 - `npx @2nspired/pigeon init` — one-command install. New thin npm package (`cli/`) clones the latest release into `~/.pigeon`, installs deps, migrates the DB, registers the MCP server with Claude Code (user scope, `.mcp.json` fallback), binds the current repo (fixing the unset-`repoPath` briefMe trap, #154), and installs the macOS service. `setup.mts`/`connect.sh` now shim the same modules. (#314)
