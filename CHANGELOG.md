@@ -8,6 +8,10 @@ Each release links to the tracker card(s) that drove it; the tracker is the sing
 
 ## [Unreleased]
 
+### Added
+
+- Agent-teaches onboarding. `briefMe` on a brand-new board (zero cards, zero handoffs) returns a first-contact teaching payload — paradigm talking points plus a narrative protocol: scan the repo, propose first cards, demo `planCard` live. `checkOnboarding` now leads with it; `seedTutorial` stays as the sandbox fallback. (#315)
+
 ### Changed
 
 - Schema management moved from `prisma db push` to Prisma migrations. `prisma/migrations/0_init/` baselines the current schema; install/update paths (`dev`, `setup`, `service:update`) apply pending migrations via an idempotent helper that auto-baselines existing installs — no manual step. `npm run db:migrate -- --name <change>` is the new schema-change path; CI fails on schema-vs-migrations drift. (#314)
