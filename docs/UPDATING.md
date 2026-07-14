@@ -9,12 +9,12 @@ git pull
 npm run service:update   # syncs deps + schema, rebuilds, restarts the launchd service
 ```
 
-`service:update` is the one command for MINOR and PATCH updates — it runs `npm install`, applies any pending schema migrations via `prisma migrate deploy`, rebuilds the Next.js app, and bootstraps the launchd service. For MAJOR updates, keep reading.
+`service:update` is the one command for MINOR and PATCH updates — it runs `npm install`, applies any pending schema migrations, rebuilds the Next.js app, and bootstraps the launchd service. For MAJOR updates, keep reading.
 
 ## What `service:update` does, step by step
 
 1. **`npm install`** — picks up any new or bumped dependencies. Prisma's `postinstall` hook regenerates the client.
-2. **Apply schema migrations** (`scripts/db-migrate.ts`) — runs `prisma migrate deploy`, which applies any migrations from `prisma/migrations/` that your DB hasn't seen yet, in order, and records each one in the `_prisma_migrations` table. If your install predates migrations (created by `prisma db push`, i.e. no `_prisma_migrations` table yet), the helper first marks the `0_init` baseline as already applied — one-time, automatic, touches no data. Unlike the old `db push` flow, `migrate deploy` doesn't drift-check, so the runtime FTS5 index tables (`knowledge_fts` + shadows) no longer need to be dropped on every update.
+2. **Apply schema migrations** (`scripts/db-migrate.ts`) — applies any migrations from `prisma/migrations/` that your DB hasn't seen yet, in order, and records each one in the `_prisma_migrations` table. If your install predates migrations (created by `prisma db push`, i.e. no `_prisma_migrations` table yet), the helper first marks the `0_init` baseline as already applied — one-time, automatic, touches no data. The helper applies migrations natively over better-sqlite3 rather than through the Prisma schema engine — the engine refuses to write while any live MCP server holds the DB file, which on a real install is nearly always. It also doesn't drift-check, so the runtime FTS5 index tables (`knowledge_fts` + shadows) no longer need to be dropped on every update.
 3. **`npm run build`** — Turbopack production build.
 4. **Restart the launchd service** — old process is booted out, new one is bootstrapped at `http://localhost:3100`.
 5. **Doctor pass** — post-update health checks; failures surface on the next `briefMe`.
@@ -81,7 +81,7 @@ npm run db:studio        # eyeball the tables
 | `npm run db:push` | Escape hatch only | Pushes `schema.prisma` directly, bypassing migration history. Don't use it on a migrations-tracked DB unless you know why. |
 | `npm run db:studio` | Debugging | Opens Prisma Studio to inspect the DB. Read-only unless you write in the UI. |
 | `npm run db:seed` | Fresh install only | Seeds the tutorial project. Idempotent — safe to re-run, does nothing if the tutorial project exists. |
-| `npm run service:update` | Every pull (when using the background service) | Syncs deps, runs `prisma migrate deploy`, rebuilds with Turbopack, restarts the launchd service, runs the doctor pass. |
+| `npm run service:update` | Every pull (when using the background service) | Syncs deps, applies pending migrations, rebuilds with Turbopack, restarts the launchd service, runs the doctor pass. |
 | `npm run service:status` | Sanity check | Shows whether the launchd service is running. |
 | `npm run service:logs` | Debugging | Tails stdout/stderr from the service. |
 

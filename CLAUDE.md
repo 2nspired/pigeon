@@ -29,7 +29,7 @@ src/mcp/               separate Node process; owns its own db.ts (PrismaClient +
 - `npm run setup` — interactive setup wizard
 - `npm run mcp:dev` — MCP server standalone (testing)
 - `npm run db:migrate` / `db:seed` / `db:studio` — Prisma (`db:migrate -- --name <change>` creates a migration; `db:migrate:deploy` applies pending ones; `db:push` is an escape hatch)
-- `npm run service:install` / `:update` / `:status` / `:logs` — launchd background service on port 3100 (always-on web UI; `service:update` rebuilds, runs `prisma migrate deploy`, runs the doctor pass)
+- `npm run service:install` / `:update` / `:status` / `:logs` — launchd background service on port 3100 (always-on web UI; `service:update` rebuilds, applies pending migrations, runs the doctor pass)
 
 ## Project structure
 
